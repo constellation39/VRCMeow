@@ -1,0 +1,16 @@
+[project]
+name = "vrcmeow"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "sounddevice",
+    "dashscope>=1.17.0", # 根据 Dashscope 文档或实际使用的版本指定
+    "python-osc",
+    "ruff>=0.11.7", # Example, adjust ruff version as needed
+    "pyyaml>=6.0",
+    "openai>=1.0", # 添加 openai 库 (需要 >=1.0 for async)
+    "aiofiles", # 添加 aiofiles 库
+]

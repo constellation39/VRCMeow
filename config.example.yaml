@@ -1,0 +1,109 @@
+# VRCMeow Configuration Example
+# Copy this file to config.yaml and modify it according to your needs.
+
+# --- Dashscope Settings ---
+# It's STRONGLY recommended to set the API key via the DASHSCOPE_API_KEY environment variable.
+# If set here, it will be used, but environment variable takes precedence.
+dashscope_api_key: "" # REQUIRED: Set your API key here OR via DASHSCOPE_API_KEY environment variable
+
+# --- Speech-to-Text (STT) Settings ---
+stt:
+  # Target language for translation (e.g., "en", "ja", "ko").
+  # If a language code is provided here, translation will be enabled.
+  # Leave empty or remove the line to disable translation.
+  # Ensure the chosen Dashscope model (e.g., gummy) supports this target language.
+  translation_target_language:
+  # Dashscope model name for real-time STT/Translation
+  # Check Dashscope documentation for available models and their capabilities.
+  # "gummy-realtime-v1" supports translation.
+  # "paraformer-realtime-v2", "paraformer-realtime-v1" only support transcription.
+  model: "gummy-realtime-v1"
+  # How to handle intermediate (non-final) STT results:
+  # "ignore": (Default) Do nothing with intermediate results.
+  # "show_typing": Send a fixed "Typing..." message to VRChat.
+  # "show_partial": Send the incomplete recognized text to VRChat.
+  intermediate_result_behavior: "ignore"
+
+# --- Audio Settings ---
+audio:
+  # Sample rate in Hz (Dashscope requires 16000 for gummy-realtime-v1)
+  # Check model requirements if using a different model.
+  sample_rate: 16000
+  # Number of channels (Dashscope requires 1 for gummy-realtime-v1)
+  channels: 1
+  # Audio data type (Dashscope requires 'int16' for gummy-realtime-v1)
+  dtype: "int16"
+  # Enable debug echo mode (sends mic input directly to speaker output)
+  # Useful for testing microphone input without STT/OSC.
+  debug_echo_mode: false
+
+# --- Large Language Model (LLM) Processing Settings ---
+llm:
+  # Set to true to enable processing final STT results with an LLM.
+  enabled: false
+  # API Key for the OpenAI compatible service.
+  # It's STRONGLY recommended to set this via the OPENAI_API_KEY environment variable.
+  api_key: ""
+  # Optional: Base URL for the API endpoint.
+  # Useful for local LLMs (e.g., Ollama with 'openai' compatibility: "http://localhost:11434/v1")
+  # or API proxies. If unset or null, defaults to OpenAI's official API URL.
+  base_url:
+  # Model name to use for processing (e.g., "gpt-3.5-turbo", "gpt-4", or a local model name).
+  model: "gpt-3.5-turbo"
+  # The system prompt instructs the LLM on how to behave or process the input.
+  system_prompt: "You are a helpful assistant. Please refine the following transcribed text for clarity and conciseness, correcting any obvious errors."
+  # Controls the randomness of the output. Lower values (e.g., 0.2) make it more deterministic, higher values (e.g., 1.0) make it more random.
+  temperature: 0.7
+  # Maximum number of tokens (roughly words/syllables) the LLM should generate in its response.
+  max_tokens: 150
+  # Few-shot examples provide the LLM with specific input/output pairs to guide its responses.
+  # This is a list of dictionaries, each containing a 'user' prompt and the desired 'assistant' response.
+  few_shot_examples:
+  # - user: "你好"
+  #   assistant: "喵~ 你好呀！有什么可以帮你的吗？"
+  # - user: "今天天气怎么样？"
+  #   assistant: "今天天气超好的喵~ 适合出去玩！"
+
+# --- Output Destination Settings ---
+outputs:
+  # --- VRChat OSC Output ---
+  vrc_osc:
+    # Set to true to send final (potentially LLM-processed) text to VRChat via OSC.
+    enabled: true
+    # IP address of the VRChat client (usually 127.0.0.1 for local machine)
+    address: "127.0.0.1"
+    # Port for VRChat OSC input (default is 9000)
+    port: 9000
+    # Minimum interval between sending chatbox messages (seconds).
+    # Avoid setting too low (e.g., < 1.333) to prevent VRChat rate limiting or chatbox spam.
+    message_interval: 1.333
+
+  # --- Console Output ---
+  console:
+    # Set to true to print the final (potentially LLM-processed) text to the console where VRCMeow is running.
+    enabled: true
+    # Optional prefix added to the console output line.
+    prefix: "[Final Text]"
+
+  # --- File Output ---
+  file:
+    # Set to true to append the final (potentially LLM-processed) text to a file.
+    enabled: false
+    # Path to the file where results will be appended.
+    path: "output_log.txt"
+    # Format string for each line written to the file.
+    # Available placeholders: {timestamp}, {text}
+    # Example: "{timestamp} | {text}"
+    format: "{timestamp} - {text}"
+
+  # --- Add other output destinations here ---
+  # Example (Hypothetical):
+  # websocket:
+  #   enabled: false
+  #   url: "ws://localhost:8080/chat"
+
+# --- Logging Settings ---
+logging:
+  # Log level determines the verbosity of console output.
+  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
