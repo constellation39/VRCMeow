@@ -194,8 +194,9 @@ class AudioManager:
                     enable_translation = False  # Disable translation for this attempt
 
                 # --- Select and create recognizer ---
+                # Indicate processing (connecting) state
                 self._update_status(
-                    f"Connecting STT (Model: {model}, Attempt {retry_count + 1}/{max_retries})..."
+                    f"连接 STT (模型: {model}, 尝试 {retry_count + 1}/{max_retries})...", is_processing=True
                 )
                 logger.info(
                     f"Attempting to connect STT service (Model: {model}, Attempt {retry_count + 1}/{max_retries})..."
