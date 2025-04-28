@@ -152,41 +152,16 @@ class AudioManager:
 
         # API Key check happens in main.py before AudioManager is created
 
+
         # --- Outer Reconnect Loop ---
         while not self._stop_event.is_set():
-            recognizer = None  # 每次尝试连接前重置
+            recognizer = None  # Reset recognizer before each connection attempt
             try:
                 # --- Check config and model compatibility (re-check each loop) ---
-                # Read model and target language using new keys
+                # Use correct nested keys with safe access via get()
                 model = config.get("dashscope.stt.model", "gummy-realtime-v1")
-                target_language = config.get(
-                    "dashscope.stt.translation_target_language"
-                )
-                enable_translation = bool(target_language)
-                self.stt_model = model  # Update instance var if needed by other logic
-
-                is_gummy_model = model.startswith("gummy-")
-                is_paraformer_model = model.startswith("paraformer-")
-
-                if not is_gummy_model and not is_paraformer_model:
-                    error_msg = f"Unsupported Dashscope model: {model}. Use 'gummy-' or 'paraformer-'."
-                    logger.error(error_msg)
-                    self._update_status(f"Error: {error_msg}")
-                    self._stop_event.set()  # Signal stop to all threads
-                    return
-            except:
-                pass
-
-        # --- Outer Reconnect Loop ---
-        while not self._stop_event.is_set():
-            recognizer = None  # 每次尝试连接前重置
-            try:
-                # --- Check config and model compatibility (re-check each loop) ---
-                model = config["stt.model"]  # Re-read model
-                self.stt_model = model  # Update instance var
-                target_language = config.get(
-                    "stt.translation_target_language"
-                )  # Re-read target lang
+                self.stt_model = model # Update instance var
+                target_language = config.get("dashscope.stt.translation_target_language") # Use correct nested key
                 enable_translation = bool(target_language)
                 is_gummy_model = model.startswith("gummy-")
                 is_paraformer_model = model.startswith("paraformer-")
