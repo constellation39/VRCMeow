@@ -13,6 +13,7 @@ from config import config
 # Import VRCClient for type hinting and usage in callback
 from llm_client import LLMClient
 from output_dispatcher import OutputDispatcher
+from osc_client import VRCClient # Import VRCClient
 
 
 # Import LLMClient and OutputDispatcher for type hinting and usage
