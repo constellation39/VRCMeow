@@ -112,6 +112,7 @@ def main(page: ft.Page):
     all_config_controls.update(llm_controls)
     # Extract actual few-shot UI elements (created in create_llm_controls)
     # Use .get() for safety in case of issues during creation
+    # Ensure the local variables are assigned correctly
     few_shot_examples_column = all_config_controls.get("llm.few_shot_examples_column", ft.Column())
     add_example_button = all_config_controls.get("llm.add_example_button", ft.TextButton())
 
@@ -486,10 +487,10 @@ def main(page: ft.Page):
             # Update few-shot examples from the dynamic rows
             examples_list = []
             # Use the correct column variable reference if available
-            active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column", few_shot_examples_column) # Use local if possible
+            active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column", few_shot_examples_column) # Use local variable if possible
             if active_few_shot_column and isinstance(active_few_shot_column, ft.Column):
                  for row in active_few_shot_column.controls:
-                    if isinstance(row, ft.Row) and len(row.controls) >= 3: # Check for 3 controls (user, assistant, remove)
+                    if isinstance(row, ft.Row) and len(row.controls) >= 3: # Expect 3 controls: user, assistant, remove_button
                         # Check control types more robustly before accessing value
                         user_tf = row.controls[0] if isinstance(row.controls[0], ft.TextField) else None
                         assistant_tf = row.controls[1] if isinstance(row.controls[1], ft.TextField) else None
@@ -578,9 +579,15 @@ def main(page: ft.Page):
             current_value = reloaded_config_data
             for k in keys:
                 try:
-                    current_value = current_value[k]
+                    # Check if current_value is a dictionary before indexing
+                    if isinstance(current_value, dict):
+                        current_value = current_value[k]
+                    else:
+                        logger.warning(f"Config path for '{key}' invalid at '{k}': parent is not a dictionary. Skipping.")
+                        current_value = None
+                        break
                 except (KeyError, TypeError, IndexError):
-                    logger.warning(f"Key '{key}' path invalid at '{k}' in reloaded config data. Skipping control update.")
+                    logger.warning(f"Key '{key}' path invalid or key missing at '{k}' in reloaded config data. Skipping control update.")
                     current_value = None # Mark value as not found
                     break # Stop traversing this key
 
@@ -589,8 +596,10 @@ def main(page: ft.Page):
 
             try:
                 if control is None: # Should not happen if loop continues, but check anyway
+                     logger.debug(f"Skipping reload for key '{key}' as control is None.")
                      continue
 
+                # --- Update control based on type ---
                 if isinstance(control, ft.Switch):
                     control.value = bool(value) if value is not None else False
                 elif isinstance(control, ft.Dropdown):
@@ -601,22 +610,27 @@ def main(page: ft.Page):
                         # Log warning but don't change value if invalid or not found
                         if value is not None: # Log only if there was a value expected
                              logger.warning(
-                                 f"Value '{value}' for dropdown '{key}' not in options or invalid. Keeping previous selection."
+                                 f"Value '{value}' for dropdown '{key}' not in options or invalid. Keeping previous selection: {control.value}"
                              )
+                        # Consider setting to None or a default if value is invalid? For now, keep existing.
                 elif isinstance(control, ft.TextField):
                      # Check specific keys that allow None/empty representation
                     if key in [
-                            "dashscope.stt.translation_target_language", # Updated key
+                            "dashscope.stt.translation_target_language",
                             "audio.sample_rate",
                             "llm.base_url",
                         ] and value is None:
                          control.value = "" # Use empty string for None
                     else:
+                         # Ensure value is converted to string for TextField
                          control.value = str(value) if value is not None else ""
                 # Add other control types if necessary
+                else:
+                     logger.debug(f"Control for key '{key}' has unhandled type '{type(control)}' during reload.")
+
             except Exception as ex:
                 logger.error(
-                    f"Error reloading control for key '{key}' with value '{value}': {ex}"
+                    f"Error reloading control for key '{key}' with value '{value}': {ex}", exc_info=True # Add exc_info
                 )
 
         # Reload few-shot examples (ensure column control exists)
@@ -704,12 +718,25 @@ def main(page: ft.Page):
             page_ref.banner.open = False
             page_ref.update()
 
-    # --- Few-Shot Example Add/Remove Logic ---
-    def create_example_row(user_text: str = "", assistant_text: str = "") -> ft.Row:
-        """Creates a Flet Row for a single few-shot example."""
-        user_input = ft.TextField(
-            label="用户输入 (User)",
-            value=user_text,
+    # --- Few-Shot Example Add/Remove Logic (defined within main) ---
+    def _create_example_row_internal(user_text: str = "", assistant_text: str = "") -> ft.Row:
+         """Creates a Flet Row for a single few-shot example with its remove handler."""
+         # Define the specific remove handler for *this* row instance
+         async def remove_this_row_handler(e_remove: ft.ControlEvent):
+             row_to_remove = e_remove.control.data
+             # Use the correct column variable reference
+             active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column", few_shot_examples_column)
+             if active_few_shot_column and row_to_remove in active_few_shot_column.controls:
+                 active_few_shot_column.controls.remove(row_to_remove)
+                 logger.debug("Removed few-shot example row.")
+                 page.update()
+             else:
+                 logger.warning("Attempted to remove a row not found in the column or column not found.")
+
+         # Create controls for the row
+         user_input = ft.TextField(
+             label="用户输入 (User)",
+             value=user_text,
             multiline=True,
             max_lines=3,
             expand=True,
@@ -985,7 +1012,7 @@ def main(page: ft.Page):
         for example in initial_examples:
             if isinstance(example, dict) and 'user' in example and 'assistant' in example:
                 # Use the internal function defined within main()
-                initial_row = _create_example_row_internal(
+                initial_row = _create_example_row_internal( # Ensure this call uses the correct function
                     example.get('user', ''), example.get('assistant', '')
                 )
                 active_few_shot_column.controls.append(initial_row)
