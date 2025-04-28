@@ -405,20 +405,24 @@ class AudioManager:
     def _audio_callback(  # Correct indentation for method
         self,
         indata: np.ndarray,
+        outdata: np.ndarray, # Add outdata back for Stream
         frames: int,
         time: Any,
         status: sd.CallbackFlags,
     ):
-        """Synchronous callback for sounddevice input stream."""
+        """Synchronous callback for sounddevice stream (handles input and output)."""
         if status:
             logger.warning(f"Audio callback status: {status}")
             # Potentially update status for critical flags?
             # self._update_status(f"Audio Status: {status}")
 
-        # Output buffer (outdata) is not available in InputStream callback.
-        # Debug echo mode is therefore not functional here. If echo is needed,
-        # a different stream type (sd.Stream or sd.OutputStream) would be required
-        # in conjunction with this input stream, or use sd.Stream directly.
+        # Echo mode (using instance variable) - Restore functionality
+        if self.debug_echo_mode:
+            # Copy input directly to output for echo effect
+            outdata[:] = indata
+        else:
+            # Fill output buffer with silence when echo is off
+            outdata.fill(0)
 
         # Put audio data into the thread-safe queue
         # This callback runs in the sounddevice thread.
@@ -449,10 +453,10 @@ class AudioManager:
             logger.info(f"  Debug Echo: {self.debug_echo_mode}")
             self._update_status("Audio Stream Starting...")
 
-            # Use sounddevice InputStream context manager for explicit input
-            with sd.InputStream(
+            # Use sounddevice Stream context manager to handle both input and output (for echo)
+            with sd.Stream(
                 samplerate=self.sample_rate,
-                channels=self.channels,
+                channels=self.channels, # Use same number of channels for input and output
                 dtype=self.dtype,
                 callback=self._audio_callback,  # Use the instance method
                 blocksize=int(
