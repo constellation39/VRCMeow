@@ -25,7 +25,7 @@ class VRCClient:
             address: str,
             port: int,
             interval: float,
-    ):
+    ) :
         """
         初始化 VRChat OSC 客户端。
 

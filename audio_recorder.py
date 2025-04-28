@@ -15,23 +15,11 @@ logger = get_logger(__name__)
 # 导入 Dashscope 基础识别器类型用于类型提示
 from dashscope.audio.asr import TranslationRecognizerRealtime, Recognition
 
-# 导入 VRC 客户端
-try:
-    from osc_client import VRCClient
-except ImportError:
-    VRCClient = None  # Define as None if import fails
+from osc_client import VRCClient
 
-# 导入特定引擎的创建函数
-try:
-    from stt_gummy import create_gummy_recognizer
-except ImportError as e:
-    logger.error(f"无法导入 Gummy STT 模块: {e}")
-    create_gummy_recognizer = None
-try:
-    from stt_paraformer import create_paraformer_recognizer
-except ImportError as e:
-    logger.error(f"无法导入 Paraformer STT 模块: {e}")
-    create_paraformer_recognizer = None
+from stt_gummy import create_gummy_recognizer
+
+from stt_paraformer import create_paraformer_recognizer
 
 # --- 异步队列 ---
 audio_queue = asyncio.Queue()
@@ -59,7 +47,6 @@ if TYPE_CHECKING:
 
 # --- STT 处理核心逻辑 ---
 async def stt_processor(
-        vrc_client: Optional['VRCClient'],  # Use forward reference string hint
         llm_client: Optional['LLMClient'],  # Use forward reference string hint
         output_dispatcher: 'OutputDispatcher',  # Use forward reference string hint (required)
         stop_event: asyncio.Event  # Pass stop_event
@@ -86,7 +73,7 @@ async def stt_processor(
     logger.info(f"STT 处理任务 (Dashscope, 模型: {model}) 启动中...")
     recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
     main_loop = asyncio.get_running_loop()
-    engine_type = "Unknown" # 初始化引擎类型
+    engine_type = "Unknown"  # 初始化引擎类型
 
     # --- 重连参数 ---
     max_retries = 5  # 最大重试次数
@@ -115,7 +102,7 @@ async def stt_processor(
         try:
             # --- 检查翻译配置与模型的兼容性 (每次尝试连接前重新检查，以防配置重载) ---
             # 重新获取最新的配置值
-            model = config['stt.model'] # 重新获取模型，可能已改变
+            model = config['stt.model']  # 重新获取模型，可能已改变
             target_language = config.get('stt.translation_target_language')
             enable_translation = bool(target_language)
             is_gummy_model = model.startswith("gummy-")
@@ -123,8 +110,8 @@ async def stt_processor(
 
             if not is_gummy_model and not is_paraformer_model:
                 logger.error(f"不支持的 Dashscope 模型: {model}。请使用 'gummy-' 或 'paraformer-' 开头的模型。")
-                stop_event.set() # 致命错误，停止
-                break # 退出重连循环
+                stop_event.set()  # 致命错误，停止
+                break  # 退出重连循环
 
             if enable_translation and is_paraformer_model:
                 logger.warning(f"模型 '{model}' (Paraformer) 不支持翻译。'translation_target_language' 配置将被忽略。")
@@ -134,22 +121,21 @@ async def stt_processor(
             logger.info(f"尝试连接 STT 服务 (模型: {model}, 尝试次数 {retry_count + 1}/{max_retries})...")
             if is_gummy_model:
                 if create_gummy_recognizer is None:
-                    raise RuntimeError("Gummy STT 模块未能加载。") # 改为抛出异常
+                    raise RuntimeError("Gummy STT 模块未能加载。")  # 改为抛出异常
                 engine_type = "Gummy"
                 recognizer = create_gummy_recognizer(
                     main_loop=main_loop,
-                    vrc_client=vrc_client,
                     llm_client=llm_client,
                     output_dispatcher=output_dispatcher
                 )
             elif is_paraformer_model:
                 if create_paraformer_recognizer is None:
-                     raise RuntimeError("Paraformer STT 模块未能加载。") # 改为抛出异常
+                    raise RuntimeError("Paraformer STT 模块未能加载。")  # 改为抛出异常
                 engine_type = "Paraformer"
                 recognizer = create_paraformer_recognizer(
                     main_loop=main_loop,
-                    llm_client=llm_client, # Pass LLM client
-                    output_dispatcher=output_dispatcher # Pass dispatcher
+                    llm_client=llm_client,  # Pass LLM client
+                    output_dispatcher=output_dispatcher  # Pass dispatcher
                 )
                 # Warning removed as Paraformer is now integrated
 
@@ -160,7 +146,7 @@ async def stt_processor(
             recognizer.start()
             logger.info(f"Dashscope {engine_type} Recognizer 已连接并启动。")
             retry_count = 0  # 连接成功，重置重试计数
-            current_delay = initial_retry_delay # 重置延迟
+            current_delay = initial_retry_delay  # 重置延迟
 
             # --- 内层音频处理循环 ---
             while not stop_event.is_set():
@@ -188,8 +174,8 @@ async def stt_processor(
                         logger.info(f"已停止故障的 Dashscope {engine_type} Recognizer 实例。")
                     except Exception as stop_err:
                         logger.error(f"停止故障的 recognizer 时出错: {stop_err}", exc_info=True)
-                    recognizer = None # 清理引用
-                    break # 跳出内层循环，触发外层重连
+                    recognizer = None  # 清理引用
+                    break  # 跳出内层循环，触发外层重连
 
             # 如果内层循环是因为 stop_event 而退出，则也退出外层循环
             if stop_event.is_set():
@@ -199,7 +185,7 @@ async def stt_processor(
         except Exception as connect_error:
             # --- 处理连接或启动过程中的错误 ---
             logger.error(f"连接或启动 Dashscope {engine_type} Recognizer 时出错: {connect_error}", exc_info=True)
-            if recognizer: # 如果 recognizer 已创建但启动失败
+            if recognizer:  # 如果 recognizer 已创建但启动失败
                 try:
                     recognizer.stop()
                 except Exception as stop_err:
@@ -209,8 +195,8 @@ async def stt_processor(
             retry_count += 1
             if retry_count >= max_retries:
                 logger.critical(f"STT 连接失败达到最大重试次数 ({max_retries})。停止 STT 处理。")
-                stop_event.set() # 设置停止信号，通知其他部分停止
-                break # 退出重连循环
+                stop_event.set()  # 设置停止信号，通知其他部分停止
+                break  # 退出重连循环
 
             logger.info(f"等待 {current_delay:.1f} 秒后重试...")
             try:
@@ -218,14 +204,14 @@ async def stt_processor(
                 await asyncio.wait_for(stop_event.wait(), timeout=current_delay)
                 # 如果 wait() 完成而不是超时，说明 stop_event 被设置了
                 logger.info("等待重试期间接收到停止信号。")
-                break # 退出重连循环
+                break  # 退出重连循环
             except asyncio.TimeoutError:
                 # 等待超时，正常继续重试
-                current_delay = min(current_delay * 2, max_retry_delay) # 指数退避
+                current_delay = min(current_delay * 2, max_retry_delay)  # 指数退避
 
     # --- 循环结束后的最终清理 ---
     logger.info(f"STT 处理任务 (Dashscope {engine_type}) 正在停止...")
-    if recognizer: # 可能在循环退出时还有一个活动的 recognizer
+    if recognizer:  # 可能在循环退出时还有一个活动的 recognizer
         try:
             logger.info(f"正在停止最后的 Dashscope {engine_type} Recognizer 实例...")
             recognizer.stop()
@@ -252,11 +238,10 @@ async def stt_processor(
 
 
 # --- 音频捕获和主控制逻辑 ---
-async def start_audio_processing(
-        vrc_client: Optional['VRCClient'],  # Use forward reference string hints
-        llm_client: Optional['LLMClient'],  # Use forward reference string hints
-        output_dispatcher: 'OutputDispatcher'  # Use forward reference string hints (required)
-):
+async def start_audio_processing(*,
+                                 output_dispatcher: 'OutputDispatcher',  # Use forward reference string hints (required)
+                                 llm_client: Optional['LLMClient']  # Use forward reference string hints
+                                 ):
     """启动实时音频捕获和 Dashscope STT 处理。"""
     stop_event = asyncio.Event()
     stt_task = None
@@ -358,7 +343,6 @@ async def start_audio_processing(
         logger.info(f"最终使用的声道数: {channels}")  # Keep as INFO
         logger.info(f"最终使用的音频格式: {dtype}")  # Keep as INFO
         # logger.info(f"调试回声模式: {'启用' if debug_echo_mode else '禁用'}") # Removed, logged in main.py
-        logger.info(f"VRChat OSC 输出: {'启用' if vrc_client else '禁用'}")  # Keep as INFO
         # logger.info(f"STT 引擎: Dashscope (模型: {model})") # Removed, logged in main.py
         # logger.info(f"  - 翻译 (...): ...") # Removed translation status log here, covered in main.py
 
@@ -368,7 +352,6 @@ async def start_audio_processing(
         # audio_config 字典已被修改以包含正确的 sample_rate
         # 传递客户端/分发器实例给 stt_processor
         stt_task = asyncio.create_task(stt_processor(
-            vrc_client=vrc_client,  # Pass instance (can be None)
             llm_client=llm_client,  # Pass instance (can be None)
             output_dispatcher=output_dispatcher,  # Pass instance (required)
             stop_event=stop_event

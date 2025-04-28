@@ -5,21 +5,15 @@ from dashscope.audio.asr import (
     Recognition,
     RecognitionResult
 )
-import time # Import time for LLM timeout
+import time  # Import time for LLM timeout
 from logger_config import get_logger
 # 直接从 config 模块导入 config 实例
 from config import config
 
 # Import LLMClient and OutputDispatcher for type hinting and usage
-try:
-    from llm_client import LLMClient
-except ImportError:
-    LLMClient = None # Allow running without LLMClient
+from llm_client import LLMClient
 
-try:
-    from output_dispatcher import OutputDispatcher
-except ImportError:
-    OutputDispatcher = None # Allow running without OutputDispatcher, though it's required
+from output_dispatcher import OutputDispatcher
 
 
 # --- Callback for Paraformer API (Recognition only) ---
@@ -40,21 +34,20 @@ class ParaformerCallback(RecognitionCallback):
         # --- 直接从 config 实例获取配置 ---
         self.intermediate_behavior = config.get('stt.intermediate_result_behavior', 'ignore').lower()
         self.logger = get_logger(f"{__name__}.ParaformerCallback")
-        self.logger.debug("ParaformerCallback 初始化完成。") # Changed to DEBUG
-        self.logger.debug(f"  - 中间结果处理: {self.intermediate_behavior}") # Changed to DEBUG
-        self._last_typing_send_time = 0 # Track typing status send time
-        self._typing_interval = 1.0 # Minimum interval between typing status updates (seconds)
-
+        self.logger.debug("ParaformerCallback 初始化完成。")  # Changed to DEBUG
+        self.logger.debug(f"  - 中间结果处理: {self.intermediate_behavior}")  # Changed to DEBUG
+        self._last_typing_send_time = 0  # Track typing status send time
+        self._typing_interval = 1.0  # Minimum interval between typing status updates (seconds)
 
     def on_open(self) -> None:
-        self.logger.info("Dashscope Paraformer 连接已打开。") # Keep as INFO
+        self.logger.info("Dashscope Paraformer 连接已打开。")  # Keep as INFO
 
     def on_close(self) -> None:
-        self.logger.info("Dashscope Paraformer 连接已关闭。") # Keep as INFO
+        self.logger.info("Dashscope Paraformer 连接已关闭。")  # Keep as INFO
 
     def on_complete(self) -> None:
         # Paraformer specific event - might be useful for final cleanup if needed
-        self.logger.info("Dashscope Paraformer 识别完成 (on_complete)。") # Keep as INFO
+        self.logger.info("Dashscope Paraformer 识别完成 (on_complete)。")  # Keep as INFO
 
     def on_error(self, message) -> None:
         # Paraformer error structure might contain request_id and message
@@ -66,7 +59,7 @@ class ParaformerCallback(RecognitionCallback):
 
     def on_event(self, result: RecognitionResult) -> None:
         # Process Paraformer's RecognitionResult
-        sentence_data = result.get_sentence() # Renamed for clarity
+        sentence_data = result.get_sentence()  # Renamed for clarity
         request_id = result.get_request_id()
         usage = result.get_usage(sentence_data)  # Get usage info
         self.logger.debug(f"Dashscope Paraformer 事件: ID={request_id}, Usage={usage}, Sentence={sentence_data}")
@@ -93,7 +86,7 @@ class ParaformerCallback(RecognitionCallback):
             self.logger.info(f"{log_prefix}: {text_to_process}")
 
             # --- LLM Processing (if enabled) ---
-            final_text_to_dispatch = text_to_process # Default to original text
+            final_text_to_dispatch = text_to_process  # Default to original text
             if self.llm_client and self.llm_client.enabled:
                 self.logger.debug(f"尝试 LLM 处理: '{text_to_process[:50]}...'")
                 llm_future = asyncio.run_coroutine_threadsafe(
@@ -102,7 +95,8 @@ class ParaformerCallback(RecognitionCallback):
                 )
                 try:
                     # Wait for LLM result with a timeout
-                    processed_text = llm_future.result(timeout=config.get('llm.request_timeout', 10.0)) # Use config timeout
+                    processed_text = llm_future.result(
+                        timeout=config.get('llm.request_timeout', 10.0))  # Use config timeout
                     if processed_text:
                         final_text_to_dispatch = processed_text
                         self.logger.info(f"LLM 处理完成: '{final_text_to_dispatch[:50]}...'")
@@ -124,7 +118,7 @@ class ParaformerCallback(RecognitionCallback):
                 self.logger.warning("事件循环未运行，无法调度最终结果分发。")
 
         # --- Handle Intermediate Result ---
-        else: # Not final
+        else:  # Not final
             if self.intermediate_behavior == "show_typing":
                 # Send "Typing..." status periodically via dispatcher
                 current_time = time.monotonic()
@@ -133,11 +127,11 @@ class ParaformerCallback(RecognitionCallback):
                     # Dispatch "Typing..." - OutputDispatcher decides how to handle this
                     if self.loop.is_running():
                         asyncio.run_coroutine_threadsafe(
-                            self.output_dispatcher.dispatch("Typing..."), # Send fixed message
+                            self.output_dispatcher.dispatch("Typing..."),  # Send fixed message
                             self.loop
                         )
                         self.logger.debug("已调度 'Typing...' 状态进行分发")
-                        self._last_typing_send_time = current_time # Update last send time
+                        self._last_typing_send_time = current_time  # Update last send time
                     else:
                         self.logger.warning("事件循环未运行，无法调度 'Typing...' 状态分发。")
                 # else: # Suppress frequent typing updates
@@ -154,7 +148,7 @@ class ParaformerCallback(RecognitionCallback):
                 if current_time - self._last_typing_send_time >= self._typing_interval:
                     if self.loop.is_running():
                         asyncio.run_coroutine_threadsafe(
-                            self.output_dispatcher.dispatch("Typing..."), # Send fixed message
+                            self.output_dispatcher.dispatch("Typing..."),  # Send fixed message
                             self.loop
                         )
                         self.logger.debug("已调度 'Typing...' 状态 (来自 show_partial) 进行分发")
@@ -173,12 +167,12 @@ def create_paraformer_recognizer(
     """创建并配置 Dashscope Paraformer 实时识别器。"""
     # Check if necessary components are available
     if not output_dispatcher:
-         logger = get_logger(__name__)
-         logger.error("OutputDispatcher 未提供给 create_paraformer_recognizer，无法分发结果。")
-         raise ValueError("OutputDispatcher is required to create the Paraformer recognizer.")
+        logger = get_logger(__name__)
+        logger.error("OutputDispatcher 未提供给 create_paraformer_recognizer，无法分发结果。")
+        raise ValueError("OutputDispatcher is required to create the Paraformer recognizer.")
 
     logger = get_logger(__name__)  # Use logger from this module
-    logger.debug("使用 Paraformer API (仅识别)") # Changed to DEBUG
+    logger.debug("使用 Paraformer API (仅识别)")  # Changed to DEBUG
 
     # --- 直接从 config 实例获取配置 ---
     # 注意：config 实例现在是从模块顶部导入的
@@ -211,8 +205,8 @@ def create_paraformer_recognizer(
     recognizer = Recognition(**recognizer_params)
 
     # Log initialization details at DEBUG level
-    logger.debug(f"Dashscope Paraformer Recognizer (模型: {model}) 初始化完成。") # Changed to DEBUG
-    logger.debug(f"  - 采样率: {sample_rate}, 声道: {channels}") # Changed to DEBUG
-    logger.debug("  - 翻译: 不支持") # Changed to DEBUG
+    logger.debug(f"Dashscope Paraformer Recognizer (模型: {model}) 初始化完成。")  # Changed to DEBUG
+    logger.debug(f"  - 采样率: {sample_rate}, 声道: {channels}")  # Changed to DEBUG
+    logger.debug("  - 翻译: 不支持")  # Changed to DEBUG
 
     return recognizer

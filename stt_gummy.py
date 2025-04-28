@@ -9,25 +9,14 @@ from dashscope.audio.asr import (
 from logger_config import get_logger
 # 直接从 config 模块导入 config 实例
 from config import config
+from osc_client import VRCClient
 
 # Import VRCClient for type hinting and usage in callback
-try:
-    from osc_client import VRCClient
-except ImportError:
-    VRCClient = None  # Define as None if import fails, though it should be available
+from llm_client import LLMClient
+from output_dispatcher import OutputDispatcher
 
 
 # Import LLMClient and OutputDispatcher for type hinting and usage
-try:
-    from llm_client import LLMClient
-except ImportError:
-    LLMClient = None # Allow running without LLMClient
-
-try:
-    from output_dispatcher import OutputDispatcher
-except ImportError:
-    OutputDispatcher = None # Allow running without OutputDispatcher
-
 
 # --- Callback for Gummy API (Translation/Transcription) ---
 class GummyCallback(TranslationRecognizerCallback):
@@ -35,12 +24,10 @@ class GummyCallback(TranslationRecognizerCallback):
 
     def __init__(self,
                  loop: asyncio.AbstractEventLoop,
-                 vrc_client: Optional[VRCClient], # Still potentially used for intermediate results
                  llm_client: Optional[LLMClient],
                  output_dispatcher: Optional[OutputDispatcher]):
         super().__init__()
         self.loop = loop
-        self.vrc_client = vrc_client # Keep for intermediate results if enabled in config and VRC client available
         self.llm_client = llm_client
         self.output_dispatcher = output_dispatcher
         # --- 直接从 config 实例获取配置 ---
@@ -151,70 +138,66 @@ class GummyCallback(TranslationRecognizerCallback):
 
             # Attempt LLM processing if enabled and client available
             if self.llm_client and self.llm_client.enabled:
-                 # Schedule LLM processing as a separate task to avoid blocking the callback thread
-                 # NOTE: Using run_coroutine_threadsafe is safer here as this callback might be called from a different thread by Dashscope SDK
-                 llm_future = asyncio.run_coroutine_threadsafe(
-                     self.llm_client.process_text(text_to_send),
-                     self.loop
-                 )
-                 try:
-                     # Wait for LLM result with a timeout to prevent indefinite blocking
-                     # Adjust timeout as needed (e.g., 5-10 seconds)
-                     processed_text = llm_future.result(timeout=10.0)
-                     if processed_text:
-                         final_text_to_dispatch = processed_text
-                         self.logger.info(f"LLM 处理完成: '{final_text_to_dispatch[:50]}...'")
-                     else:
-                         # LLMClient handles logging errors/empty results internally
-                         self.logger.warning("LLM 处理失败或返回空，将分发原始文本。")
-                         # Fallback to original text is handled by final_text_to_dispatch default value
-                 except asyncio.TimeoutError:
-                     self.logger.error("LLM 处理超时，将分发原始文本。")
-                 except Exception as e:
-                     self.logger.error(f"等待 LLM 处理结果时发生错误: {e}", exc_info=True)
-
+                # Schedule LLM processing as a separate task to avoid blocking the callback thread
+                # NOTE: Using run_coroutine_threadsafe is safer here as this callback might be called from a different thread by Dashscope SDK
+                llm_future = asyncio.run_coroutine_threadsafe(
+                    self.llm_client.process_text(text_to_send),
+                    self.loop
+                )
+                try:
+                    # Wait for LLM result with a timeout to prevent indefinite blocking
+                    # Adjust timeout as needed (e.g., 5-10 seconds)
+                    processed_text = llm_future.result(timeout=10.0)
+                    if processed_text:
+                        final_text_to_dispatch = processed_text
+                        self.logger.info(f"LLM 处理完成: '{final_text_to_dispatch[:50]}...'")
+                    else:
+                        # LLMClient handles logging errors/empty results internally
+                        self.logger.warning("LLM 处理失败或返回空，将分发原始文本。")
+                        # Fallback to original text is handled by final_text_to_dispatch default value
+                except asyncio.TimeoutError:
+                    self.logger.error("LLM 处理超时，将分发原始文本。")
+                except Exception as e:
+                    self.logger.error(f"等待 LLM 处理结果时发生错误: {e}", exc_info=True)
 
             # Dispatch the final text (original or processed) using the dispatcher
             if self.loop.is_running():
-                 # Schedule the dispatcher's async dispatch method
-                 asyncio.run_coroutine_threadsafe(
-                     self.output_dispatcher.dispatch(final_text_to_dispatch),
-                     self.loop
-                 )
-                 self.logger.debug(f"已调度最终文本 '{final_text_to_dispatch[:50]}...' 进行分发")
+                # Schedule the dispatcher's async dispatch method
+                asyncio.run_coroutine_threadsafe(
+                    self.output_dispatcher.dispatch(final_text_to_dispatch),
+                    self.loop
+                )
+                self.logger.debug(f"已调度最终文本 '{final_text_to_dispatch[:50]}...' 进行分发")
             else:
-                 self.logger.warning("事件循环未运行，无法调度输出分发器。")
+                self.logger.warning("事件循环未运行，无法调度输出分发器。")
 
         # --- Handle Intermediate Results (Directly to VRC OSC if enabled) ---
         # Check intermediate behavior config, VRC client availability, AND global VRC OSC enabled flag
-        elif not is_final and text_to_send and self.vrc_client and self.vrc_osc_enabled_globally and self.intermediate_behavior != "ignore":
-             # Send intermediate results ('Typing...' or partial) directly to VRC OSC
-             if self.loop.is_running():
-                 asyncio.run_coroutine_threadsafe(
-                     self.vrc_client.send_chatbox(text_to_send), # VRCClient likely handles typing status logic
-                     self.loop
-                 )
-                 self.logger.debug(f"已调度 OSC 中间消息: {text_to_send}")
-             else:
-                 self.logger.warning("事件循环未运行，无法发送 OSC 中间消息。")
-        elif not is_final and text_to_send and not self.vrc_client and self.vrc_osc_enabled_globally and self.intermediate_behavior != "ignore":
-             self.logger.debug("VRC 客户端不可用，跳过 OSC 中间消息发送。")
+        elif not is_final and text_to_send and self.vrc_osc_enabled_globally and self.intermediate_behavior != "ignore":
+            # Send intermediate results ('Typing...' or partial) directly to VRC OSC
+            if self.loop.is_running():
+                asyncio.run_coroutine_threadsafe(
+                    self.output_dispatcher.dispatch(text_to_send),  # VRCClient likely handles typing status logic
+                    self.loop
+                )
+                self.logger.debug(f"已调度 OSC 中间消息: {text_to_send}")
+            else:
+                self.logger.warning("事件循环未运行，无法发送 OSC 中间消息。")
 
 
 def create_gummy_recognizer(
         main_loop: asyncio.AbstractEventLoop,
-        vrc_client: Optional[VRCClient], # Still potentially needed for callback intermediates
         llm_client: Optional[LLMClient],
         output_dispatcher: Optional[OutputDispatcher]
 ) -> TranslationRecognizerRealtime:
     """创建并配置 Dashscope Gummy 实时识别器。"""
     # Check if necessary components are available
     if not output_dispatcher:
-         # Log an error or raise? For now, log and proceed without dispatching.
-         logger = get_logger(__name__)
-         # Raising an error is safer to prevent unexpected behavior
-         logger.error("OutputDispatcher 未提供给 create_gummy_recognizer，无法分发最终结果。")
-         raise ValueError("OutputDispatcher is required to create the Gummy recognizer.")
+        # Log an error or raise? For now, log and proceed without dispatching.
+        logger = get_logger(__name__)
+        # Raising an error is safer to prevent unexpected behavior
+        logger.error("OutputDispatcher 未提供给 create_gummy_recognizer，无法分发最终结果。")
+        raise ValueError("OutputDispatcher is required to create the Gummy recognizer.")
 
     logger = get_logger(__name__)  # Use logger from this module
     logger.debug("使用 Gummy API (支持翻译)")  # Changed to DEBUG
@@ -231,7 +214,6 @@ def create_gummy_recognizer(
     # Create the callback instance, passing all necessary clients/dispatchers
     callback = GummyCallback(
         loop=main_loop,
-        vrc_client=vrc_client, # Pass VRC client for intermediate results
         llm_client=llm_client,
         output_dispatcher=output_dispatcher
     )
