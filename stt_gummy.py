@@ -212,14 +212,19 @@ class GummyCallback(TranslationRecognizerCallback):
                     )
                 elif self.output_dispatcher:
                     # LLM disabled, schedule dispatch directly
-                    target_coro = self.output_dispatcher.dispatch(text_to_send)
-                    self.logger.info(
-                        f"STT_GUMMY: PRE-SCHEDULE direct dispatch for: '{text_to_send[:50]}...'"
-                    )
-                    future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
-                    self.logger.info(
-                        f"STT_GUMMY: POST-SCHEDULE direct dispatch (Future: {future})"
-                    )
+                    # <-- Add check before scheduling -->
+                    self.logger.info(f"STT_GUMMY: Checking output_dispatcher before scheduling dispatch. Type: {type(self.output_dispatcher)}")
+                    if self.output_dispatcher: # Double check it's not None
+                        target_coro = self.output_dispatcher.dispatch(text_to_send)
+                        self.logger.info(
+                            f"STT_GUMMY: PRE-SCHEDULE direct dispatch for: '{text_to_send[:50]}...'"
+                        )
+                        future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
+                        self.logger.info(
+                            f"STT_GUMMY: POST-SCHEDULE direct dispatch (Future: {future})"
+                        )
+                    else:
+                         self.logger.error("STT_GUMMY: self.output_dispatcher became None unexpectedly before scheduling dispatch!")
                 else:
                     self.logger.error(
                         "STT_GUMMY: Cannot dispatch final text - OutputDispatcher missing."
