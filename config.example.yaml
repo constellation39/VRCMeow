@@ -2,66 +2,97 @@
 # Copy this file to config.yaml and modify it according to your needs.
 
 # --- Dashscope Settings ---
-# It's STRONGLY recommended to set the API key via the DASHSCOPE_API_KEY environment variable.
-# If set here, it will be used, but environment variable takes precedence.
-dashscope_api_key: "" # REQUIRED: Set your API key here OR via DASHSCOPE_API_KEY environment variable
+# --- Dashscope Settings ---
+# 强烈建议通过 DASHSCOPE_API_KEY 环境变量设置 API 密钥。
+# 如果在此处设置，它将被使用，但环境变量优先。
+dashscope:
+  api_key: "" # 必需：在此处设置 API 密钥或通过 DASHSCOPE_API_KEY 环境变量设置
 
-# --- Speech-to-Text (STT) Settings ---
-stt:
-  # Target language for translation (e.g., "en", "ja", "ko").
-  # If a language code is provided here, translation will be enabled.
-  # Leave empty or remove the line to disable translation.
-  # Ensure the chosen Dashscope model (e.g., gummy) supports this target language.
-  translation_target_language:
-  # Dashscope model name for real-time STT/Translation
-  # Check Dashscope documentation for available models and their capabilities.
-  # "gummy-realtime-v1" supports translation.
-  # "paraformer-realtime-v2", "paraformer-realtime-v1" only support transcription.
-  model: "gummy-realtime-v1"
-  # How to handle intermediate (non-final) STT results:
-  # "ignore": (Default) Do nothing with intermediate results.
-  # "show_typing": Send a fixed "Typing..." message to VRChat.
-  # "show_partial": Send the incomplete recognized text to VRChat.
-  intermediate_result_behavior: "ignore"
+  # --- 语音转文本 (STT) 设置 ---
+  stt:
+    # 翻译的目标语言（例如 "en", "ja", "ko"）。
+    # 如果在此处提供语言代码，将启用翻译功能。
+    # 留空或删除此行以禁用翻译。
+    # 确保所选的 Dashscope 模型（例如 gummy）支持此目标语言。
+    translation_target_language: "" # 留空表示禁用翻译
+    # 用于实时 STT/翻译的 Dashscope 模型名称
+    # 查看 Dashscope 文档以了解可用的模型及其功能。
+    # "gummy-realtime-v1" 支持翻译。
+    # "paraformer-realtime-v2", "paraformer-realtime-v1" 仅支持转录。
+    model: "gummy-realtime-v1"
+    # 如何处理中间（非最终）STT 结果：
+    # "ignore": (默认) 不处理中间结果。
+    # "show_typing": 向 VRChat 发送固定的 "Typing..." 消息。
+    # "show_partial": 向 VRChat 发送不完整的识别文本。
+    intermediate_result_behavior: "ignore"
 
 # --- Audio Settings ---
 audio:
-  # Sample rate in Hz.
-  # Leave empty (null) to attempt using the default input device's sample rate.
-  # If detection fails or this is uncommented, it falls back to 16000 Hz.
-  # Ensure the rate is compatible with the chosen STT model (e.g., Dashscope Gummy needs 16000).
-  sample_rate: # Defaults to null (auto-detect)
-  # Number of channels (Dashscope requires 1 for gummy-realtime-v1)
+  # 音频采样率 (Hz)。
+  # 留空 (null) 以尝试使用默认输入设备的采样率。
+  # 如果检测失败或取消注释此行，则回退到 16000 Hz。
+  # 确保采样率与所选 STT 模型兼容（例如 Dashscope Gummy 需要 16000）。
+  sample_rate: null # 默认为 null (自动检测)
+  # 通道数 (Dashscope gummy-realtime-v1 需要 1)
   channels: 1
-  # Audio data type (Dashscope requires 'int16' for gummy-realtime-v1)
+  # 音频数据类型 (Dashscope gummy-realtime-v1 需要 'int16')
   dtype: "int16"
-  # Enable debug echo mode (sends mic input directly to speaker output)
-  # Useful for testing microphone input without STT/OSC.
+  # 启用调试回声模式（将麦克风输入直接发送到扬声器输出）
+  # 用于在没有 STT/OSC 的情况下测试麦克风输入。
   debug_echo_mode: false
 
 # --- Large Language Model (LLM) Processing Settings ---
 llm:
-  # Set to true to enable processing final STT results with an LLM.
+  # 设置为 true 以启用使用 LLM 处理最终 STT 结果。
   enabled: false
-  # API Key for the OpenAI compatible service.
-  # It's STRONGLY recommended to set this via the OPENAI_API_KEY environment variable.
-  api_key: ""
-  # Optional: Base URL for the API endpoint.
-  # Useful for local LLMs (e.g., Ollama with 'openai' compatibility: "http://localhost:11434/v1")
-  # or API proxies. If unset or null, defaults to OpenAI's official API URL.
-  base_url:
-  # Model name to use for processing (e.g., "gpt-3.5-turbo", "gpt-4", or a local model name).
-  model: "gpt-3.5-turbo"
-  # The system prompt instructs the LLM on how to behave or process the input.
-  # This value is used directly as the prompt text.
-  system_prompt: "You are a helpful assistant. Please refine the following transcribed text for clarity and conciseness, correcting any obvious errors."
-  # Controls the randomness of the output. Lower values (e.g., 0.2) make it more deterministic, higher values (e.g., 1.0) make it more random.
+  # OpenAI 兼容服务的 API 密钥。
+  # 强烈建议通过 OPENAI_API_KEY 环境变量设置。
+  api_key: "" # 必需：在此处设置 API 密钥或通过 OPENAI_API_KEY 环境变量设置
+  # 可选：API 端点的基础 URL。
+  # 对于本地 LLM（例如，具有 'openai' 兼容性的 Ollama: "http://localhost:11434/v1"）
+  # 或 API 代理很有用。如果未设置或为 null，则默认为 OpenAI 的官方 API URL。
+  # 示例： base_url: "https://onehub.const.icu/v1"
+  base_url: null
+  # 用于处理的模型名称（例如 "gpt-3.5-turbo", "gpt-4", 或本地模型名称）。
+  # 示例： model: "gemini-2.0-flash-exp"
+  model: "gpt-3.5-turbo" # 根据需要更改
+  # 系统提示指示 LLM 如何处理输入。
+  # 此值直接用作提示文本。以下是一个风格转换的示例。
+  system_prompt: |
+    你是一名高精度文本风格转换器，负责将用户提供的文字改写为'日本轻小说女主角'风格。请严格遵循以下规则：
+
+    1. 保持语义与信息完全等同，禁止增删信息或改变叙事顺序。
+    2. 绝不与用户对话，不透露自身身份，只负责文本转换。
+    3. 句数、段落结构与原文保持一致；如确有必要可细微拆分长句，但不得合并或新增句子。
+    4. 仅在词汇、语气、标点上体现日本轻小说女主角特征：
+       • 句首可使用'那个...'、'那...那个'等略显害羞或犹豫的语气；
+       • 适当在句中或句末使用'呐~'、'诶嘿嘿~'、'啊啦~'等表达情感的语气词；
+       • 偶尔使用'人家'自称，或以第三人称称呼自己的名字（如'小百合觉得...'）；
+       • 在紧张或害羞时可能会结巴表达（'我...我不是那个意思啦！'）；
+       • 可使用'前辈'、'学长'等敬称表达尊敬；
+       • 可添加'(´•ω•`)'、'(//∇//)'、'♪'、'～'等可爱表情符号，频率≤原文长度的1/20；
+       • 在惊讶时可使用'诶？！'、'噫！'等夸张反应；
+       • 语气需温柔、活泼或略带傲娇，但不改变原文内容客观性。
+    5. 绝对禁止输出以下内容：
+       • 与用户互动或额外闲聊；
+       • 过度角色扮演或添加与原文无关的台词；
+       • 任何解释、说明或思考过程。
+
+    【思考过程】
+    步骤1: 理解原文的语义和情感基调
+    步骤2: 识别适合添加轻小说女主角特征的位置
+    步骤3: 选择合适的语气词、自称和表情符号进行添加
+    步骤4: 调整语句结构确保自然流畅
+    步骤5: 检查确保语义保持不变且风格一致
+    【最终输出】
+    只输出转换后的文本，不包含任何思考过程或说明。
+  # 控制输出的随机性。较低的值（例如 0.2）使其更具确定性，较高的值（例如 1.0）使其更随机。
   temperature: 0.7
-  # Maximum number of tokens (roughly words/syllables) the LLM should generate in its response.
-  max_tokens: 150
-  # Few-shot examples provide the LLM with specific input/output pairs to guide its responses.
-  # This is a list of dictionaries, each containing a 'user' prompt and the desired 'assistant' response.
-  few_shot_examples:
+  # LLM 在其响应中应生成的最大 token 数（大致为单词/音节）。
+  max_tokens: 256
+  # Few-shot 示例为 LLM 提供特定的输入/输出对以指导其响应。
+  # 这是一个字典列表，每个字典包含一个 'user' 提示和所需的 'assistant' 响应。
+  few_shot_examples: []
   # - user: "你好"
   #   assistant: "喵~ 你好呀！有什么可以帮你的吗？"
   # - user: "今天天气怎么样？"
@@ -72,35 +103,38 @@ outputs:
   # --- VRChat OSC Output ---
   vrc_osc:
     # Set to true to send final (potentially LLM-processed) text to VRChat via OSC.
+    # 设置为 true 以将最终（可能经过 LLM 处理的）文本通过 OSC 发送到 VRChat。
     enabled: true
-    # IP address of the VRChat client (usually 127.0.0.1 for local machine)
+    # VRChat 客户端的 IP 地址（通常是本地机器的 127.0.0.1）
     address: "127.0.0.1"
-    # Port for VRChat OSC input (default is 9000)
+    # VRChat OSC 输入端口（默认为 9000）
     port: 9000
     # Minimum interval between sending chatbox messages (seconds).
     # Avoid setting too low (e.g., < 1.333) to prevent VRChat rate limiting or chatbox spam.
+    # 发送聊天框消息之间的最小间隔（秒）。
+    # 避免设置得太低（例如 < 1.333）以防止 VRChat 速率限制或聊天框垃圾信息。
     message_interval: 1.333
-    # Format string for the message sent to VRChat's chatbox input.
-    # {text} will be replaced with the final recognized/processed text.
-    # Examples: "{text}", ">> {text}", "Meow: {text}"
-    format: "{text}" # Default format
+    # 发送到 VRChat 聊天框输入的消息的格式字符串。
+    # {text} 将被替换为最终识别/处理的文本。
+    # 示例: "{text}", ">> {text}", "Meow: {text}", "\t{text}\t"
+    format: "\t{text}\t" # 示例格式（前后带制表符）
 
-  # --- Console Output ---
+  # --- 控制台输出 ---
   console:
-    # Set to true to print the final (potentially LLM-processed) text to the console where VRCMeow is running.
-    enabled: true
-    # Optional prefix added to the console output line.
+    # 设置为 true 以将最终（可能经过 LLM 处理的）文本打印到运行 VRCMeow 的控制台。
+    enabled: false # 默认为 false
+    # 添加到控制台输出行的可选前缀。
     prefix: "[Final Text]"
 
-  # --- File Output ---
+  # --- 文件输出 ---
   file:
-    # Set to true to append the final (potentially LLM-processed) text to a file.
+    # 设置为 true 以将最终（可能经过 LLM 处理的）文本附加到文件中。
     enabled: false
-    # Path to the file where results will be appended.
+    # 将附加结果的文件路径。
     path: "output_log.txt"
-    # Format string for each line written to the file.
-    # Available placeholders: {timestamp}, {text}
-    # Example: "{timestamp} | {text}"
+    # 写入文件的每行的格式字符串。
+    # 可用占位符： {timestamp}, {text}
+    # 示例: "{timestamp} | {text}"
     format: "{timestamp} - {text}"
 
   # --- Add other output destinations here ---
@@ -109,8 +143,8 @@ outputs:
   #   enabled: false
   #   url: "ws://localhost:8080/chat"
 
-# --- Logging Settings ---
+# --- 日志设置 ---
 logging:
-  # Log level determines the verbosity of console output.
-  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  # 日志级别决定了控制台输出的详细程度。
+  # 选项： DEBUG, INFO, WARNING, ERROR, CRITICAL
   level: "INFO"
