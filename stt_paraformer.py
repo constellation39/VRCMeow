@@ -141,21 +141,19 @@ class ParaformerCallback(RecognitionCallback):
                 # Paraformer doesn't really give partials like Gummy.
                 # We could send the latest non-final sentence, but it might be confusing.
                 # Paraformer doesn't provide granular partial results like Gummy.
-                # Sending intermediate non-final sentences might be confusing or repetitive.
-                # Current behavior: Treat 'show_partial' like 'show_typing' by sending "Typing..."
-                # periodically to indicate activity, consistent with the other option.
-                current_time = time.monotonic()
-                if current_time - self._last_typing_send_time >= self._typing_interval:
-                    log_prefix = "中间状态 (模拟部分)" # Indicate source
-                    if self.loop.is_running():
-                        asyncio.run_coroutine_threadsafe(
-                            self.output_dispatcher.dispatch("Typing..."), # Send fixed message
-                            self.loop
-                        )
-                        self.logger.debug(f"已调度 '{log_prefix}' 状态进行分发")
-                        self._last_typing_send_time = current_time
-                    else:
-                        self.logger.warning(f"事件循环未运行，无法调度 '{log_prefix}' 状态分发。")
+                # We will send the latest non-final sentence as the partial result.
+                log_prefix = "中间结果 (部分)" # Indicate source
+                self.logger.debug(f"{log_prefix}: {text_to_process}")
+                # Dispatch the partial text
+                if self.loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        self.output_dispatcher.dispatch(text_to_process), # Send actual partial text
+                        self.loop
+                    )
+                    self.logger.debug(f"已调度 '{log_prefix}' 文本 '{text_to_process[:50]}...' 进行分发")
+                else:
+                    self.logger.warning(f"事件循环未运行，无法调度 '{log_prefix}' 文本分发。")
+                # Note: We don't use _last_typing_send_time here as we dispatch every partial result.
 
             # If behavior is "ignore", do nothing for intermediate results.
 
