@@ -2,18 +2,8 @@ import logging
 import sys
 from typing import Optional
 
-# 尝试导入 config 实例以获取默认日志级别
-try:
-    from config import config as app_config
-    # logger = logging.getLogger(__name__) # 获取一个本地 logger 用于记录配置问题
-    # logger.debug("Successfully imported 'config' in logger_config.")
-except ImportError:
-    # 如果 config 无法导入 (例如，在非常早期的设置阶段或循环依赖？)，
-    # 则无法获取配置的日志级别，回退到默认值。
-    # logger = logging.getLogger(__name__)
-    # logger.warning("Could not import 'config' in logger_config. Using default log level INFO for setup.", exc_info=True)
-    app_config = None # 标记配置不可用
-
+# Directly import the config instance. If this fails, the application should exit.
+from config import config as app_config
 
 # 配置日志格式
 # 使用 %(filename)s 显示文件名，%(lineno)d 显示行号
@@ -31,26 +21,26 @@ def setup_logging(level: Optional[int] = None):
     """
     # 确定要使用的日志级别
     if level is None:
-        if app_config:
-            try:
-                # 尝试从配置获取数字级别
-                level = app_config['logging.level_int']
-            except KeyError:
-                 # 如果配置中没有 level_int，尝试从 level 字符串获取
-                 level_str = app_config.get('logging.level', 'INFO').upper()
-                 level = logging.getLevelName(level_str)
-                 if not isinstance(level, int):
-                     print(f"Warning: Invalid logging level '{level_str}' in config. Defaulting to INFO.", file=sys.stderr)
-                     level = logging.INFO
-            except Exception as e:
-                print(f"Warning: Error reading logging level from config: {e}. Defaulting to INFO.", file=sys.stderr)
+        try:
+            # 尝试从配置获取数字级别
+            level = app_config['logging.level_int']
+        except KeyError:
+            # 如果配置中没有 level_int，尝试从 level 字符串获取
+            level_str = app_config.get('logging.level', 'INFO').upper()
+            level = logging.getLevelName(level_str)
+            if not isinstance(level, int):
+                print(f"Warning: Invalid logging level '{level_str}' in config. Defaulting to INFO.", file=sys.stderr)
                 level = logging.INFO
-        else:
-             # 如果无法导入 app_config，默认使用 INFO
-             level = logging.INFO
-             print("Warning: Application config not available for logging setup. Defaulting to INFO level.", file=sys.stderr)
+        except Exception as e:
+            # Catch potential errors reading from config (e.g., config file issues)
+            print(f"Warning: Error reading logging level from config: {e}. Defaulting to INFO.", file=sys.stderr)
+            level = logging.INFO
 
     # --- 获取并配置根记录器 ---
+    # Ensure app_config was imported successfully before proceeding
+    # (Although if it failed, the program likely exited already)
+    # assert app_config is not None, "Config must be loaded before setting up logging."
+
     root_logger = logging.getLogger() # 获取根记录器
     # 设置根记录器的级别
     root_logger.setLevel(level)
@@ -103,15 +93,20 @@ def get_logger(name: str = APP_LOGGER_NAME) -> logging.Logger:
     # or didn't configure this specific logger (or the root logger).
     # This check helps diagnose configuration issues.
     # Note: This check might be too simplistic if complex logging hierarchies are used.
-    if not logger.hasHandlers() and not logging.getLogger().hasHandlers():
-         # Attempt to set up basic logging if not configured
-         print(f"Warning: Logger '{name}' has no handlers. Attempting basic setup.", file=sys.stderr)
-         logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT)
-         logger = logging.getLogger(name) # Re-get logger after basicConfig
+    # If the root logger has no handlers, it indicates setup_logging() was likely not called.
+    if not logging.getLogger().hasHandlers():
+         # Only print a warning, do not apply basicConfig as it might interfere
+         # with the intended setup or hide the root cause of the missing setup.
+         print(f"Warning: Root logger has no handlers when getting logger '{name}'. "
+               "Ensure setup_logging() is called before using get_logger().", file=sys.stderr)
+         # Fallback to basicConfig might be considered, but it's often better
+         # to ensure setup_logging is called correctly in the application entry point.
+         # logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT)
+         # logger = logging.getLogger(name) # Re-get logger if basicConfig is used
 
     return logger
 
-# Note: Calling setup_logging() here at module load time might be too early
-# if the config file hasn't been read yet. It's better called explicitly
-# in the application entry point (like main.py) after config is loaded.
-# setup_logging()
+# Note: Calling setup_logging() here at module load time is generally discouraged
+# as the config might not be fully loaded or other initializations might be pending.
+# It should be called explicitly in the application entry point (e.g., main.py)
+# after the configuration is ready.

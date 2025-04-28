@@ -10,8 +10,6 @@ logger = get_logger(__name__) # 使用模块名作为 logger 名称
 from pythonosc import udp_client as pythonosc_udp_client  # 重命名以避免冲突
 from pythonosc.osc_message_builder import ArgValue
 
-# from src.logger import logger # 已将 logger 替换为 print
-
 
 class VRCClient:
     """
