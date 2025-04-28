@@ -55,14 +55,14 @@ def main(page: ft.Page):
     def update_status_display(message: str):
         """线程安全地更新状态文本"""
         if page: # 确保页面仍然存在
-            page.run_thread_safe(
+            page.run_threadsafe(
                 lambda: setattr(status_text, 'value', f"状态: {message}") or page.update() # type: ignore
             )
 
     def update_output_display(text: str):
         """线程安全地将文本附加到输出区域"""
         if page: # 确保页面仍然存在
-            page.run_thread_safe(
+            page.run_threadsafe(
                 lambda: setattr(output_text, 'value', (output_text.value or "") + text + "\n") or page.update() # type: ignore
             )
 
