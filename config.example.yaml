@@ -78,6 +78,7 @@ outputs:
     # Minimum interval between sending chatbox messages (seconds).
     # Avoid setting too low (e.g., < 1.333) to prevent VRChat rate limiting or chatbox spam.
     message_interval: 1.333
+    format: "\t{text}\t"
 
   # --- Console Output ---
   console:
