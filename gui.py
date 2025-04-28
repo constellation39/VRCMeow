@@ -722,7 +722,7 @@ def main(page: ft.Page):
             icon_color=ft.colors.RED_ACCENT_400,
         )
 
-        new_row = ft.Row(
+         new_row = ft.Row(
             controls=[user_input, assistant_output, remove_button],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.START,
