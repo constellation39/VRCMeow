@@ -78,11 +78,14 @@ class LLMClient:
             messages = [{"role": "system", "content": self.system_prompt}]
 
             # Add few-shot examples if available
-            for example in self.few_shot_examples:
-                 messages.append({"role": "user", "content": example['user']})
-                 messages.append({"role": "assistant", "content": example['assistant']})
+            if self.few_shot_examples:
+                logger.debug(f"Adding {len(self.few_shot_examples)} few-shot examples to LLM request.")
+                for example in self.few_shot_examples:
+                    # Ensure correct roles are used as per OpenAI API
+                    messages.append({"role": "user", "content": example['user']})
+                    messages.append({"role": "assistant", "content": example['assistant']})
 
-            # Add the actual user input
+            # Add the actual user input after system prompt and examples
             messages.append({"role": "user", "content": text})
 
             logger.debug(f"LLM API call messages: {messages}") # Log the full message structure for debugging
