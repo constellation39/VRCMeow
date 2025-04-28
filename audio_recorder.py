@@ -148,7 +148,6 @@ async def stt_processor(
                 engine_type = "Paraformer"
                 recognizer = create_paraformer_recognizer(
                     main_loop=main_loop,
-                    vrc_client=vrc_client,
                     # llm_client=llm_client, # Pass when Paraformer callback is updated
                     # output_dispatcher=output_dispatcher # Pass when Paraformer callback is updated
                 )
