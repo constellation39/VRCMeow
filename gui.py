@@ -56,13 +56,13 @@ def main(page: ft.Page):
         """(Async) Actual logic to update status text & page."""
         # Assume page and status_text are accessible from outer scope
         status_text.value = f"状态: {message}"
-        await page.update_async() # Use async update
+        page.update() # Use async update
 
     def update_status_display(message: str):
         """(Sync) Schedules the async status update task from any thread."""
         # page is captured from the outer scope of main()
         # Schedule the coroutine object returned by _async_update_status()
-        page.run_threadsafe(_async_update_status(message))
+        page.run_task(_async_update_status(message))
 
 
     async def _async_update_output(text: str):
@@ -70,13 +70,13 @@ def main(page: ft.Page):
         # Assume page and output_text are accessible from outer scope
         current_value = output_text.value if output_text.value is not None else ""
         output_text.value = current_value + text + "\n"
-        await page.update_async() # Use async update
+        page.update() # Use async update
 
     def update_output_display(text: str):
         """(Sync) Schedules the async output update task from any thread."""
         # page is captured from the outer scope of main()
         # Schedule the coroutine object returned by _async_update_output()
-        page.run_threadsafe(_async_update_output(text))
+        page.run_task(_async_update_output(text))
 
 
     # --- 启动/停止逻辑 ---
