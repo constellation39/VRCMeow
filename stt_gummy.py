@@ -9,7 +9,6 @@ from dashscope.audio.asr import (
 from logger_config import get_logger
 # 直接从 config 模块导入 config 实例
 from config import config
-from osc_client import VRCClient
 
 # Import VRCClient for type hinting and usage in callback
 from llm_client import LLMClient
