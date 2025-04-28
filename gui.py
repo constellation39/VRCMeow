@@ -102,29 +102,31 @@ def main(page: ft.Page):
             # elevation=2, # Optional: Add shadow
         )
 
-    # -- API Keys --
-    # Use the new nested key 'dashscope.api_key'
+    # -- Dashscope Settings --
     config_controls["dashscope.api_key"] = ft.TextField(
-        label="Dashscope API Key",
-        value=config.get('dashscope.api_key', ''), # Updated key
+        label="API Key", # Label can be simpler now it's under Dashscope section
+        value=config.get('dashscope.api_key', ''),
         password=True,
         can_reveal_password=True,
         hint_text="从环境变量 DASHSCOPE_API_KEY 覆盖",
-        tooltip="阿里云 Dashscope API Key"
+        tooltip="阿里云 Dashscope 服务所需的 API Key"
     )
-    # LLM key remains the same ('llm.api_key')
+    # Add any other Dashscope specific settings here in the future
+    dashscope_section = create_config_section("Dashscope 设置", [
+        config_controls["dashscope.api_key"],
+    ])
+
+
+    # -- LLM API Key definition (moved here temporarily before adding to LLM section) --
     config_controls["llm.api_key"] = ft.TextField(
-        label="LLM API Key (OpenAI兼容)",
+        label="API Key", # Label can be simpler now
         value=config.get('llm.api_key', ''),
         password=True,
         can_reveal_password=True,
         hint_text="从环境变量 OPENAI_API_KEY 覆盖",
-        tooltip="用于 LLM 处理的 API Key (如果启用)"
+        tooltip="用于 LLM 处理的 OpenAI 兼容 API Key (如果启用)"
     )
-    api_keys_section = create_config_section("API Keys", [
-        config_controls["dashscope.api_key"], # Updated key reference
-        config_controls["llm.api_key"],
-    ])
+    # api_keys_section = create_config_section("API Keys", [...]) # REMOVED
 
     # -- STT Settings --
     config_controls["stt.model"] = ft.Dropdown(
@@ -233,7 +235,7 @@ def main(page: ft.Page):
     # Few-shot examples are complex for a simple GUI, skip for now.
     llm_section = create_config_section("语言模型 (LLM)", [
         config_controls["llm.enabled"],
-        # config_controls["llm.api_key"], # REMOVED: API Key is now only in the "API Keys" section
+        config_controls["llm.api_key"], # ADDED: API Key moved into the LLM section
         config_controls["llm.base_url"],
         config_controls["llm.model"],
         config_controls["llm.system_prompt"],
@@ -661,8 +663,8 @@ def main(page: ft.Page):
                 alignment=ft.MainAxisAlignment.END # Align buttons to the right
             ),
             ft.Divider(height=10),
-            # Sections
-            api_keys_section,
+            # Sections - Removed api_keys_section, added dashscope_section
+            dashscope_section,
             stt_section,
             audio_section,
             llm_section,
