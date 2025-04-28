@@ -101,6 +101,8 @@ class ParaformerCallback(RecognitionCallback):
         if is_final:
             log_prefix = "最终识别"
             self.logger.info(f"{log_prefix}: {text_to_process}")
+            # DEBUG: Log final text before potential LLM processing
+            self.logger.debug(f"STT_PARA: Final text received: '{text_to_process}'")
 
             # --- LLM Processing (if enabled) ---
             final_text_to_dispatch = text_to_process  # Default to original text
@@ -130,11 +132,13 @@ class ParaformerCallback(RecognitionCallback):
 
             # --- Dispatch Final Result ---
             if self.loop.is_running():
+                # DEBUG: Log text just before dispatching
+                self.logger.debug(f"STT_PARA: Dispatching final text (post-LLM): '{final_text_to_dispatch}'")
                 asyncio.run_coroutine_threadsafe(
                     self.output_dispatcher.dispatch(final_text_to_dispatch), self.loop
                 )
                 self.logger.debug(
-                    f"已调度最终文本 '{final_text_to_dispatch[:50]}...' 进行分发"
+                    f"STT_PARA: Scheduled final text '{final_text_to_dispatch[:50]}...' for dispatch"
                 )
             else:
                 self.logger.warning("事件循环未运行，无法调度最终结果分发。")

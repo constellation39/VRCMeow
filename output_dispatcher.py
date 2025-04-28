@@ -81,10 +81,11 @@ class OutputDispatcher:
             text: The final text string to dispatch (original or LLM-processed).
         """
         if not text:
-            logger.debug("OutputDispatcher: Received empty text, nothing to dispatch.")
+            logger.debug("OUTPUT_DISP: Received empty text, nothing to dispatch.")
             return
 
-        logger.debug(f"Dispatching text: '{text[:50]}...'")
+        # DEBUG: Log when dispatch starts for a non-empty text
+        logger.debug(f"OUTPUT_DISP: Starting dispatch for text: '{text}'")
 
         dispatch_tasks = []
 
@@ -116,6 +117,8 @@ class OutputDispatcher:
                 formatted_vrc_text = text  # Fallback to raw text
 
             # VRCClient's send_chatbox should be async
+            # DEBUG: Log before calling VRCClient.send_chatbox
+            logger.debug(f"OUTPUT_DISP: Calling VRCClient.send_chatbox with: '{formatted_vrc_text}'")
             dispatch_tasks.append(
                 asyncio.create_task(self.vrc_client.send_chatbox(formatted_vrc_text))
             )
