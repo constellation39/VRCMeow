@@ -26,9 +26,11 @@ stt:
 
 # --- Audio Settings ---
 audio:
-  # Sample rate in Hz (Dashscope requires 16000 for gummy-realtime-v1)
-  # Check model requirements if using a different model.
-  sample_rate: 16000
+  # Sample rate in Hz.
+  # Leave empty (null) to attempt using the default input device's sample rate.
+  # If detection fails or this is uncommented, it falls back to 16000 Hz.
+  # Ensure the rate is compatible with the chosen STT model (e.g., Dashscope Gummy needs 16000).
+  sample_rate: # Defaults to null (auto-detect)
   # Number of channels (Dashscope requires 1 for gummy-realtime-v1)
   channels: 1
   # Audio data type (Dashscope requires 'int16' for gummy-realtime-v1)
@@ -78,7 +80,10 @@ outputs:
     # Minimum interval between sending chatbox messages (seconds).
     # Avoid setting too low (e.g., < 1.333) to prevent VRChat rate limiting or chatbox spam.
     message_interval: 1.333
-    format: "\t{text}\t"
+    # Format string for the message sent to VRChat's chatbox input.
+    # {text} will be replaced with the final recognized/processed text.
+    # Examples: "{text}", ">> {text}", "Meow: {text}"
+    format: "{text}" # Default format
 
   # --- Console Output ---
   console:

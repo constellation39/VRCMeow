@@ -39,15 +39,7 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
         }
     },
     # "stt": { ... } # REMOVED old top-level stt block
-    "audio": {
-        # Available models: "gummy-realtime-v1" (supports translation), "paraformer-realtime-v2", "paraformer-realtime-v1" (recognition only)
-        "model": "gummy-realtime-v1",
-        # How to handle intermediate (non-final) STT results
-        # "ignore": Ignore intermediate results.
-        # "show_typing": Send a fixed "Typing..." message (VRC OSC only).
-        # "show_partial": Send the incomplete recognized text (VRC OSC only).
-        "intermediate_result_behavior": "ignore",
-    },
+    # --- (Removed duplicate audio block that contained model and intermediate_result_behavior) ---
     "audio": {
         "sample_rate": None,  # None means use device default (e.g., 16000 for Gummy)
         "channels": 1,        # (e.g., 1 for Gummy)
