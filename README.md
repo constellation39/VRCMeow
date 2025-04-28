@@ -22,19 +22,21 @@ VRCMeow 是一个旨在通过语音识别和可选的语言模型处理来增强
     ```
 2.  **创建虚拟环境 (推荐):**
     ```bash
-    python -m venv venv
-    # Windows
-    .\venv\Scripts\activate
-    # macOS/Linux
-    # source venv/bin/activate
+    # 使用 uv 创建虚拟环境 (如果尚不存在，默认创建在 .venv)
+    uv venv
+    # 激活虚拟环境 (uv 会自动检测并使用 .venv 目录)
+    # Windows (PowerShell/cmd):
+    .venv\Scripts\activate
+    # macOS/Linux (bash/zsh):
+    # source .venv/bin/activate
+    # 或者，你可以直接使用 uv run 来执行命令，无需手动激活
     ```
 3.  **安装依赖:**
-    *   确保你安装了 [PortAudio](http://www.portaudio.com/download.html) (sounddevice 依赖)。在某些系统上可能需要手动安装。
-    *   安装 Python 依赖:
+    *   确保你安装了 [PortAudio](http://www.portaudio.com/download.html) (`sounddevice` 依赖)。在某些系统上可能需要手动安装。
+    *   使用 `uv` 安装/同步 Python 依赖 (依赖项在 `pyproject.toml` 中定义):
         ```bash
-        pip install -r requirements.txt
+        uv sync
         ```
-        *注意：如果还没有 `requirements.txt` 文件，你需要根据项目使用的库来创建它 (例如 `pip freeze > requirements.txt`)。*
 
 ## 配置
 
@@ -74,10 +76,13 @@ VRCMeow 是一个旨在通过语音识别和可选的语言模型处理来增强
 ## 用法
 
 1.  确保你的 VRChat 客户端已启用 OSC (Settings -> OSC -> Enable OSC)。
-2.  激活你的 Python 虚拟环境（如果使用了）。
+2.  激活你的 Python 虚拟环境（如果需要手动激活，请参见安装步骤）。
 3.  运行主脚本：
     ```bash
+    # 如果已激活虚拟环境
     python main.py
+    # 或者使用 uv run (无需手动激活环境)
+    # uv run python main.py
     ```
 4.  程序将开始监听你的默认麦克风。当你说话时，它会进行转录（和翻译，如果已配置），通过 LLM 处理（如果已配置），并将最终结果发送到配置的输出目标（VRChat、控制台、文件）。
 5.  按 `Ctrl+C` 停止程序。
