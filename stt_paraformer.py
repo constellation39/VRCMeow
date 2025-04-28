@@ -142,12 +142,12 @@ class ParaformerCallback(RecognitionCallback):
                 # We could send the latest non-final sentence, but it might be confusing.
                 # Paraformer doesn't provide granular partial results like Gummy.
                 # We will send the latest non-final sentence as the partial result.
-                log_prefix = "中间结果 (部分)" # Indicate source
+                log_prefix = "中间结果 (部分)"  # Indicate source
                 self.logger.debug(f"{log_prefix}: {text_to_process}")
                 # Dispatch the partial text
                 if self.loop.is_running():
                     asyncio.run_coroutine_threadsafe(
-                        self.output_dispatcher.dispatch(text_to_process), # Send actual partial text
+                        self.output_dispatcher.dispatch(text_to_process),  # Send actual partial text
                         self.loop
                     )
                     self.logger.debug(f"已调度 '{log_prefix}' 文本 '{text_to_process[:50]}...' 进行分发")
