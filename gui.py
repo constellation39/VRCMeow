@@ -43,6 +43,7 @@ from audio_recorder import AudioManager
 from output_dispatcher import OutputDispatcher
 from llm_client import LLMClient
 from osc_client import VRCClient
+import gui_utils # Import the utils module
 
 
 # 初始化日志记录 (在 Flet 应用启动前)
@@ -143,11 +144,42 @@ def main(page: ft.Page):
         tooltip="放弃当前更改并从 config.yaml 重新加载",
     )
 
-    # Dashboard elements are imported directly from gui_dashboard:
-    # status_icon, status_label, status_row, output_text,
-    # toggle_button, progress_indicator are already instantiated.
+    # --- Create Dashboard UI Elements ---
+    # These were previously defined at module level in gui_dashboard.py
+    # Default state: Red status, Green button
+    status_icon = ft.Icon(name=ft.icons.CIRCLE_OUTLINED, color=ft.colors.RED_ACCENT_700)
+    status_label = ft.Text("未启动", selectable=True, color=ft.colors.RED_ACCENT_700)
+    status_row = ft.Row(
+        [status_icon, status_label],
+        alignment=ft.MainAxisAlignment.CENTER,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=5,
+    )
+    output_text = ft.TextField(
+        hint_text="最终输出将显示在这里...",
+        multiline=True,
+        read_only=True,
+        expand=True,
+        min_lines=5,
+        border_radius=ft.border_radius.all(8),
+        border_color=ft.colors.with_opacity(0.5, ft.colors.OUTLINE),
+        filled=True,
+        bgcolor=ft.colors.with_opacity(0.02, ft.colors.ON_SURFACE),
+        content_padding=15,
+    )
+    toggle_button = ft.IconButton(
+        icon=ft.icons.PLAY_ARROW_ROUNDED,
+        tooltip="启动",
+        on_click=None, # Handler assigned later
+        disabled=False,
+        icon_size=30,
+        style=ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700),
+    )
+    progress_indicator = ft.ProgressRing(width=20, height=20, stroke_width=2, visible=False)
+
 
     # --- 回调函数 (用于更新 UI 和处理事件) ---
+    # These callbacks now correctly reference the elements created above in main's scope
     def update_status_display(message: str, is_running: Optional[bool] = None, is_processing: bool = False):
         """线程安全地更新状态文本和图标"""
         if page:  # 确保页面仍然存在
@@ -478,9 +510,7 @@ def main(page: ft.Page):
                 actions=[
                     ft.TextButton(
                         "关闭",
-                        on_click=lambda _: close_banner(
-                            page
-                        ),  # Define close_banner helper
+                        on_click=lambda _: gui_utils.close_banner(page), # Use imported function
                         style=ft.ButtonStyle(color=ft.colors.GREEN_900),
                     )
                 ],
@@ -499,9 +529,7 @@ def main(page: ft.Page):
                 actions=[
                     ft.TextButton(
                         "关闭",
-                        on_click=lambda _: close_banner(
-                            page
-                        ),  # Define close_banner helper
+                        on_click=lambda _: gui_utils.close_banner(page), # Use imported function
                         style=ft.ButtonStyle(color=ft.colors.RED_900),
                     )
                 ],
@@ -628,9 +656,7 @@ def main(page: ft.Page):
                 actions=[
                     ft.TextButton(
                         "关闭",
-                        on_click=lambda _: close_banner(
-                            page
-                        ),  # Define close_banner helper
+                        on_click=lambda _: gui_utils.close_banner(page), # Use imported function
                         style=ft.ButtonStyle(color=ft.colors.GREEN_900),
                     )
                 ],
@@ -648,9 +674,7 @@ def main(page: ft.Page):
                 actions=[
                     ft.TextButton(
                         "关闭",
-                        on_click=lambda _: close_banner(
-                            page
-                        ),  # Define close_banner helper
+                        on_click=lambda _: gui_utils.close_banner(page), # Use imported function
                         style=ft.ButtonStyle(color=ft.colors.RED_900),
                     )
                 ],
@@ -658,13 +682,9 @@ def main(page: ft.Page):
             page.banner.open = True
             page.update()
 
-    # --- Helper function to close banner ---
-    def close_banner(page_ref: ft.Page):
-        if page_ref.banner:
-            page_ref.banner.open = False
-            page_ref.update()
-
     # --- Few-Shot Example Add/Remove Logic (defined within main) ---
+    # close_banner function is now in gui_utils.py
+
     def _create_example_row_internal(user_text: str = "", assistant_text: str = "") -> ft.Row:
          """Creates a Flet Row for a single few-shot example with its remove handler."""
          # Create controls for the row
@@ -905,16 +925,17 @@ def main(page: ft.Page):
 
     # --- Layout using Tabs ---
     # Import layout functions from the new modules
+    # Remove direct element imports from gui_dashboard
     from gui_dashboard import create_dashboard_tab_content
     from gui_config import create_config_tab_content
 
     # Create tab content by calling functions from imported modules
     dashboard_tab_layout = create_dashboard_tab_content(
-        # Pass the elements defined/imported above
-        status_row_control=status_row,
-        toggle_button_control=toggle_button,
-        progress_indicator_control=progress_indicator,
-        output_text_control=output_text
+        # Pass the elements created locally in main
+        status_row_control=status_row,             # Pass the local status_row
+        toggle_button_control=toggle_button,       # Pass the local toggle_button
+        progress_indicator_control=progress_indicator, # Pass the local progress_indicator
+        output_text_control=output_text            # Pass the local output_text
     )
 
     config_tab_layout = create_config_tab_content(

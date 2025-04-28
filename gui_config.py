@@ -7,9 +7,7 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration UI Element Definitions & Helpers ---
 
-# Dictionary to hold references to input controls created in gui.py
-# GUI handlers will access controls through this dict after it's populated.
-config_controls: Dict[str, ft.Control] = {}
+# The central dictionary `all_config_controls` is defined and managed in gui.py.
 
 def create_config_section(title: str, controls: list[ft.Control]) -> ft.Card:
     """Helper to create a bordered section for config options."""

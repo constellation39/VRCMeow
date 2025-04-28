@@ -1,4 +1,7 @@
 import flet as ft
+import logging # Add logging if needed for future utils
+
+logger = logging.getLogger(__name__) # Add logger if needed
 
 # --- Helper function to close banner ---
 def close_banner(page_ref: ft.Page):
