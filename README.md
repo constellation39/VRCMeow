@@ -17,7 +17,7 @@ VRCMeow 是一个旨在通过语音识别和可选的语言模型处理来增强
 
 1.  **克隆仓库:**
     ```bash
-    git clone https://github.com/your-username/VRCMeow.git # 替换为你的仓库 URL
+    git clone https://github.com/your-username/VRCMeow.git
     cd VRCMeow
     ```
 2.  **创建虚拟环境 (推荐):**
@@ -90,7 +90,3 @@ VRCMeow 是一个旨在通过语音识别和可选的语言模型处理来增强
 ## 贡献
 
 欢迎贡献！如果你发现任何错误或有改进建议，请随时创建 Issue 或提交 Pull Request。
-
-## 许可证
-
-*（在此处添加许可证信息，例如 MIT, Apache 2.0 等。如果未定，可以暂时留空或写 "待定"）*
