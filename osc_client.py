@@ -1,10 +1,10 @@
 import asyncio
 import time
 from typing import Any
-from logger_config import get_logger # 导入日志获取器
+from logger_config import get_logger  # 导入日志获取器
 
 # 获取该模块的 logger 实例
-logger = get_logger(__name__) # 使用模块名作为 logger 名称
+logger = get_logger(__name__)  # 使用模块名作为 logger 名称
 
 # 直接导入，如果失败则程序会退出
 from pythonosc import udp_client as pythonosc_udp_client  # 重命名以避免冲突
@@ -19,11 +19,11 @@ class VRCClient:
 
     # 移除 __init__ 中的默认值，这些值现在来自配置
     def __init__(
-            self,
-            address: str,
-            port: int,
-            interval: float,
-    ) :
+        self,
+        address: str,
+        port: int,
+        interval: float,
+    ):
         """
         初始化 VRChat OSC 客户端。
 
@@ -35,8 +35,8 @@ class VRCClient:
         # 使用传入的参数初始化客户端
         self._osc_client = pythonosc_udp_client.SimpleUDPClient(address, port)
         self.interval = interval
-        self._address = address # 可以存储起来用于日志记录
-        self._port = port       # 可以存储起来用于日志记录
+        self._address = address  # 可以存储起来用于日志记录
+        self._port = port  # 可以存储起来用于日志记录
 
         self._lock = asyncio.Lock()  # 用于保护共享资源的异步锁
         self._last_send_time = 0.0  # 上次发送消息的时间戳
@@ -53,7 +53,9 @@ class VRCClient:
                 self._running.set()  # 标记为运行中
                 # 创建并启动后台消息处理任务
                 self._process_task = asyncio.create_task(self._process_messages())
-                logger.info(f"VRCClient 已启动，目标: {self._address}:{self._port}, 间隔: {self.interval}s")
+                logger.info(
+                    f"VRCClient 已启动，目标: {self._address}:{self._port}, 间隔: {self.interval}s"
+                )
 
     async def stop(self) -> None:
         """停止消息处理循环并进行清理。"""
@@ -107,11 +109,15 @@ class VRCClient:
             # 首先发送 typing=False 清除输入状态
             self._osc_client.send_message("/chatbox/typing", False)
             # 然后发送消息内容，send_now=True 表示立即发送
-            self._osc_client.send_message("/chatbox/input", [content, True])  # VRC 需要列表 [message, send_now=True]
+            self._osc_client.send_message(
+                "/chatbox/input", [content, True]
+            )  # VRC 需要列表 [message, send_now=True]
             self._last_send_time = time.time()  # 更新上次发送时间
-            logger.info(f"OSC 消息已发送: {content}") # 使用 logger.info
+            logger.info(f"OSC 消息已发送: {content}")  # 使用 logger.info
         except Exception as e:
-            logger.error(f"发送 OSC 消息时出错: {e}", exc_info=True) # 添加 exc_info 获取堆栈跟踪
+            logger.error(
+                f"发送 OSC 消息时出错: {e}", exc_info=True
+            )  # 添加 exc_info 获取堆栈跟踪
 
     async def _show_typing_status(self) -> None:
         """在 VRChat 中显示输入状态。"""
@@ -176,7 +182,7 @@ class VRCClient:
                     self._message_updated.clear()  # 清除事件，为下一条消息做好准备
 
         except asyncio.CancelledError:
-            logger.debug("消息处理任务已取消") # 使用 logger.debug
+            logger.debug("消息处理任务已取消")  # 使用 logger.debug
         finally:
             # 确保在任务结束时清除输入状态
             await self._clear_typing_status()

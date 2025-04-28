@@ -7,6 +7,7 @@ import sounddevice as sd
 
 # 直接从 config 模块导入 config 实例
 from config import config
+
 # 获取该模块的 logger 实例
 from logger_config import get_logger
 
@@ -45,9 +46,9 @@ if TYPE_CHECKING:
 
 # --- STT 处理核心逻辑 ---
 async def stt_processor(
-        llm_client: Optional['LLMClient'],  # Use forward reference string hint
-        output_dispatcher: 'OutputDispatcher',  # Use forward reference string hint (required)
-        stop_event: asyncio.Event  # Pass stop_event
+    llm_client: Optional["LLMClient"],  # Use forward reference string hint
+    output_dispatcher: "OutputDispatcher",  # Use forward reference string hint (required)
+    stop_event: asyncio.Event,  # Pass stop_event
 ):
     """异步任务，根据配置管理 Dashscope STT 引擎 (Gummy 或 Paraformer) 并处理音频队列。"""
     # --- Directly import required components if needed inside the function ---
@@ -62,11 +63,15 @@ async def stt_processor(
     #     OutputDispatcher = None
 
     # --- 直接从 config 实例获取配置 ---
-    api_key = config['dashscope_api_key']
-    model = config['stt.model']
-    sample_rate = config['audio.sample_rate']  # 必须存在 (由 start_audio_processing 保证)
-    channels = config['audio.channels']
-    target_language = config.get('stt.translation_target_language')  # 使用 get 处理 None
+    api_key = config["dashscope_api_key"]
+    model = config["stt.model"]
+    sample_rate = config[
+        "audio.sample_rate"
+    ]  # 必须存在 (由 start_audio_processing 保证)
+    channels = config["audio.channels"]
+    target_language = config.get(
+        "stt.translation_target_language"
+    )  # 使用 get 处理 None
 
     logger.info(f"STT 处理任务 (Dashscope, 模型: {model}) 启动中...")
     recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
@@ -90,7 +95,9 @@ async def stt_processor(
     is_paraformer_model = model.startswith("paraformer-")
 
     if not is_gummy_model and not is_paraformer_model:
-        logger.error(f"不支持的 Dashscope 模型: {model}。请使用 'gummy-' 或 'paraformer-' 开头的模型。")
+        logger.error(
+            f"不支持的 Dashscope 模型: {model}。请使用 'gummy-' 或 'paraformer-' 开头的模型。"
+        )
         stop_event.set()
         return
 
@@ -100,23 +107,29 @@ async def stt_processor(
         try:
             # --- 检查翻译配置与模型的兼容性 (每次尝试连接前重新检查，以防配置重载) ---
             # 重新获取最新的配置值
-            model = config['stt.model']  # 重新获取模型，可能已改变
-            target_language = config.get('stt.translation_target_language')
+            model = config["stt.model"]  # 重新获取模型，可能已改变
+            target_language = config.get("stt.translation_target_language")
             enable_translation = bool(target_language)
             is_gummy_model = model.startswith("gummy-")
             is_paraformer_model = model.startswith("paraformer-")
 
             if not is_gummy_model and not is_paraformer_model:
-                logger.error(f"不支持的 Dashscope 模型: {model}。请使用 'gummy-' 或 'paraformer-' 开头的模型。")
+                logger.error(
+                    f"不支持的 Dashscope 模型: {model}。请使用 'gummy-' 或 'paraformer-' 开头的模型。"
+                )
                 stop_event.set()  # 致命错误，停止
                 break  # 退出重连循环
 
             if enable_translation and is_paraformer_model:
-                logger.warning(f"模型 '{model}' (Paraformer) 不支持翻译。'translation_target_language' 配置将被忽略。")
+                logger.warning(
+                    f"模型 '{model}' (Paraformer) 不支持翻译。'translation_target_language' 配置将被忽略。"
+                )
                 enable_translation = False
 
             # --- 根据模型选择并创建识别器 ---
-            logger.info(f"尝试连接 STT 服务 (模型: {model}, 尝试次数 {retry_count + 1}/{max_retries})...")
+            logger.info(
+                f"尝试连接 STT 服务 (模型: {model}, 尝试次数 {retry_count + 1}/{max_retries})..."
+            )
             if is_gummy_model:
                 if create_gummy_recognizer is None:
                     raise RuntimeError("Gummy STT 模块未能加载。")  # 改为抛出异常
@@ -124,7 +137,7 @@ async def stt_processor(
                 recognizer = create_gummy_recognizer(
                     main_loop=main_loop,
                     llm_client=llm_client,
-                    output_dispatcher=output_dispatcher
+                    output_dispatcher=output_dispatcher,
                 )
             elif is_paraformer_model:
                 if create_paraformer_recognizer is None:
@@ -133,7 +146,7 @@ async def stt_processor(
                 recognizer = create_paraformer_recognizer(
                     main_loop=main_loop,
                     llm_client=llm_client,  # Pass LLM client
-                    output_dispatcher=output_dispatcher  # Pass dispatcher
+                    output_dispatcher=output_dispatcher,  # Pass dispatcher
                 )
                 # Warning removed as Paraformer is now integrated
 
@@ -164,14 +177,20 @@ async def stt_processor(
                     continue
                 except Exception as send_error:
                     # 捕获发送音频帧时的错误，假设是连接问题
-                    logger.error(f"发送音频帧到 STT 服务时出错: {send_error}", exc_info=True)
+                    logger.error(
+                        f"发送音频帧到 STT 服务时出错: {send_error}", exc_info=True
+                    )
                     logger.info("假设连接丢失，将尝试重新连接...")
                     try:
                         # 尝试停止当前失败的 recognizer
                         recognizer.stop()
-                        logger.info(f"已停止故障的 Dashscope {engine_type} Recognizer 实例。")
+                        logger.info(
+                            f"已停止故障的 Dashscope {engine_type} Recognizer 实例。"
+                        )
                     except Exception as stop_err:
-                        logger.error(f"停止故障的 recognizer 时出错: {stop_err}", exc_info=True)
+                        logger.error(
+                            f"停止故障的 recognizer 时出错: {stop_err}", exc_info=True
+                        )
                     recognizer = None  # 清理引用
                     break  # 跳出内层循环，触发外层重连
 
@@ -182,17 +201,24 @@ async def stt_processor(
 
         except Exception as connect_error:
             # --- 处理连接或启动过程中的错误 ---
-            logger.error(f"连接或启动 Dashscope {engine_type} Recognizer 时出错: {connect_error}", exc_info=True)
+            logger.error(
+                f"连接或启动 Dashscope {engine_type} Recognizer 时出错: {connect_error}",
+                exc_info=True,
+            )
             if recognizer:  # 如果 recognizer 已创建但启动失败
                 try:
                     recognizer.stop()
                 except Exception as stop_err:
-                    logger.error(f"停止启动失败的 recognizer 时出错: {stop_err}", exc_info=True)
+                    logger.error(
+                        f"停止启动失败的 recognizer 时出错: {stop_err}", exc_info=True
+                    )
                 recognizer = None
 
             retry_count += 1
             if retry_count >= max_retries:
-                logger.critical(f"STT 连接失败达到最大重试次数 ({max_retries})。停止 STT 处理。")
+                logger.critical(
+                    f"STT 连接失败达到最大重试次数 ({max_retries})。停止 STT 处理。"
+                )
                 stop_event.set()  # 设置停止信号，通知其他部分停止
                 break  # 退出重连循环
 
@@ -236,10 +262,11 @@ async def stt_processor(
 
 
 # --- 音频捕获和主控制逻辑 ---
-async def start_audio_processing(*,
-                                 output_dispatcher: 'OutputDispatcher',  # Use forward reference string hints (required)
-                                 llm_client: Optional['LLMClient']  # Use forward reference string hints
-                                 ):
+async def start_audio_processing(
+    *,
+    output_dispatcher: "OutputDispatcher",  # Use forward reference string hints (required)
+    llm_client: Optional["LLMClient"],  # Use forward reference string hints
+):
     """启动实时音频捕获和 Dashscope STT 处理。"""
     stop_event = asyncio.Event()
     stt_task = None
@@ -247,15 +274,21 @@ async def start_audio_processing(*,
 
     # --- 直接从 config 实例获取配置 ---
     # 使用点表示法或 get 方法访问嵌套配置
-    sample_rate_config = config.get('audio.sample_rate')  # 使用 get 处理 None
-    channels = config['audio.channels']
-    dtype = config['audio.dtype']
-    debug_echo_mode = config['audio.debug_echo_mode']
-    model = config['stt.model']
-    target_language = config.get('stt.translation_target_language')
+    sample_rate_config = config.get("audio.sample_rate")  # 使用 get 处理 None
+    channels = config["audio.channels"]
+    dtype = config["audio.dtype"]
+    debug_echo_mode = config["audio.debug_echo_mode"]
+    model = config["stt.model"]
+    target_language = config.get("stt.translation_target_language")
 
     # --- 定义音频回调函数 (闭包访问 debug_echo_mode) ---
-    def audio_callback(indata: np.ndarray, outdata: np.ndarray, frames: int, time, status: sd.CallbackFlags):
+    def audio_callback(
+        indata: np.ndarray,
+        outdata: np.ndarray,
+        frames: int,
+        time,
+        status: sd.CallbackFlags,
+    ):
         """同步回调，处理音频 IO 并将输入放入队列。"""
         if status:
             logger.warning(f"音频回调状态: {status}")
@@ -270,7 +303,9 @@ async def start_audio_processing(*,
         try:
             # 确保 indata 是我们期望的 dtype，尽管 sounddevice 通常会处理好
             if indata.dtype != np.dtype(dtype):
-                logger.warning(f"接收到的音频数据类型 ({indata.dtype}) 与期望 ({dtype}) 不符，尝试转换。")
+                logger.warning(
+                    f"接收到的音频数据类型 ({indata.dtype}) 与期望 ({dtype}) 不符，尝试转换。"
+                )
                 indata = indata.astype(dtype)  # 尝试转换
             audio_queue.put_nowait(indata.copy())
         except asyncio.QueueFull:
@@ -280,33 +315,51 @@ async def start_audio_processing(*,
     try:
         # --- 查询音频设备信息并确定采样率 ---
         try:
-            default_input_device_info = sd.query_devices(kind='input')  # 只查询输入设备
-            default_output_device_info = sd.query_devices(kind='output')  # 查询输出设备用于日志记录
+            default_input_device_info = sd.query_devices(kind="input")  # 只查询输入设备
+            default_output_device_info = sd.query_devices(
+                kind="output"
+            )  # 查询输出设备用于日志记录
             # Log detailed device info at DEBUG level
             if default_input_device_info:
                 logger.debug(f"默认麦克风: {default_input_device_info['name']}")
-                logger.debug(f"  - 最大输入声道: {default_input_device_info['max_input_channels']}")
-                logger.debug(f"  - 默认采样率: {default_input_device_info['default_samplerate']} Hz")
+                logger.debug(
+                    f"  - 最大输入声道: {default_input_device_info['max_input_channels']}"
+                )
+                logger.debug(
+                    f"  - 默认采样率: {default_input_device_info['default_samplerate']} Hz"
+                )
             else:
-                logger.warning("无法获取默认麦克风信息。")  # Keep warning as INFO/WARN is appropriate
+                logger.warning(
+                    "无法获取默认麦克风信息。"
+                )  # Keep warning as INFO/WARN is appropriate
             if default_output_device_info:
                 logger.debug(f"默认扬声器: {default_output_device_info['name']}")
-                logger.debug(f"  - 最大输出声道: {default_output_device_info['max_output_channels']}")
-                logger.debug(f"  - 默认采样率: {default_output_device_info['default_samplerate']} Hz")
+                logger.debug(
+                    f"  - 最大输出声道: {default_output_device_info['max_output_channels']}"
+                )
+                logger.debug(
+                    f"  - 默认采样率: {default_output_device_info['default_samplerate']} Hz"
+                )
             else:
                 logger.warning("无法获取默认扬声器信息。")  # Keep warning
 
             # --- 决定最终使用的采样率 ---
             if sample_rate_config is None:
-                if default_input_device_info and 'default_samplerate' in default_input_device_info:
+                if (
+                    default_input_device_info
+                    and "default_samplerate" in default_input_device_info
+                ):
                     # 使用设备默认采样率，并转换为整数
-                    sample_rate = int(default_input_device_info['default_samplerate'])
+                    sample_rate = int(default_input_device_info["default_samplerate"])
                     logger.debug(
-                        f"配置中未指定 sample_rate，将使用默认麦克风的采样率: {sample_rate} Hz")  # Changed to DEBUG
+                        f"配置中未指定 sample_rate，将使用默认麦克风的采样率: {sample_rate} Hz"
+                    )  # Changed to DEBUG
                 else:
                     # 如果无法获取设备信息或默认采样率，回退到一个标准值
                     sample_rate = 16000  # 回退值
-                    logger.warning(f"无法获取默认麦克风的采样率，将回退到默认值: {sample_rate} Hz")
+                    logger.warning(
+                        f"无法获取默认麦克风的采样率，将回退到默认值: {sample_rate} Hz"
+                    )
             else:
                 # 使用配置文件中指定的采样率
                 sample_rate = int(sample_rate_config)  # 确保是整数
@@ -317,10 +370,14 @@ async def start_audio_processing(*,
             # 即使查询失败，也要决定采样率
             if sample_rate_config is None:
                 sample_rate = 16000  # 回退值
-                logger.warning(f"查询设备失败且配置未指定 sample_rate，将回退到默认值: {sample_rate} Hz")
+                logger.warning(
+                    f"查询设备失败且配置未指定 sample_rate，将回退到默认值: {sample_rate} Hz"
+                )
             else:
                 sample_rate = int(sample_rate_config)
-                logger.warning(f"查询设备失败，将使用配置文件中指定的采样率: {sample_rate} Hz")
+                logger.warning(
+                    f"查询设备失败，将使用配置文件中指定的采样率: {sample_rate} Hz"
+                )
             # 尝试继续
 
         # --- 记录最终使用的配置 ---
@@ -330,8 +387,10 @@ async def start_audio_processing(*,
         if sample_rate_config is None:
             try:
                 # 尝试直接修改内部字典 (谨慎使用)
-                config._config_data['audio']['sample_rate'] = sample_rate
-                logger.debug(f"已将运行时确定的采样率 ({sample_rate} Hz) 更新回配置。")  # Changed to DEBUG
+                config._config_data["audio"]["sample_rate"] = sample_rate
+                logger.debug(
+                    f"已将运行时确定的采样率 ({sample_rate} Hz) 更新回配置。"
+                )  # Changed to DEBUG
             except Exception as e:
                 logger.error(f"无法更新配置中的运行时采样率: {e}")
         # 或者，确保 stt_processor 总是从 config 中读取最新的 'audio.sample_rate'
@@ -349,18 +408,22 @@ async def start_audio_processing(*,
         # 因为 stt_processor 函数也期望接收这些字典（尽管它现在会在内部预读取值）
         # audio_config 字典已被修改以包含正确的 sample_rate
         # 传递客户端/分发器实例给 stt_processor
-        stt_task = asyncio.create_task(stt_processor(
-            llm_client=llm_client,  # Pass instance (can be None)
-            output_dispatcher=output_dispatcher,  # Pass instance (required)
-            stop_event=stop_event
-        ))
+        stt_task = asyncio.create_task(
+            stt_processor(
+                llm_client=llm_client,  # Pass instance (can be None)
+                output_dispatcher=output_dispatcher,  # Pass instance (required)
+                stop_event=stop_event,
+            )
+        )
 
         # 使用 sounddevice Stream 上下文管理器启动音频流
         # 使用从配置加载的参数
-        with sd.Stream(samplerate=sample_rate,
-                       channels=channels,
-                       dtype=dtype,
-                       callback=audio_callback) as stream:  # 捕获流对象
+        with sd.Stream(
+            samplerate=sample_rate,
+            channels=channels,
+            dtype=dtype,
+            callback=audio_callback,
+        ) as stream:  # 捕获流对象
             # 记录实际使用的采样率
             logger.info(f"麦克风实际使用的采样率: {stream.samplerate} Hz")
             logger.info("音频流已启动。按 Ctrl+C 停止。")
@@ -373,13 +436,16 @@ async def start_audio_processing(*,
         logger.error("  - 麦克风和扬声器已连接并被系统识别。")
         logger.error("  - 没有其他应用独占音频设备。")
         # 使用实际配置值显示错误消息
-        logger.error(f"  - 默认麦克风支持 {sample_rate} Hz, {channels} 声道, {dtype} 格式。")
+        logger.error(
+            f"  - 默认麦克风支持 {sample_rate} Hz, {channels} 声道, {dtype} 格式。"
+        )
         stop_event.set()  # 触发停止
     except ValueError as e:
         logger.error(f"音频参数错误: {e}", exc_info=True)
         # 使用实际配置值显示错误消息
         logger.error(
-            f"  - 检查采样率 ({sample_rate}), 声道数 ({channels}), 数据类型 ({dtype}) 是否受支持。")
+            f"  - 检查采样率 ({sample_rate}), 声道数 ({channels}), 数据类型 ({dtype}) 是否受支持。"
+        )
         stop_event.set()  # 触发停止
     except Exception as e:
         logger.error(f"启动音频处理时发生未知错误: {e}", exc_info=True)
