@@ -1,10 +1,9 @@
 import asyncio
-import threading
 import flet as ft
 from typing import Optional
 
 # 从项目中导入所需模块
-from config import config, Config  # 导入 Config 类用于类型提示
+from config import config  # 导入 Config 类用于类型提示
 from logger_config import setup_logging, get_logger
 from audio_recorder import AudioManager
 from output_dispatcher import OutputDispatcher
@@ -55,14 +54,14 @@ def main(page: ft.Page):
     def update_status_display(message: str):
         """线程安全地更新状态文本"""
         if page: # 确保页面仍然存在
-            page.run_threadsafe(
+            page.run_task(
                 lambda: setattr(status_text, 'value', f"状态: {message}") or page.update() # type: ignore
             )
 
     def update_output_display(text: str):
         """线程安全地将文本附加到输出区域"""
         if page: # 确保页面仍然存在
-            page.run_threadsafe(
+            page.run_task(
                 lambda: setattr(output_text, 'value', (output_text.value or "") + text + "\n") or page.update() # type: ignore
             )
 
