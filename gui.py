@@ -675,7 +675,7 @@ def main(page: ft.Page):
             max_lines=3,
             expand=True,
         )
-        assistant_output = ft.TextField(
+         assistant_output = ft.TextField(
             label="助手响应 (Assistant)",
             value=assistant_text,
             multiline=True,
