@@ -8,11 +8,10 @@ from logger_config import get_logger
 
 if __name__ == "__main__":
     # 1. 配置日志 (在启动 Flet 之前完成)
-    # setup_logging() 在 gui.py 中调用，这里不再需要
-    # logger = get_logger(__name__) # 获取 logger 的操作也移至 gui.py 或其他需要的地方
+    # Logging setup is handled within gui.py now (inside its main and upon import)
+    # from logger_config import setup_logging # Removed
 
-    # 2. (可选) 可以在这里执行一些非常早期的、与 UI 无关的检查，
-    #    例如检查 Python 版本或关键文件是否存在，但大多数初始化应在 GUI 内部完成。
+    # 2. (Optional) Early checks can go here if needed.
 
     # 3. 启动 Flet 应用程序
     # gui.py 中的 main 函数现在是 Flet 的目标

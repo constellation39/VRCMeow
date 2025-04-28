@@ -493,13 +493,67 @@ def main(page: ft.Page):
 
     # --- (Removed show_snackbar function) ---
 
+    # --- Helper function to get control value safely (defined within main) ---
+    def get_control_value(
+        key: str, control_type: type = str, default: Any = None
+    ):
+        """Safely gets and converts value from the control dictionary."""
+        control = all_config_controls.get(key) # Use the local aggregated dict
+        if control is None:
+            logger.warning(f"Control for config key '{key}' not found in GUI.")
+            return default
+
+        value = getattr(control, "value", default)
+
+        # Handle specific control types
+        if isinstance(control, ft.Switch):
+            return bool(value)
+        if isinstance(control, ft.Dropdown):
+            return value # Dropdown value is usually correct type
+
+        # Handle text fields (TextField)
+        if value is None or value == "":
+            # Check specific keys that allow None
+            if key in [
+                "dashscope.stt.translation_target_language",
+                "audio.sample_rate",
+                "llm.base_url",
+            ]:
+                return None
+            # For numeric types, if empty and default exists, return default
+            elif (control_type == int or control_type == float) and default is not None:
+                 return default
+            elif default is not None:
+                 return default # General default case
+            else: # Should not happen if default config has values
+                 return ""
+
+        # Type conversion for text fields
+        try:
+            if control_type == int:
+                return int(value)
+            if control_type == float:
+                return float(value)
+            return str(value) # Default to string
+        except (ValueError, TypeError) as convert_err:
+            logger.error(
+                f"Invalid value '{value}' for {key}. Expected type {control_type}. Error: {convert_err}. Keeping original value."
+            )
+            # Retrieve original value to avoid saving invalid data
+            original_value = config.get(key, default) if config else default
+            return original_value
+
+
     # --- 配置保存/重载逻辑 ---
     async def save_config_handler(e: ft.ControlEvent):
         """保存按钮点击事件处理程序 (配置选项卡)"""
         logger.info("Save configuration button clicked.")
-        new_config_data = copy.deepcopy(
-            config.data
-        )  # Start with current config as base
+        # Start with a deep copy of the *current live* config data
+        if not config:
+            logger.error("Cannot save config, config object not available.")
+            # Show error banner?
+            return
+        new_config_data = copy.deepcopy(config.data)
 
         try:
             # Helper to safely get and convert values from controls
@@ -550,11 +604,16 @@ def main(page: ft.Page):
 
             # Recursively update the new_config_data dictionary
             def update_nested_dict(data_dict: Dict, key: str, value: Any):
-                keys = key.split(".")
-                d = data_dict
-                for k in keys[:-1]:
-                    d = d.setdefault(k, {})  # Create nested dicts if they don't exist
-                d[keys[-1]] = value
+                keys = key.split('.')
+                temp_dict = data_dict
+                for i, k in enumerate(keys[:-1]):
+                    # Ensure intermediate level is a dictionary
+                    if not isinstance(temp_dict.get(k), dict):
+                         temp_dict[k] = {} # Create or overwrite if not a dict
+                    temp_dict = temp_dict[k]
+
+                # Set the final value
+                temp_dict[keys[-1]] = value
 
             # Update dictionary from controls
             update_nested_dict(
