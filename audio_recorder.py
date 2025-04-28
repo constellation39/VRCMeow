@@ -1,6 +1,7 @@
 import asyncio
-from typing import Optional, TYPE_CHECKING
-from typing import Union
+import threading
+import queue # Use standard queue for thread-safe communication
+from typing import Optional, TYPE_CHECKING, Union, Callable, Any
 
 import numpy as np
 import sounddevice as sd
@@ -22,11 +23,7 @@ from stt_paraformer import create_paraformer_recognizer
 logger = get_logger(__name__)
 
 
-# --- Asynchronous Queue ---
-audio_queue = asyncio.Queue()
-
-
-# Component Imports for Type Hinting
+# --- Component Imports for Type Hinting (Keep these) ---
 # Use TYPE_CHECKING to avoid circular imports at runtime
 if TYPE_CHECKING:
     try:
@@ -46,15 +43,72 @@ if TYPE_CHECKING:
 # Actual imports needed at runtime (handled elsewhere, these are just for hints)
 
 
-# --- STT 处理核心逻辑 ---
-async def stt_processor(
-    llm_client: Optional["LLMClient"],  # Use forward reference string hint
-    output_dispatcher: "OutputDispatcher",  # Use forward reference string hint (required)
-    stop_event: asyncio.Event,  # Pass stop_event
-):
-    """异步任务，根据配置管理 Dashscope STT 引擎 (Gummy 或 Paraformer) 并处理音频队列。"""
-    # --- Get config directly from the config instance ---
-    # api_key = config["dashscope_api_key"] # Unused
+# --- AudioManager Class ---
+class AudioManager:
+    """
+    Manages audio input, STT processing, and communication with the GUI.
+    Runs audio stream and STT task in separate threads.
+    """
+    def __init__(
+        self,
+        llm_client: Optional["LLMClient"],
+        output_dispatcher: "OutputDispatcher",
+        status_callback: Optional[Callable[[str], None]] = None, # Callback for status updates
+    ):
+        self.llm_client = llm_client
+        self.output_dispatcher = output_dispatcher
+        self.status_callback = status_callback
+
+        self._audio_queue = queue.Queue() # Thread-safe queue
+        self._stop_event = threading.Event() # Use threading.Event for cross-thread signaling
+        self._audio_thread: Optional[threading.Thread] = None
+        self._stt_thread: Optional[threading.Thread] = None
+        self._stt_task: Optional[asyncio.Task] = None # To hold the asyncio task reference
+        self._stt_loop: Optional[asyncio.AbstractEventLoop] = None # Loop for the STT thread
+
+        # Load necessary config values during initialization
+        self.sample_rate = config.get("audio.sample_rate") # Get initial value
+        self.channels = config["audio.channels"]
+        self.dtype = config["audio.dtype"]
+        self.debug_echo_mode = config["audio.debug_echo_mode"]
+        self.stt_model = config["stt.model"]
+
+        # Dynamically determine sample rate if not configured
+        if self.sample_rate is None:
+            self.sample_rate = self._determine_sample_rate()
+
+
+    def _determine_sample_rate(self) -> int:
+        """Queries device info to determine sample rate if not set in config."""
+        try:
+            device_info = sd.query_devices(kind="input")
+            if device_info and "default_samplerate" in device_info:
+                rate = int(device_info["default_samplerate"])
+                logger.info(f"Using default input device sample rate: {rate} Hz")
+                return rate
+            else:
+                logger.warning("Could not determine default sample rate, falling back to 16000 Hz.")
+                return 16000
+        except Exception as e:
+            logger.error(f"Error querying audio devices for sample rate: {e}", exc_info=True)
+            logger.warning("Falling back to 16000 Hz sample rate due to error.")
+            return 16000
+
+    def _update_status(self, message: str):
+        """Helper to call the status callback if it exists."""
+        logger.info(f"AudioManager Status: {message}") # Log status internally
+        if self.status_callback:
+            try:
+                # Assuming the callback needs to be run in the main (GUI) thread eventually.
+                # For now, just call it directly. GUI integration might need thread-safe calls.
+                self.status_callback(message)
+            except Exception as e:
+                logger.error(f"Error calling status callback: {e}", exc_info=True)
+
+    # --- STT Processing Logic (Now an async method) ---
+    async def _stt_processor_task(self):
+        """Async task for STT processing, run in a dedicated thread's event loop."""
+        # Config values are accessed via self now
     model = config["stt.model"]
     # sample_rate is guaranteed by start_audio_processing but unused here
     # sample_rate = config["audio.sample_rate"]
@@ -63,7 +117,7 @@ async def stt_processor(
 
     logger.info(f"STT processing task (Dashscope, model: {model}) starting...")
     recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
-    main_loop = asyncio.get_running_loop()
+    # main_loop = asyncio.get_running_loop() # Use self._stt_loop which is set when the thread starts
     # except ImportError:
     #      LLMClient = None
     # try:
@@ -74,94 +128,118 @@ async def stt_processor(
     #     from output_dispatcher import OutputDispatcher # Not typically needed here
     # except ImportError:
     #     OutputDispatcher = None
-    engine_type = "Unknown"  # 初始化引擎类型
+    engine_type = "Unknown"
 
-    # --- 重连参数 ---
-    max_retries = 5  # 最大重试次数
+    # --- Reconnect Parameters ---
+    max_retries = 5
     initial_retry_delay = 1.0  # 初始重试延迟 (秒)
     max_retry_delay = 30.0  # 最大重试延迟 (秒)
     retry_count = 0
     current_delay = initial_retry_delay
 
-    # API Key 已经在 main.py 检查过 (假设如此)
+    # API Key check happens in main.py before AudioManager is created
 
-    # 根据预读取的 target_language 是否设置来决定是否启用翻译
+    # --- Determine translation based on potentially reloaded config ---
+    target_language = config.get("stt.translation_target_language") # Re-check config
     enable_translation = bool(target_language)
 
-    # --- 根据模型选择 API 和参数 ---
+    # --- Select API based on potentially reloaded config ---
+    # Re-check model compatibility each loop iteration
+    model = config["stt.model"] # Re-read model from config
+    self.stt_model = model # Update instance variable if changed
     is_gummy_model = model.startswith("gummy-")
     is_paraformer_model = model.startswith("paraformer-")
 
     if not is_gummy_model and not is_paraformer_model:
-        logger.error(
-            f"不支持的 Dashscope 模型: {model}。请使用 'gummy-' 或 'paraformer-' 开头的模型。"
-        )
-        stop_event.set()
+        error_msg = f"Unsupported Dashscope model: {model}. Use 'gummy-' or 'paraformer-'."
+        logger.error(error_msg)
+        self._update_status(f"Error: {error_msg}")
+        self._stop_event.set() # Signal stop to all threads
         return
 
-    # --- 外层重连循环 ---
-    while not stop_event.is_set():
+    # --- Outer Reconnect Loop ---
+    while not self._stop_event.is_set():
         recognizer = None  # 每次尝试连接前重置
         try:
-            # --- 检查翻译配置与模型的兼容性 (每次尝试连接前重新检查，以防配置重载) ---
-            # 重新获取最新的配置值
-            model = config["stt.model"]  # 重新获取模型，可能已改变
-            target_language = config.get("stt.translation_target_language")
+            # --- Check config and model compatibility (re-check each loop) ---
+            model = config["stt.model"] # Re-read model
+            self.stt_model = model # Update instance var
+            target_language = config.get("stt.translation_target_language") # Re-read target lang
             enable_translation = bool(target_language)
             is_gummy_model = model.startswith("gummy-")
             is_paraformer_model = model.startswith("paraformer-")
 
             if not is_gummy_model and not is_paraformer_model:
-                logger.error(
-                    f"不支持的 Dashscope 模型: {model}。请使用 'gummy-' 或 'paraformer-' 开头的模型。"
-                )
-                stop_event.set()  # 致命错误，停止
-                break  # 退出重连循环
+                 error_msg = f"Unsupported Dashscope model: {model}. Use 'gummy-' or 'paraformer-'."
+                 logger.error(error_msg)
+                 self._update_status(f"Error: {error_msg}")
+                 self._stop_event.set() # Fatal error, stop everything
+                 break # Exit reconnect loop
 
             if enable_translation and is_paraformer_model:
-                logger.warning(
-                    f"模型 '{model}' (Paraformer) 不支持翻译。'translation_target_language' 配置将被忽略。"
-                )
-                enable_translation = False
+                 logger.warning(
+                     f"Model '{model}' (Paraformer) does not support translation. "
+                     f"'translation_target_language' will be ignored."
+                 )
+                 enable_translation = False # Disable translation for this attempt
 
-            # --- 根据模型选择并创建识别器 ---
+            # --- Select and create recognizer ---
+            self._update_status(f"Connecting STT (Model: {model}, Attempt {retry_count + 1}/{max_retries})...")
             logger.info(
-                f"尝试连接 STT 服务 (模型: {model}, 尝试次数 {retry_count + 1}/{max_retries})..."
+                f"Attempting to connect STT service (Model: {model}, Attempt {retry_count + 1}/{max_retries})..."
             )
             if is_gummy_model:
                 if create_gummy_recognizer is None:
-                    raise RuntimeError("Gummy STT 模块未能加载。")  # 改为抛出异常
+                    raise RuntimeError("Gummy STT module failed to load.")
                 engine_type = "Gummy"
                 recognizer = create_gummy_recognizer(
-                    main_loop=main_loop,
-                    llm_client=llm_client,
-                    output_dispatcher=output_dispatcher,
+                    main_loop=self._stt_loop, # Use the loop of the STT thread
+                    llm_client=self.llm_client,
+                    output_dispatcher=self.output_dispatcher,
                 )
             elif is_paraformer_model:
                 if create_paraformer_recognizer is None:
-                    raise RuntimeError("Paraformer STT 模块未能加载。")  # 改为抛出异常
+                    raise RuntimeError("Paraformer STT module failed to load.")
                 engine_type = "Paraformer"
                 recognizer = create_paraformer_recognizer(
-                    main_loop=main_loop,
-                    llm_client=llm_client,  # Pass LLM client
-                    output_dispatcher=output_dispatcher,  # Pass dispatcher
+                    main_loop=self._stt_loop, # Use the loop of the STT thread
+                    llm_client=self.llm_client,
+                    output_dispatcher=self.output_dispatcher,
                 )
-                # Warning removed as Paraformer is now integrated
 
             if not recognizer:
-                raise RuntimeError(f"未能创建模型 '{model}' 的识别器实例。")
+                raise RuntimeError(f"Failed to create recognizer instance for model '{model}'.")
 
-            # --- 启动识别器 ---
+            # --- Start Recognizer ---
             recognizer.start()
-            logger.info(f"Dashscope {engine_type} Recognizer 已连接并启动。")
-            retry_count = 0  # 连接成功，重置重试计数
-            current_delay = initial_retry_delay  # 重置延迟
+            logger.info(f"Dashscope {engine_type} Recognizer connected and started.")
+            self._update_status(f"STT Connected (Engine: {engine_type})")
+            retry_count = 0  # Reset retries on success
+            current_delay = initial_retry_delay # Reset delay
 
-            # --- 内层音频处理循环 ---
-            while not stop_event.is_set():
+            # --- Inner Audio Processing Loop ---
+            while not self._stop_event.is_set():
                 try:
-                    # 从队列中获取音频数据
-                    audio_data = await asyncio.wait_for(audio_queue.get(), timeout=0.1)
+                    # Get audio data from the thread-safe queue
+                    # Use timeout to allow checking _stop_event periodically
+                    try:
+                        audio_data = self._audio_queue.get(timeout=0.1)
+                    except queue.Empty:
+                        # Check stop event if queue is empty
+                        if self._stop_event.is_set():
+                            break
+                        continue # Continue waiting for data
+
+                    # Send audio frame (can raise errors on connection issues)
+                    recognizer.send_audio_frame(audio_data.tobytes()) # audio_data is np.ndarray here
+
+                    self._audio_queue.task_done() # Mark task as done for the queue
+                except asyncio.TimeoutError: # This shouldn't happen with queue.get
+                    # Should not be reached with queue.get, but kept for safety
+                    continue
+                except queue.Full: # This shouldn't happen with queue.get
+                    logger.warning("Audio queue unexpectedly full in STT processor.")
+                    continue
 
                     # 发送音频帧 - 可能在此处发生连接错误
                     recognizer.send_audio_frame(audio_data.tobytes())
@@ -175,30 +253,25 @@ async def stt_processor(
                     continue
                 except Exception as send_error:
                     # 捕获发送音频帧时的错误，假设是连接问题
-                    logger.error(
-                        f"发送音频帧到 STT 服务时出错: {send_error}", exc_info=True
-                    )
-                    logger.info("假设连接丢失，将尝试重新连接...")
+                    logger.error(f"Error sending audio frame to STT service: {send_error}", exc_info=True)
+                    self._update_status(f"STT Send Error: {send_error}")
+                    logger.info("Assuming connection lost, attempting reconnect...")
                     try:
-                        # 尝试停止当前失败的 recognizer
+                        # Attempt to stop the failed recognizer
                         recognizer.stop()
-                        logger.info(
-                            f"已停止故障的 Dashscope {engine_type} Recognizer 实例。"
-                        )
+                        logger.info(f"Stopped failed Dashscope {engine_type} Recognizer instance.")
                     except Exception as stop_err:
-                        logger.error(
-                            f"停止故障的 recognizer 时出错: {stop_err}", exc_info=True
-                        )
-                    recognizer = None  # 清理引用
-                    break  # 跳出内层循环，触发外层重连
+                        logger.error(f"Error stopping failed recognizer: {stop_err}", exc_info=True)
+                    recognizer = None # Clear reference
+                    break # Break inner loop to trigger outer reconnect loop
 
-            # 如果内层循环是因为 stop_event 而退出，则也退出外层循环
-            if stop_event.is_set():
-                logger.info("接收到停止信号，退出 STT 处理循环。")
-                break
+            # If inner loop exited, check stop event before reconnecting
+            if self._stop_event.is_set():
+                logger.info("Stop signal received during STT processing, exiting outer loop.")
+                break # Exit outer loop
 
         except Exception as connect_error:
-            # --- 处理连接或启动过程中的错误 ---
+            # --- Handle connection or startup errors ---
             logger.error(
                 f"连接或启动 Dashscope {engine_type} Recognizer 时出错: {connect_error}",
                 exc_info=True,
@@ -214,28 +287,29 @@ async def stt_processor(
 
             retry_count += 1
             if retry_count >= max_retries:
-                logger.critical(
-                    f"STT 连接失败达到最大重试次数 ({max_retries})。停止 STT 处理。"
-                )
-                stop_event.set()  # 设置停止信号，通知其他部分停止
-                break  # 退出重连循环
+                logger.critical(error_msg)
+                self._update_status(f"Error: {error_msg}")
+                self._stop_event.set() # Signal stop
+                break # Exit reconnect loop
 
-            logger.info(f"等待 {current_delay:.1f} 秒后重试...")
-            try:
-                # 等待时也检查 stop_event
-                await asyncio.wait_for(stop_event.wait(), timeout=current_delay)
-                # 如果 wait() 完成而不是超时，说明 stop_event 被设置了
-                logger.info("等待重试期间接收到停止信号。")
-                break  # 退出重连循环
-            except asyncio.TimeoutError:
-                # 等待超时，正常继续重试
-                current_delay = min(current_delay * 2, max_retry_delay)  # 指数退避
+            wait_msg = f"Retrying STT connection in {current_delay:.1f} seconds..."
+            logger.info(wait_msg)
+            self._update_status(wait_msg)
+            # Use threading Event's wait method, which is blocking but interruptible
+            stopped_during_wait = self._stop_event.wait(timeout=current_delay)
+            if stopped_during_wait:
+                logger.info("Stop signal received while waiting to retry STT connection.")
+                break # Exit reconnect loop
 
-    # --- 循环结束后的最终清理 ---
-    logger.info(f"STT 处理任务 (Dashscope {engine_type}) 正在停止...")
-    if recognizer:  # 可能在循环退出时还有一个活动的 recognizer
+            # If wait timed out, continue with retry
+            current_delay = min(current_delay * 2, max_retry_delay) # Exponential backoff
+
+    # --- Final Cleanup after loop exit ---
+    logger.info(f"STT processing task (Dashscope {engine_type}) stopping...")
+    self._update_status(f"STT Task Stopping (Engine: {engine_type})")
+    if recognizer: # Check if a recognizer was active when the loop exited
         try:
-            logger.info(f"正在停止最后的 Dashscope {engine_type} Recognizer 实例...")
+            logger.info(f"Stopping final Dashscope {engine_type} Recognizer instance...")
             recognizer.stop()
             logger.info(f"最后的 Dashscope {engine_type} Recognizer 实例已停止。")
         except Exception as e:
@@ -285,187 +359,216 @@ async def start_audio_processing(
         outdata: np.ndarray,
         frames: int,
         time,
-        status: sd.CallbackFlags,
+        status: sd.CallbackFlags
     ):
-        """同步回调，处理音频 IO 并将输入放入队列。"""
+        """Synchronous callback for sounddevice stream."""
         if status:
-            logger.warning(f"音频回调状态: {status}")
+            logger.warning(f"Audio callback status: {status}")
+            # Potentially update status for critical flags?
+            # self._update_status(f"Audio Status: {status}")
 
-        # 回声模式（用于调试）
-        if debug_echo_mode:
+        # Echo mode (using instance variable)
+        if self.debug_echo_mode:
             outdata[:] = indata
         else:
-            outdata.fill(0)  # 正常模式下输出静音
+            outdata.fill(0) # Output silence in normal mode
 
-        # 将音频数据放入队列 (确保数据类型正确)
+        # Put audio data into the thread-safe queue
+        # This callback runs in the sounddevice thread.
+        # Use put_nowait for thread-safe queue access.
         try:
-            # 确保 indata 是我们期望的 dtype，尽管 sounddevice 通常会处理好
-            if indata.dtype != np.dtype(dtype):
-                logger.warning(
-                    f"接收到的音频数据类型 ({indata.dtype}) 与期望 ({dtype}) 不符，尝试转换。"
-                )
-                indata = indata.astype(dtype)  # 尝试转换
-            audio_queue.put_nowait(indata.copy())
-        except asyncio.QueueFull:
-            logger.warning("音频处理队列已满，丢弃当前音频帧。")
-            pass
+            # Ensure correct dtype if necessary (sounddevice usually handles this)
+            if indata.dtype != np.dtype(self.dtype):
+                 logger.warning(f"Incoming audio dtype {indata.dtype} != expected {self.dtype}. Converting.")
+                 indata = indata.astype(self.dtype)
+            # Put a copy into the queue
+            self._audio_queue.put_nowait(indata.copy())
+        except queue.Full:
+            logger.warning("Audio queue is full. Dropping audio frame.")
+            # Consider adding a status update here if it happens frequently
+            # self._update_status("Warning: Audio queue full, dropping data")
+            pass # Continue processing
 
-    try:
-        # --- 查询音频设备信息并确定采样率 ---
+    def _run_audio_stream(self):
+        """Target function for the audio processing thread."""
         try:
-            default_input_device_info = sd.query_devices(kind="input")  # 只查询输入设备
-            default_output_device_info = sd.query_devices(
-                kind="output"
-            )  # 查询输出设备用于日志记录
-            # Log detailed device info at DEBUG level
-            if default_input_device_info:
-                logger.debug(f"默认麦克风: {default_input_device_info['name']}")
-                logger.debug(
-                    f"  - 最大输入声道: {default_input_device_info['max_input_channels']}"
-                )
-                logger.debug(
-                    f"  - 默认采样率: {default_input_device_info['default_samplerate']} Hz"
-                )
-            else:
-                logger.warning(
-                    "无法获取默认麦克风信息。"
-                )  # Keep warning as INFO/WARN is appropriate
-            if default_output_device_info:
-                logger.debug(f"默认扬声器: {default_output_device_info['name']}")
-                logger.debug(
-                    f"  - 最大输出声道: {default_output_device_info['max_output_channels']}"
-                )
-                logger.debug(
-                    f"  - 默认采样率: {default_output_device_info['default_samplerate']} Hz"
-                )
-            else:
-                logger.warning("无法获取默认扬声器信息。")  # Keep warning
+            # Log configuration being used
+            logger.info(f"Audio Stream Thread Started. Config:")
+            logger.info(f"  Sample Rate: {self.sample_rate} Hz")
+            logger.info(f"  Channels: {self.channels}")
+            logger.info(f"  Dtype: {self.dtype}")
+            logger.info(f"  Debug Echo: {self.debug_echo_mode}")
+            self._update_status("Audio Stream Starting...")
 
-            # --- 决定最终使用的采样率 ---
-            if sample_rate_config is None:
-                if (
-                    default_input_device_info
-                    and "default_samplerate" in default_input_device_info
-                ):
-                    # 使用设备默认采样率，并转换为整数
-                    sample_rate = int(default_input_device_info["default_samplerate"])
-                    logger.debug(
-                        f"配置中未指定 sample_rate，将使用默认麦克风的采样率: {sample_rate} Hz"
-                    )  # Changed to DEBUG
-                else:
-                    # 如果无法获取设备信息或默认采样率，回退到一个标准值
-                    sample_rate = 16000  # 回退值
-                    logger.warning(
-                        f"无法获取默认麦克风的采样率，将回退到默认值: {sample_rate} Hz"
-                    )
-            else:
-                # 使用配置文件中指定的采样率
-                sample_rate = int(sample_rate_config)  # 确保是整数
-                logger.info(f"将使用配置文件中指定的采样率: {sample_rate} Hz")
+            # Use sounddevice Stream context manager
+            with sd.Stream(
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                dtype=self.dtype,
+                callback=self._audio_callback, # Use the instance method
+                blocksize=int(self.sample_rate * 0.1), # Optional: Process in 100ms chunks
+            ) as stream:
+                actual_rate = getattr(stream, 'samplerate', 'N/A') # Get actual rate if available
+                logger.info(f"Audio stream active. Actual Sample Rate: {actual_rate} Hz.")
+                self._update_status("Audio Stream Running")
+                # Keep the stream running until stop_event is set
+                self._stop_event.wait() # Block here until stop() is called
+
+        except sd.PortAudioError as e:
+            error_msg = f"PortAudio Error: {e}. Check devices and permissions."
+            logger.error(error_msg, exc_info=True)
+            logger.error("Ensure microphone/speakers are connected and not in use.")
+            logger.error(f"Check support for {self.sample_rate} Hz, {self.channels} channels, {self.dtype}.")
+            self._update_status(f"Error: {error_msg}")
+            self._stop_event.set() # Signal other threads to stop
+        except ValueError as e:
+            error_msg = f"Audio Parameter Error: {e}. Check config."
+            logger.error(error_msg, exc_info=True)
+            logger.error(f"Verify sample rate ({self.sample_rate}), channels ({self.channels}), dtype ({self.dtype}).")
+            self._update_status(f"Error: {error_msg}")
+            self._stop_event.set()
+        except Exception as e:
+            error_msg = f"Unknown error in audio stream thread: {e}"
+            logger.error(error_msg, exc_info=True)
+            self._update_status(f"Error: {error_msg}")
+            self._stop_event.set() # Signal stop on unexpected errors
+        finally:
+            logger.info("Audio stream thread finishing.")
+            # Ensure stop event is set if this thread exits unexpectedly
+            self._stop_event.set()
+            # Status update upon stopping is handled in the stop() method generally
+
+
+    def _run_stt_processor(self):
+        """Target function for the STT processing thread."""
+        logger.info("STT Processor Thread Started.")
+        self._update_status("STT Thread Starting...")
+        try:
+            # Create a new event loop for this thread
+            self._stt_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._stt_loop)
+
+            # Schedule the async task within this loop
+            self._stt_task = self._stt_loop.create_task(self._stt_processor_task())
+
+            # Run the event loop until the task completes or stop is signaled
+            self._stt_loop.run_until_complete(self._stt_task)
 
         except Exception as e:
-            logger.warning(f"查询音频设备信息时出错: {e}", exc_info=True)
-            # 即使查询失败，也要决定采样率
-            if sample_rate_config is None:
-                sample_rate = 16000  # 回退值
-                logger.warning(
-                    f"查询设备失败且配置未指定 sample_rate，将回退到默认值: {sample_rate} Hz"
-                )
+            error_msg = f"Error in STT processor thread: {e}"
+            logger.error(error_msg, exc_info=True)
+            self._update_status(f"Error: {error_msg}")
+        finally:
+            logger.info("STT processor thread finishing.")
+            if self._stt_loop and self._stt_loop.is_running():
+                self._stt_loop.stop() # Stop the loop if it's still running
+            if self._stt_loop:
+                 # Cancel any remaining tasks in the loop before closing
+                for task in asyncio.all_tasks(self._stt_loop):
+                    if not task.done():
+                        task.cancel()
+                # Run loop briefly to allow cancellations to process
+                try:
+                    # Gather cancelled tasks to suppress CancelledError propagation
+                    cancelled_tasks = [task for task in asyncio.all_tasks(self._stt_loop) if task.cancelled()]
+                    if cancelled_tasks:
+                        self._stt_loop.run_until_complete(asyncio.gather(*cancelled_tasks, return_exceptions=True))
+                except Exception as loop_cancel_err:
+                     logger.error(f"Error during STT loop task cancellation: {loop_cancel_err}", exc_info=True)
+
+                # Close the loop
+                try:
+                     self._stt_loop.close()
+                     logger.info("STT event loop closed.")
+                except Exception as loop_close_err:
+                     logger.error(f"Error closing STT event loop: {loop_close_err}", exc_info=True)
+
+            self._stt_loop = None
+            self._stt_task = None
+            # Ensure stop event is set if this thread exits unexpectedly
+            self._stop_event.set()
+            # Status update upon stopping is handled in the stop() method
+
+
+    def start(self):
+        """Starts the audio stream and STT processing in background threads."""
+        if self._audio_thread or self._stt_thread:
+            logger.warning("AudioManager already running or not fully stopped.")
+            return
+
+        logger.info("Starting AudioManager...")
+        self._update_status("Starting...")
+        self._stop_event.clear() # Reset stop event for a new run
+
+        # Start the STT processor thread first (it needs the loop ready)
+        self._stt_thread = threading.Thread(target=self._run_stt_processor, name="STTProcessorThread", daemon=True)
+        self._stt_thread.start()
+
+        # Start the audio stream thread
+        self._audio_thread = threading.Thread(target=self._run_audio_stream, name="AudioStreamThread", daemon=True)
+        self._audio_thread.start()
+
+        logger.info("AudioManager threads started.")
+        # Status like "Running" will be set by the threads themselves
+
+
+    def stop(self):
+        """Signals the audio stream and STT processing to stop and waits for threads."""
+        if not self._audio_thread and not self._stt_thread:
+            logger.info("AudioManager is not running.")
+            return
+
+        logger.info("Stopping AudioManager...")
+        self._update_status("Stopping...")
+
+        # Signal stop event - this will be checked by loops and sd.Stream wait
+        self._stop_event.set()
+
+        # --- Graceful Shutdown ---
+        stt_stopped = False
+        if self._stt_thread and self._stt_thread.is_alive():
+             # Give the STT task/loop time to shut down Dashscope connection gracefully
+             # The _stt_processor_task should handle recognizer.stop()
+             logger.info("Waiting for STT thread to finish...")
+             self._stt_thread.join(timeout=7.0) # Increased timeout for network ops
+             if self._stt_thread.is_alive():
+                 logger.warning("STT thread did not finish gracefully within timeout.")
+                 # If thread is stuck, loop might need forceful stop (handled in _run_stt_processor finally)
+             else:
+                 logger.info("STT thread finished.")
+                 stt_stopped = True
+        else:
+            logger.info("STT thread was not running or already finished.")
+            stt_stopped = True # Consider it stopped if it wasn't running
+
+        audio_stopped = False
+        if self._audio_thread and self._audio_thread.is_alive():
+            # The audio thread should exit quickly once stop_event is set
+            logger.info("Waiting for audio thread to finish...")
+            self._audio_thread.join(timeout=2.0)
+            if self._audio_thread.is_alive():
+                logger.warning("Audio thread did not finish within timeout.")
             else:
-                sample_rate = int(sample_rate_config)
-                logger.warning(
-                    f"查询设备失败，将使用配置文件中指定的采样率: {sample_rate} Hz"
-                )
-            # 尝试继续
+                 logger.info("Audio thread finished.")
+                 audio_stopped = True
+        else:
+             logger.info("Audio thread was not running or already finished.")
+             audio_stopped = True # Consider it stopped
 
-        # --- 记录最终使用的配置 ---
-        # 更新 config 实例中的 sample_rate (如果之前是 None)
-        # 警告：直接修改 config._config_data 不是最佳实践，但为了兼容现有逻辑暂时保留
-        # 更好的方法是在 stt_processor 中重新读取 sample_rate
-        if sample_rate_config is None:
-            try:
-                # 尝试直接修改内部字典 (谨慎使用)
-                config._config_data["audio"]["sample_rate"] = sample_rate
-                logger.debug(
-                    f"已将运行时确定的采样率 ({sample_rate} Hz) 更新回配置。"
-                )  # Changed to DEBUG
-            except Exception as e:
-                logger.error(f"无法更新配置中的运行时采样率: {e}")
-        # 或者，确保 stt_processor 总是从 config 中读取最新的 'audio.sample_rate'
+        # Clean up references
+        self._audio_thread = None
+        self._stt_thread = None
+        # self._stt_task = None # Cleaned up in _run_stt_processor finally
+        # self._stt_loop = None # Cleaned up in _run_stt_processor finally
 
-        # 使用最终确定的 sample_rate 记录日志
-        logger.info(f"最终使用的采样率: {sample_rate} Hz")  # Keep as INFO
-        logger.info(f"最终使用的声道数: {channels}")  # Keep as INFO
-        logger.info(f"最终使用的音频格式: {dtype}")  # Keep as INFO
-        # logger.info(f"调试回声模式: {'启用' if debug_echo_mode else '禁用'}") # Removed, logged in main.py
-        # logger.info(f"STT 引擎: Dashscope (模型: {model})") # Removed, logged in main.py
-        # logger.info(f"  - 翻译 (...): ...") # Removed translation status log here, covered in main.py
+        if audio_stopped and stt_stopped:
+             logger.info("AudioManager stopped successfully.")
+             self._update_status("Stopped")
+        else:
+             logger.warning("AudioManager stopped with potential issues (threads did not join).")
+             self._update_status("Stopped (with issues)")
 
-        # 启动 STT 处理任务，传入 API Key 和配置字典
-        # 注意：这里不再需要传递原始的 audio_config 和 stt_config 字典
-        # 因为 stt_processor 函数也期望接收这些字典（尽管它现在会在内部预读取值）
-        # audio_config 字典已被修改以包含正确的 sample_rate
-        # 传递客户端/分发器实例给 stt_processor
-        stt_task = asyncio.create_task(
-            stt_processor(
-                llm_client=llm_client,  # Pass instance (can be None)
-                output_dispatcher=output_dispatcher,  # Pass instance (required)
-                stop_event=stop_event,
-            )
-        )
 
-        # 使用 sounddevice Stream 上下文管理器启动音频流
-        # 使用从配置加载的参数
-        with sd.Stream(
-            samplerate=sample_rate,
-            channels=channels,
-            dtype=dtype,
-            callback=audio_callback,
-        ) as stream:  # 捕获流对象
-            # 记录实际使用的采样率
-            logger.info(f"麦克风实际使用的采样率: {stream.samplerate} Hz")
-            logger.info("音频流已启动。按 Ctrl+C 停止。")
-            # 等待停止信号 (来自 KeyboardInterrupt 或其他错误)
-            await stop_event.wait()
-
-    except sd.PortAudioError as e:
-        logger.error(f"音频错误: PortAudio 错误 - {e}", exc_info=True)
-        logger.error("请确保：")
-        logger.error("  - 麦克风和扬声器已连接并被系统识别。")
-        logger.error("  - 没有其他应用独占音频设备。")
-        # 使用实际配置值显示错误消息
-        logger.error(
-            f"  - 默认麦克风支持 {sample_rate} Hz, {channels} 声道, {dtype} 格式。"
-        )
-        stop_event.set()  # 触发停止
-    except ValueError as e:
-        logger.error(f"音频参数错误: {e}", exc_info=True)
-        # 使用实际配置值显示错误消息
-        logger.error(
-            f"  - 检查采样率 ({sample_rate}), 声道数 ({channels}), 数据类型 ({dtype}) 是否受支持。"
-        )
-        stop_event.set()  # 触发停止
-    except Exception as e:
-        logger.error(f"启动音频处理时发生未知错误: {e}", exc_info=True)
-        stop_event.set()  # 触发停止
-    finally:
-        logger.info("\n正在停止音频流和 STT 任务...")
-        stop_event.set()  # 确保停止事件被设置，通知 stt_processor 停止
-
-        if stt_task and not stt_task.done():
-            try:
-                logger.info("等待 STT 任务完成...")
-                # 等待 STT 任务优雅地停止 (包括 Dashscope 关闭)
-                await asyncio.wait_for(stt_task, timeout=5.0)  # 增加超时以允许网络关闭
-                logger.info("STT 任务已完成。")
-            except asyncio.TimeoutError:
-                logger.warning("STT 任务停止超时。可能未能完全关闭 Dashscope 连接。")
-                stt_task.cancel()  # 尝试取消任务
-            except asyncio.CancelledError:
-                logger.info("STT 任务被取消。")
-            except Exception as e:
-                logger.error(f"等待 STT 任务停止时发生错误: {e}", exc_info=True)
-
-        logger.info("音频处理和 STT 任务已停止。")
-
-    logger.info("start_audio_processing 函数执行完毕。")
+# --- Remove the old standalone start function ---
+# async def start_audio_processing(...): ...
+# The logic is now inside the AudioManager class.
