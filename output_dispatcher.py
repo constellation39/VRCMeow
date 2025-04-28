@@ -8,10 +8,34 @@ import aiofiles  # Use aiofiles for async file operations
 # Directly import the config instance
 from config import config
 from logger_config import get_logger
+import logging  # 导入标准 logging 库
 # Import VRCClient for type hinting, handle potential ImportError if needed
 from osc_client import VRCClient
 
 logger = get_logger(__name__)
+
+# --- 临时诊断代码 ---
+# 确保此 logger 实例配置了 handler 并设置了低级别，以便输出日志
+if not logger.handlers and not logging.getLogger().hasHandlers(): # 检查自身和根 logger 是否都没有 handlers
+    print(f"DIAGNOSTIC [{__name__}]: Logger '{logger.name}' and root logger have no handlers. Adding StreamHandler to '{logger.name}'.")
+    _handler = logging.StreamHandler(sys.stdout) # 创建一个流处理器（输出到标准输出）
+    _formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s') # 改进格式
+    _handler.setFormatter(_formatter) # 设置格式
+    logger.addHandler(_handler) # 添加处理器
+    logger.setLevel(logging.DEBUG) # 设置级别为 DEBUG
+    logger.propagate = False # 阻止日志消息传递给父 logger，避免重复输出
+    logger.warning(f"DIAGNOSTIC [{__name__}]: Temporary StreamHandler added and level set to DEBUG for '{logger.name}'.") # 使用 warning 以便更容易看到
+elif not logger.handlers and logger.parent and logger.parent.handlers:
+     print(f"DIAGNOSTIC [{__name__}]: Logger '{logger.name}' has no handlers, but parent '{logger.parent.name}' does. Ensuring level is DEBUG.")
+     logger.setLevel(logging.DEBUG) # 确保子 logger 级别足够低以允许消息传递
+     logger.warning(f"DIAGNOSTIC [{__name__}]: Ensured logger level is DEBUG for '{logger.name}' to allow propagation.")
+else:
+    # 如果已有 handlers，或者根 logger 有 handlers，确保此 logger 的级别足够低
+    current_level = logger.getEffectiveLevel() # 获取实际生效的级别
+    print(f"DIAGNOSTIC [{__name__}]: Logger '{logger.name}' already has handlers or root has handlers. Effective level: {logging.getLevelName(current_level)}. Setting level to DEBUG.")
+    logger.setLevel(logging.DEBUG)
+    logger.warning(f"DIAGNOSTIC [{__name__}]: Ensured logger level is DEBUG for '{logger.name}'.")
+# --- 临时诊断代码结束 ---
 
 
 class OutputDispatcher:
