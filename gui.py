@@ -683,8 +683,8 @@ def main(page: ft.Page):
             expand=True,
         )
 
-        # Helper function for remove button handler
-        async def remove_this_row(e_remove: ft.ControlEvent):
+         # Helper function for remove button handler
+         async def remove_this_row(e_remove: ft.ControlEvent):
             row_to_remove = e_remove.control.data # Get the Row associated with the button
             # Use all_config_controls to get the column reference robustly
             active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
