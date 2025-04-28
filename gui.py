@@ -106,18 +106,18 @@ def main(page: ft.Page):
         on_click=None,
         disabled=False,
         icon_size=30, # Make icon slightly larger
-        style=ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700), # Use theme color
+        style=ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700), # Initial color for "Start"
     )
-    stop_button = ft.IconButton(
-        icon=ft.icons.STOP_ROUNDED,
-        tooltip="停止",
-        on_click=None,
-        disabled=True,
-        icon_size=30, # Make icon slightly larger
-        style=ft.ButtonStyle(color=ft.colors.RED_ACCENT_700), # Use theme color
-    )
+    # Removed stop_button definition
+
     # Progress indicator (optional, can be shown during start/stop)
+    # Ensure progress indicator is defined before being used in the status update function
     progress_indicator = ft.ProgressRing(width=20, height=20, stroke_width=2, visible=False)
+
+    # Rename start_button to toggle_button for clarity
+    toggle_button = start_button # Assign the created button to the new name
+    del start_button # Remove the old name
+
 
     # == Configuration Tab Elements ==
     # We will store references to input controls to easily read their values later
@@ -433,9 +433,21 @@ def main(page: ft.Page):
                 else: # Not running / Stopped / Unknown startup state
                     status_icon.name = ft.icons.CIRCLE_OUTLINED
                     status_icon.color = ft.colors.GREY
+                    # Update button to "Start" state when not running
+                    toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED
+                    toggle_button.tooltip = "启动"
+                    toggle_button.style = ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700)
+                    toggle_button.disabled = False # Enable start when stopped
 
                 # Show/hide progress indicator
                 progress_indicator.visible = is_processing
+
+                # Disable button during processing states (Starting/Stopping)
+                if is_processing:
+                    toggle_button.disabled = True
+                # Re-enable button based on the final state (handled above for True/False)
+                elif is_running is not None: # Only re-enable if state is known (True or False)
+                     toggle_button.disabled = False
 
                 page.update()
 
@@ -884,16 +896,16 @@ def main(page: ft.Page):
     # Assign the handler to the button
     add_example_button.on_click = add_example_handler
 
-    # --- 启动/停止逻辑 (Dashboard Tab) ---
-    async def start_recording(e: ft.ControlEvent):
-        """启动按钮点击事件处理程序 (Dashboard Tab)"""
-        if app_state.is_running:
-            return
-
-        update_status_display("正在启动...", is_running=None, is_processing=True) # Show progress
-        start_button.disabled = True
-        stop_button.disabled = True # Disable both during transition
-        page.update() # Update button state
+    # --- Combined Start/Stop Logic ---
+    async def _start_recording_internal():
+        """Internal logic for starting the process."""
+        # Update button immediately to reflect "stopping" state visually
+        toggle_button.icon = ft.icons.STOP_ROUNDED
+        toggle_button.tooltip = "正在启动..."
+        toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER) # Indicate transition
+        toggle_button.disabled = True
+        update_status_display("正在启动...", is_running=None, is_processing=True) # Also update status row and progress
+        page.update()
 
         try:
             # --- 初始化组件 ---
@@ -905,11 +917,13 @@ def main(page: ft.Page):
             if not dashscope_api_key:
                 error_msg = "错误：Dashscope API Key 未设置。"
                 logger.error(error_msg)
-                update_status_display(error_msg, is_running=False, is_processing=False) # Show error state
-                # Reset button state
-                start_button.disabled = False
-                stop_button.disabled = True
-                page.update()
+                update_status_display(error_msg, is_running=False, is_processing=False) # Show error state, this will reset button via callback
+                # No need to manually reset button here, callback handles it
+                # toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED
+                # toggle_button.tooltip = "启动"
+                # toggle_button.style = ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700)
+                # toggle_button.disabled = False
+                # page.update()
                 return
 
             # 1. VRCClient (如果启用)
@@ -966,41 +980,42 @@ def main(page: ft.Page):
             app_state.is_running = True
             logger.info("AudioManager start requested. Threads are running.")
             # Initial status update comes from AudioManager threads now.
-            # e.g., update_status_display("运行中", is_running=True, is_processing=False) will be called by AudioManager
-            # We only enable the stop button here AFTER the start request succeeded.
-            stop_button.disabled = False # Enable stop only after successful start request
-            page.update()
+            # The status callback will update the button to the correct 'Running' state (stop icon, red color).
+            # No explicit button update needed here after successful start request.
+            # toggle_button.icon = ft.icons.STOP_ROUNDED
+            # toggle_button.tooltip = "停止"
+            # toggle_button.style = ft.ButtonStyle(color=ft.colors.RED_ACCENT_700)
+            # toggle_button.disabled = False
+            # page.update()
 
         except Exception as ex:
             error_msg = f"启动过程中出错: {ex}"
             logger.critical(error_msg, exc_info=True)
-            update_status_display(error_msg)
-            # 尝试清理可能已部分启动的资源
-            await stop_recording(e, is_error=True)  # 调用停止逻辑进行清理
+            logger.critical(error_msg, exc_info=True)
+            # Update status display to show error, which will reset the button state via callback
+            update_status_display(f"启动错误: {ex}", is_running=False, is_processing=False)
+            # Attempt cleanup even on startup error
+            await _stop_recording_internal(is_error=True) # Call internal stop logic for cleanup
 
-    async def stop_recording(e: Optional[ft.ControlEvent], is_error: bool = False):
-        """停止按钮点击事件处理程序或错误处理调用"""
-        if (
-            not app_state.is_running and not is_error
-        ): # If called due to error, try stopping even if not marked running
-            # If not running and not error, just ensure buttons are correct
-            if not app_state.is_running:
-                 start_button.disabled = False
-                 stop_button.disabled = True
-                 update_status_display("已停止", is_running=False, is_processing=False) # Update status if needed
-                 page.update()
-            return
+    async def _stop_recording_internal(is_error: bool = False):
+        """Internal logic for stopping the process."""
+        # Only proceed if actually running or if called due to an error needing cleanup
+        if not app_state.is_running and not is_error:
+             # If already stopped and not an error, ensure button is in 'Start' state
+             update_status_display("已停止", is_running=False, is_processing=False) # This updates the button
+             return
 
-        # Only show "Stopping..." if it was actually running
-        if app_state.is_running:
-            update_status_display("正在停止...", is_running=True, is_processing=True) # Show progress while stopping
-
-        start_button.disabled = True # Disable both buttons during stop
-        stop_button.disabled = True
+        # Update button immediately to reflect "stopping" state visually
+        toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED
+        toggle_button.tooltip = "正在停止..."
+        toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER) # Indicate transition
+        toggle_button.disabled = True
+        # Also update status row and progress indicator
+        update_status_display("正在停止...", is_running=True, is_processing=True)
         page.update()
 
-        logger.info("GUI 请求停止...")
-        tasks_to_await = []
+        logger.info("GUI Requesting Stop...")
+        # tasks_to_await = [] # Not used
 
         # 停止 AudioManager (这会触发 STT 和音频流的停止)
         if app_state.audio_manager:
@@ -1037,27 +1052,36 @@ def main(page: ft.Page):
         # Final status update ("Stopped" or "Stopped (with issues)") comes from AudioManager callback
         # update_status_display("已停止", is_running=False, is_processing=False) # Removed, handled by callback
         # Button state update also handled by AudioManager callback upon final stop status
-        # start_button.disabled = False
-        # stop_button.disabled = True
+        # start_button.disabled = False # Handled by status callback
+        # stop_button.disabled = True # Handled by status callback
         # page.update() # Update handled by callback
 
+    async def toggle_recording(e: ft.ControlEvent):
+        """Handles clicks on the combined Start/Stop button."""
+        if app_state.is_running:
+            await _stop_recording_internal()
+        else:
+            await _start_recording_internal()
+
     # --- 绑定事件 ---
-    start_button.on_click = start_recording
-    stop_button.on_click = stop_recording
+    toggle_button.on_click = toggle_recording # Assign the new handler
 
     # --- 页面关闭处理 ---
     async def on_window_event(e: ft.ControlEvent):
         if e.data == "close":
             logger.info("检测到窗口关闭事件。")
-            page.window_destroy()  # 允许窗口关闭
-            # 确保在关闭前停止运行中的进程
+            # Ensure processes are stopped before closing
             if app_state.is_running:
-                logger.info("窗口关闭时正在停止后台进程...")
-                await stop_recording(None)  # 调用停止逻辑
+                logger.info("Window closing, stopping background processes...")
+                await _stop_recording_internal() # Call internal stop logic
+            # Now destroy the window
+            page.window_destroy()
+
 
     # --- Bind event handlers ---
-    start_button.on_click = start_recording
-    stop_button.on_click = stop_recording
+    # start_button.on_click = start_recording # Removed
+    # stop_button.on_click = stop_recording # Removed
+    toggle_button.on_click = toggle_recording # Bind the toggle handler
     save_config_button.on_click = save_config_handler
     reload_config_button.on_click = reload_config_handler
     page.on_window_event = on_window_event
@@ -1068,12 +1092,12 @@ def main(page: ft.Page):
             # Status display at the top
             ft.Container(status_row, padding=ft.padding.only(top=15, bottom=5)), # Reduced bottom padding
 
-            # Start/Stop buttons below status, centered
+            # Combined Start/Stop button below status, centered
             ft.Row(
-                [start_button, progress_indicator, stop_button], # Add progress indicator between buttons
+                [toggle_button, progress_indicator], # Only toggle button and indicator
                 alignment=ft.MainAxisAlignment.CENTER,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=20, # Space out the buttons
+                spacing=15, # Adjust spacing if needed
             ),
 
             # Output text area taking remaining space
