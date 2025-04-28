@@ -81,6 +81,14 @@ class GummyCallback(TranslationRecognizerCallback):
             f"VRC Intermediate OSC: {'Enabled' if self.vrc_osc_intermediate_enabled else 'Disabled'}"
         )
 
+    def _log_dispatch_result(self, future: asyncio.Future):
+        """Callback function added to the future returned by run_coroutine_threadsafe."""
+        try:
+            result = future.result()  # Raises exception if the coroutine failed
+            self.logger.info(f"STT_GUMMY: Coroutine dispatch task completed successfully. Result: {result}")
+        except Exception as e:
+            self.logger.error(f"STT_GUMMY: Coroutine dispatch task failed with exception!", exc_info=e) # Log exception info
+
     def on_open(self) -> None:
         self.logger.info("Dashscope Gummy 连接已打开。")  # Keep as INFO
 
