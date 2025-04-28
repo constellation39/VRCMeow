@@ -2,7 +2,6 @@ import asyncio
 # import os
 import sounddevice as sd
 from audio_recorder import start_audio_processing
-import sys  # Import sys for exit
 from typing import Optional  # Import Optional for type hints
 
 # Directly from config module

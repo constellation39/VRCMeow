@@ -15,8 +15,6 @@ logger = get_logger(__name__)
 # 导入 Dashscope 基础识别器类型用于类型提示
 from dashscope.audio.asr import TranslationRecognizerRealtime, Recognition
 
-from osc_client import VRCClient
-
 from stt_gummy import create_gummy_recognizer
 
 from stt_paraformer import create_paraformer_recognizer
