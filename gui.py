@@ -366,10 +366,11 @@ def main(page: ft.Page):
                 lambda: setattr(output_text, 'value', current_value + text + "\n") or page.update()  # type: ignore
             )
 
-    def show_snackbar(message: str, error: bool = False):
+    # Modify to accept page as an argument
+    def show_snackbar(page_ref: ft.Page, message: str, error: bool = False):
         """显示一个 SnackBar 通知"""
-        if page:
-            page.show_snack_bar(
+        if page_ref: # Use the passed argument
+            page_ref.show_snack_bar(
                 ft.SnackBar(
                     ft.Text(message),
                     bgcolor=ft.colors.ERROR if error else ft.colors.GREEN_700,
@@ -482,12 +483,12 @@ def main(page: ft.Page):
 
             # Call the save method on the config instance
             await asyncio.to_thread(config.save) # Run synchronous save in thread
-            show_snackbar("配置已成功保存到 config.yaml")
+            show_snackbar(page, "配置已成功保存到 config.yaml") # Pass page
 
         except Exception as ex:
             error_msg = f"保存配置时出错: {ex}"
             logger.critical(error_msg, exc_info=True)
-            show_snackbar(error_msg, error=True)
+            show_snackbar(page, error_msg, error=True) # Pass page
 
     def reload_config_controls():
         """Updates the GUI controls with values from the reloaded config."""
@@ -536,11 +537,11 @@ def main(page: ft.Page):
         try:
             await asyncio.to_thread(config.reload) # Run synchronous reload in thread
             reload_config_controls() # Update GUI fields with new values
-            show_snackbar("配置已从 config.yaml 重新加载")
+            show_snackbar(page, "配置已从 config.yaml 重新加载") # Pass page
         except Exception as ex:
              error_msg = f"重新加载配置时出错: {ex}"
              logger.error(error_msg, exc_info=True)
-             show_snackbar(error_msg, error=True)
+             show_snackbar(page, error_msg, error=True) # Pass page
 
 
     # --- Few-Shot Example Add/Remove Logic ---
