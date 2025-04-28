@@ -103,14 +103,16 @@ def main(page: ft.Page):
         )
 
     # -- API Keys --
-    config_controls["dashscope_api_key"] = ft.TextField(
+    # Use the new nested key 'dashscope.api_key'
+    config_controls["dashscope.api_key"] = ft.TextField(
         label="Dashscope API Key",
-        value=config.get('dashscope_api_key', ''),
+        value=config.get('dashscope.api_key', ''), # Updated key
         password=True,
         can_reveal_password=True,
         hint_text="从环境变量 DASHSCOPE_API_KEY 覆盖",
         tooltip="阿里云 Dashscope API Key"
     )
+    # LLM key remains the same ('llm.api_key')
     config_controls["llm.api_key"] = ft.TextField(
         label="LLM API Key (OpenAI兼容)",
         value=config.get('llm.api_key', ''),
@@ -120,7 +122,7 @@ def main(page: ft.Page):
         tooltip="用于 LLM 处理的 API Key (如果启用)"
     )
     api_keys_section = create_config_section("API Keys", [
-        config_controls["dashscope_api_key"],
+        config_controls["dashscope.api_key"], # Updated key reference
         config_controls["llm.api_key"],
     ])
 
@@ -403,7 +405,7 @@ def main(page: ft.Page):
                 d[keys[-1]] = value
 
             # Update dictionary from controls
-            update_nested_dict(new_config_data, "dashscope_api_key", get_control_value("dashscope_api_key"))
+            update_nested_dict(new_config_data, "dashscope.api_key", get_control_value("dashscope.api_key")) # Updated key
             update_nested_dict(new_config_data, "stt.model", get_control_value("stt.model"))
             update_nested_dict(new_config_data, "stt.translation_target_language", get_control_value("stt.translation_target_language"))
             update_nested_dict(new_config_data, "stt.intermediate_result_behavior", get_control_value("stt.intermediate_result_behavior"))
