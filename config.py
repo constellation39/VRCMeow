@@ -382,11 +382,12 @@ if __name__ == '__main__':
     try:
         print(f"\nLogging Level (dict access): {config['logging']['level']}") # Direct dict access
         print(f"Logging Level (dot notation __getitem__): {config['logging.level']}") # Dot notation via __getitem__
-        print(f"STT Model (direct instance data): {config.data['stt']['model']}") # Access raw data
-        print(f"OSC Address (get method): {config.get('outputs.vrc_osc.address', 'default_ip')}") # Dot notation via get() - Corrected key path
-        print(f"OSC Port (get method): {config.get('outputs.vrc_osc.port', 9999)}") # Corrected key path
-        print(f"Dashscope API Key (get method): {config.get('dashscope.api_key', 'NOT_SET')}") # Updated key path
-        print(f"LLM API Key (get method): {config.get('llm.api_key', 'NOT_SET')}") # Updated key path
+        print(f"STT Model (nested get): {config.get('dashscope.stt.model')}") # Use new nested key
+        print(f"STT Translation Lang (nested __getitem__): {config['dashscope.stt.translation_target_language']}") # Use new nested key
+        print(f"OSC Address (get method): {config.get('outputs.vrc_osc.address', 'default_ip')}") # Dot notation via get()
+        print(f"OSC Port (get method): {config.get('outputs.vrc_osc.port', 9999)}") # Dot notation via get()
+        print(f"Dashscope API Key (get method): {config.get('dashscope.api_key', 'NOT_SET')}")
+        print(f"LLM API Key (get method): {config.get('llm.api_key', 'NOT_SET')}")
 
         # Test non-existent key with get
         print(f"Non-existent key (get): {config.get('invalid.key', 'MISSING')}")

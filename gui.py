@@ -411,10 +411,10 @@ def main(page: ft.Page):
                 d[keys[-1]] = value
 
             # Update dictionary from controls
-            update_nested_dict(new_config_data, "dashscope.api_key", get_control_value("dashscope.api_key")) # Updated key
-            update_nested_dict(new_config_data, "stt.model", get_control_value("stt.model"))
-            update_nested_dict(new_config_data, "stt.translation_target_language", get_control_value("stt.translation_target_language"))
-            update_nested_dict(new_config_data, "stt.intermediate_result_behavior", get_control_value("stt.intermediate_result_behavior"))
+            update_nested_dict(new_config_data, "dashscope.api_key", get_control_value("dashscope.api_key"))
+            update_nested_dict(new_config_data, "dashscope.stt.model", get_control_value("dashscope.stt.model")) # New key
+            update_nested_dict(new_config_data, "dashscope.stt.translation_target_language", get_control_value("dashscope.stt.translation_target_language")) # New key
+            update_nested_dict(new_config_data, "dashscope.stt.intermediate_result_behavior", get_control_value("dashscope.stt.intermediate_result_behavior")) # New key
             update_nested_dict(new_config_data, "audio.sample_rate", get_control_value("audio.sample_rate", int, None))
             update_nested_dict(new_config_data, "audio.channels", get_control_value("audio.channels", int, 1))
             update_nested_dict(new_config_data, "audio.dtype", get_control_value("audio.dtype", str, "int16"))
