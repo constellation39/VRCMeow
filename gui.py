@@ -1,9 +1,37 @@
 import asyncio
 import flet as ft
 from typing import Optional
+import os
+import pathlib
+import sys
 
-# 从项目中导入所需模块
-from config import config  # 导入 Config 类用于类型提示
+# --- 设置正确的工作目录 ---
+# 确定脚本文件所在的目录
+script_dir = pathlib.Path(__file__).parent.resolve()
+# 假设项目根目录与脚本目录相同，并且 config.yaml 在那里
+project_root = script_dir
+config_file_path = project_root / "config.yaml"
+
+# 检查当前工作目录是否正确 (包含 config.yaml)
+# 如果不正确，并且我们能找到正确的 config.yaml 路径，则更改 CWD
+# 这主要用于修复 Flet 打包后 CWD 不正确的问题
+current_cwd = pathlib.Path.cwd()
+if not (current_cwd / "config.yaml").exists() and config_file_path.exists():
+    print(f"[INFO] Initial CWD '{current_cwd}' seems incorrect (config.yaml not found).")
+    print(f"[INFO] Changing CWD to detected project root: '{project_root}'")
+    os.chdir(project_root)
+    print(f"[INFO] Current CWD after change: '{os.getcwd()}'")
+    # 如果需要，将项目根目录添加到 sys.path，以确保模块发现
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+        print(f"[INFO] Added '{project_root}' to sys.path")
+else:
+    print(f"[INFO] Initial CWD '{current_cwd}' seems correct or config.yaml not found at expected root.")
+# --- 工作目录设置结束 ---
+
+
+# --- 现在导入依赖于 CWD 或 sys.path 的项目模块 ---
+from config import config  # 导入 Config 类用于类型提示 <- 移到 CWD 设置之后
 from logger_config import setup_logging, get_logger
 from audio_recorder import AudioManager
 from output_dispatcher import OutputDispatcher
