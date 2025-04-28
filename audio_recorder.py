@@ -109,13 +109,14 @@ class AudioManager:
     async def _stt_processor_task(self):
         """Async task for STT processing, run in a dedicated thread's event loop."""
         # Config values are accessed via self now
-    model = config["stt.model"]
-    # sample_rate is guaranteed by start_audio_processing but unused here
-    # sample_rate = config["audio.sample_rate"]
-    # channels = config["audio.channels"] # Unused
-    target_language = config.get("stt.translation_target_language")  # Might be None
+        model = self.stt_model # Use pre-loaded config
+        # sample_rate is guaranteed by start_audio_processing but unused here
+        # sample_rate = config["audio.sample_rate"]
+        # channels = config["audio.channels"] # Unused
+        target_language = config.get("stt.translation_target_language") # Re-read in case it changed via reload
 
-    logger.info(f"STT processing task (Dashscope, model: {model}) starting...")
+        logger.info(f"STT processing task (Dashscope, model: {model}) starting in thread...")
+        self._update_status(f"STT Task Starting (Model: {model})")
     recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
     # main_loop = asyncio.get_running_loop() # Use self._stt_loop which is set when the thread starts
     # except ImportError:
@@ -273,20 +274,24 @@ class AudioManager:
         except Exception as connect_error:
             # --- Handle connection or startup errors ---
             logger.error(
-                f"连接或启动 Dashscope {engine_type} Recognizer 时出错: {connect_error}",
-                exc_info=True,
+                    f"Error connecting or starting Dashscope {engine_type} Recognizer: {connect_error}",
+                    exc_info=True,
             )
-            if recognizer:  # 如果 recognizer 已创建但启动失败
+            self._update_status(f"STT Connect Error: {connect_error}")
+            if recognizer: # If recognizer was created but start failed
                 try:
                     recognizer.stop()
                 except Exception as stop_err:
-                    logger.error(
-                        f"停止启动失败的 recognizer 时出错: {stop_err}", exc_info=True
-                    )
+                    logger.error(f"Error stopping failed recognizer on startup: {stop_err}", exc_info=True)
                 recognizer = None
 
             retry_count += 1
             if retry_count >= max_retries:
+                # Note: error_msg was defined within the IF block in the previous version,
+                # but here it seems to be referenced before definition if the loop gets here.
+                # Assuming the user's provided actual code snipped had `error_msg` defined earlier
+                # or intended to define it here. Re-creating based on the previous REPLACE logic.
+                error_msg = f"STT connection failed after {max_retries} retries. Stopping STT processing."
                 logger.critical(error_msg)
                 self._update_status(f"Error: {error_msg}")
                 self._stop_event.set() # Signal stop
@@ -310,55 +315,43 @@ class AudioManager:
     if recognizer: # Check if a recognizer was active when the loop exited
         try:
             logger.info(f"Stopping final Dashscope {engine_type} Recognizer instance...")
-            recognizer.stop()
-            logger.info(f"最后的 Dashscope {engine_type} Recognizer 实例已停止。")
+            recognizer.stop() # This might block briefly
+            logger.info(f"Final Dashscope {engine_type} Recognizer instance stopped.")
+            self._update_status("STT Recognizer Stopped.")
         except Exception as e:
-            logger.error(f"停止最后的 recognizer 实例时出错: {e}", exc_info=True)
+            logger.error(f"Error stopping final recognizer instance: {e}", exc_info=True)
+            self._update_status(f"Error stopping STT: {e}")
     else:
-        logger.info("没有活动的 Recognizer 实例需要停止。")
+        logger.info("No active Recognizer instance to stop.")
 
-    # 清空队列中可能剩余的任务
-    logger.info("正在清空剩余音频队列...")
-    processed_count = 0
-    while not audio_queue.empty():
+    # Drain the queue (use the thread-safe queue - this matches the user's current code context)
+    logger.info("Draining remaining audio queue...")
+    drained_count = 0
+    # Use the correct queue object and exception type based on user's current code context
+    while True:
         try:
-            audio_queue.get_nowait()
-            audio_queue.task_done()
-            processed_count += 1
-        except asyncio.QueueEmpty:
+            # Assuming self._audio_queue based on the AudioManager context
+            self._audio_queue.get_nowait()
+            self._audio_queue.task_done()
+            drained_count += 1
+        except queue.Empty: # Use standard queue.Empty
             break
-    if processed_count > 0:
-        logger.info(f"已从队列中丢弃 {processed_count} 个剩余音频块。")
-
-    logger.info(f"STT 处理任务 (Dashscope {engine_type}) 已完全停止。")
+    if drained_count > 0:
+        logger.info(f"Drained {drained_count} items from audio queue.")
 
 
-# --- 音频捕获和主控制逻辑 ---
-async def start_audio_processing(
-    *,
-    output_dispatcher: "OutputDispatcher",  # Use forward reference string hints (required)
-    llm_client: Optional["LLMClient"],  # Use forward reference string hints
-):
-    """启动实时音频捕获和 Dashscope STT 处理。"""
-    stop_event = asyncio.Event()
-    stt_task = None
-    default_input_device_info = None  # 初始化设备信息变量
+    logger.info(f"STT processing task (Dashscope {engine_type}) fully stopped.")
+    self._update_status("STT Task Stopped.")
 
-    # --- 直接从 config 实例获取配置 ---
-    # 使用点表示法或 get 方法访问嵌套配置
-    sample_rate_config = config.get("audio.sample_rate")  # 使用 get 处理 None
-    channels = config["audio.channels"]
-    dtype = config["audio.dtype"]
-    debug_echo_mode = config["audio.debug_echo_mode"]
-    # model = config["stt.model"] # Unused variable
-    # target_language = config.get("stt.translation_target_language") # Unused variable
+    # --- Audio Stream Handling (Now methods within AudioManager) ---
 
-    # --- Define the audio callback function (accesses debug_echo_mode via closure) ---
-    def audio_callback(
+    # This method belongs inside the AudioManager class based on the refactoring
+    def _audio_callback( # Correct indentation for method
+        self, # Add self for instance method
         indata: np.ndarray,
         outdata: np.ndarray,
         frames: int,
-        time,
+        time: Any, # Use Any for time if type isn't strictly defined
         status: sd.CallbackFlags
     ):
         """Synchronous callback for sounddevice stream."""
