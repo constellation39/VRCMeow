@@ -54,16 +54,16 @@ class AudioManager:
         self,
         llm_client: Optional["LLMClient"],
         output_dispatcher: "OutputDispatcher",
-        status_callback: Optional[
-            Callable[[str], None]
-        ] = None,  # Callback for status updates
+        status_callback: Optional[ # Type hint for the *original* callback from GUI
+            Callable[[str, Optional[bool], bool], None] # Corrected type hint
+        ] = None,
     ):
         self.llm_client = llm_client
         self.output_dispatcher = output_dispatcher
         # Store the raw callback
         self._raw_status_callback = status_callback
         # Wrapper for the callback to include state (initialized later if needed)
-        self.status_callback: Optional[Callable[[str, Optional[bool], bool], None]] = None
+        self.status_callback: Optional[Callable[[str, Optional[bool], bool], None]] = status_callback # Assign callback directly
 
 
         self._audio_queue = queue.Queue()  # Thread-safe queue
