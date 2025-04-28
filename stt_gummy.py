@@ -96,6 +96,8 @@ class GummyCallback(TranslationRecognizerCallback):
         translation_result: Optional[TranslationResult],
         usage,
     ) -> None:
+        # Log the thread ID where the callback is executed
+        self.logger.debug(f"GummyCallback.on_event executing in Thread ID: {threading.current_thread().ident}")
         self.logger.debug(f"Dashscope Gummy 事件: ID={request_id}, Usage={usage}")
         text_to_send = None
         log_prefix = ""

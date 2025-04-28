@@ -486,6 +486,7 @@ class AudioManager:
             # Create a new event loop for this thread
             self._stt_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._stt_loop)
+            logger.info(f"STT Event Loop running in Thread ID: {threading.current_thread().ident}") # Log thread ID
 
             # Schedule the async task within this loop
             self._stt_task = self._stt_loop.create_task(self._stt_processor_task())

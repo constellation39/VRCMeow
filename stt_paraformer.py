@@ -73,6 +73,8 @@ class ParaformerCallback(RecognitionCallback):
         sentence_data = result.get_sentence()  # Renamed for clarity
         request_id = result.get_request_id()
         usage = result.get_usage(sentence_data)  # Get usage info
+        # Log the thread ID where the callback is executed
+        self.logger.debug(f"ParaformerCallback.on_event executing in Thread ID: {threading.current_thread().ident}")
         self.logger.debug(
             f"Dashscope Paraformer 事件: ID={request_id}, Usage={usage}, Sentence={sentence_data}"
         )
