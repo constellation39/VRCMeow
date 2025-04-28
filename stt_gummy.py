@@ -97,7 +97,9 @@ class GummyCallback(TranslationRecognizerCallback):
         usage,
     ) -> None:
         # Log the thread ID where the callback is executed
-        self.logger.debug(f"GummyCallback.on_event executing in Thread ID: {threading.current_thread().ident}")
+        self.logger.debug(
+            f"GummyCallback.on_event executing in Thread ID: {threading.current_thread().ident}"
+        )
         self.logger.debug(f"Dashscope Gummy 事件: ID={request_id}, Usage={usage}")
         text_to_send = None
         log_prefix = ""
@@ -142,20 +144,19 @@ class GummyCallback(TranslationRecognizerCallback):
                 and transcription_result.text
             ):
                 text_to_send = f"{transcription_result.text}"
-                log_prefix = "最终转录"
 
             if text_to_send:
-                self.logger.info(f"{log_prefix}: {text_to_send}")
                 # INFO: Log final text before potential LLM processing
                 self.logger.info(f"STT_GUMMY: Final text received: '{text_to_send}'")
             else:
-                self.logger.debug("最终结果文本为空，不发送。") # Keep this as debug for empty results
+                self.logger.debug(
+                    "最终结果文本为空，不发送。"
+                )  # Keep this as debug for empty results
 
         # --- 处理中间结果 ---
         else:
             if self.intermediate_behavior == "show_typing":
                 text_to_send = "Typing..."  # 固定消息
-                log_prefix = "中间状态"
                 self.logger.debug("发送 'Typing...' 状态")  # 使用 debug 级别避免刷屏
             elif self.intermediate_behavior == "show_partial":
                 # 提取部分文本 (优先翻译)
@@ -183,12 +184,9 @@ class GummyCallback(TranslationRecognizerCallback):
                     and transcription_result.text
                 ):
                     text_to_send = f"{transcription_result.text}"
-                    log_prefix = "部分转录"
 
                 if text_to_send:
-                    self.logger.debug(
-                        f"{log_prefix}: {text_to_send}"
-                    )  # 使用 debug 级别避免刷屏
+                    self.logger.debug(f"{text_to_send}")  # 使用 debug 级别避免刷屏
                 # else: # 部分结果为空时无需记录
                 #    self.logger.debug("部分结果文本为空，不发送。")
 
@@ -202,21 +200,31 @@ class GummyCallback(TranslationRecognizerCallback):
             # Schedule the processing and dispatching asynchronously
             if self.loop.is_running():
                 if self.llm_client and self.llm_client.enabled:
-                     # Schedule the helper function that handles LLM and dispatch
-                     target_coro = self._process_with_llm_and_dispatch(text_to_send)
-                     self.logger.info(f"STT_GUMMY: PRE-SCHEDULE LLM processing & dispatch for: '{text_to_send[:50]}...'")
-                     future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
-                     self.logger.info(f"STT_GUMMY: POST-SCHEDULE LLM processing & dispatch (Future: {future})")
+                    # Schedule the helper function that handles LLM and dispatch
+                    target_coro = self._process_with_llm_and_dispatch(text_to_send)
+                    self.logger.info(
+                        f"STT_GUMMY: PRE-SCHEDULE LLM processing & dispatch for: '{text_to_send[:50]}...'"
+                    )
+                    future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
+                    self.logger.info(
+                        f"STT_GUMMY: POST-SCHEDULE LLM processing & dispatch (Future: {future})"
+                    )
                 elif self.output_dispatcher:
-                     # LLM disabled, schedule dispatch directly
-                     target_coro = self.output_dispatcher.dispatch(text_to_send)
-                     self.logger.info(f"STT_GUMMY: PRE-SCHEDULE direct dispatch for: '{text_to_send[:50]}...'")
-                     future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
-                     self.logger.info(f"STT_GUMMY: POST-SCHEDULE direct dispatch (Future: {future})")
+                    # LLM disabled, schedule dispatch directly
+                    target_coro = self.output_dispatcher.dispatch(text_to_send)
+                    self.logger.info(
+                        f"STT_GUMMY: PRE-SCHEDULE direct dispatch for: '{text_to_send[:50]}...'"
+                    )
+                    future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
+                    self.logger.info(
+                        f"STT_GUMMY: POST-SCHEDULE direct dispatch (Future: {future})"
+                    )
                 else:
-                     self.logger.error("STT_GUMMY: Cannot dispatch final text - OutputDispatcher missing.")
+                    self.logger.error(
+                        "STT_GUMMY: Cannot dispatch final text - OutputDispatcher missing."
+                    )
 
-                self.logger.info( # Log that scheduling happened
+                self.logger.info(  # Log that scheduling happened
                     f"STT_GUMMY: Scheduled final processing/dispatch for '{text_to_send[:50]}...'"
                 )
             else:
@@ -253,12 +261,16 @@ class GummyCallback(TranslationRecognizerCallback):
         """Processes text with LLM (if enabled) and then dispatches."""
         final_text_to_dispatch = original_text
         if self.llm_client and self.llm_client.enabled:
-            self.logger.info(f"STT_GUMMY: Sending to LLM for processing: '{original_text[:50]}...'")
+            self.logger.info(
+                f"STT_GUMMY: Sending to LLM for processing: '{original_text[:50]}...'"
+            )
             try:
                 # Await the LLM processing directly here
                 processed_text = await asyncio.wait_for(
                     self.llm_client.process_text(original_text),
-                    timeout=config.get("llm.request_timeout", 10.0) # Use configured timeout
+                    timeout=config.get(
+                        "llm.request_timeout", 10.0
+                    ),  # Use configured timeout
                 )
                 if processed_text:
                     final_text_to_dispatch = processed_text
@@ -271,29 +283,29 @@ class GummyCallback(TranslationRecognizerCallback):
             except asyncio.TimeoutError:
                 self.logger.error("LLM 处理超时，将分发原始文本。")
             except Exception as e:
-                self.logger.error(
-                    f"LLM 处理过程中发生错误: {e}", exc_info=True
-                )
+                self.logger.error(f"LLM 处理过程中发生错误: {e}", exc_info=True)
         else:
-             self.logger.debug("LLM processing disabled, dispatching original text.")
+            self.logger.debug("LLM processing disabled, dispatching original text.")
 
         # Dispatch the final text (original or processed) using the dispatcher
         if self.loop.is_running() and self.output_dispatcher:
             # INFO: Log just before awaiting the actual dispatch call within the helper coroutine
-            self.logger.info(f"STT_GUMMY_HELPER: About to await output_dispatcher.dispatch for: '{final_text_to_dispatch}'")
+            self.logger.info(
+                f"STT_GUMMY_HELPER: About to await output_dispatcher.dispatch for: '{final_text_to_dispatch}'"
+            )
             # Directly await the dispatch coroutine as we are already in an async context managed by the loop
             await self.output_dispatcher.dispatch(final_text_to_dispatch)
             self.logger.info(
                 f"STT_GUMMY_HELPER: Finished awaiting output_dispatcher.dispatch for '{final_text_to_dispatch[:50]}...'"
             )
         else:
-             # This case might happen if the loop stops between LLM processing and dispatching
-             self.logger.warning("事件循环未运行或分发器不可用，无法分发最终文本。")
+            # This case might happen if the loop stops between LLM processing and dispatching
+            self.logger.warning("事件循环未运行或分发器不可用，无法分发最终文本。")
 
 
 def create_gummy_recognizer(
     main_loop: asyncio.AbstractEventLoop,
-    sample_rate: int, # Add sample_rate argument
+    sample_rate: int,  # Add sample_rate argument
     llm_client: Optional[LLMClient],
     output_dispatcher: Optional[OutputDispatcher],
 ) -> TranslationRecognizerRealtime:

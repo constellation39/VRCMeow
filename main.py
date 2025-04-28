@@ -1,22 +1,20 @@
 # import asyncio # 不再需要 asyncio.run
 import flet as ft
 
+# 导入新的 GUI 入口点
+from gui import main as gui_main
+
+# Directly from config module - 配置和日志仍然需要
+from logger_config import get_logger
+
 # import os # 不再需要
 # import sounddevice as sd # 设备日志记录移至 GUI 或保持可选
 # from audio_recorder import start_audio_processing # 不再直接调用此函数
 # from typing import Optional # 不再需要
-
-# Directly from config module - 配置和日志仍然需要
-from config import config
-from logger_config import setup_logging, get_logger
-
 # Component Imports - 这些模块现在由 GUI 内部管理
 # from osc_client import VRCClient
 # from llm_client import LLMClient
 # from output_dispatcher import OutputDispatcher
-
-# 导入新的 GUI 入口点
-from gui import main as gui_main
 
 
 # 旧的 async def main() 函数及其所有内容都已删除或移至 gui.py
@@ -37,5 +35,5 @@ if __name__ == "__main__":
 
     # Flet 应用关闭后，程序将在这里退出
     # 可以在这里添加最后的清理代码，但通常清理工作在 GUI 的关闭事件中处理
-    final_logger = get_logger(__name__) # 获取 logger 以记录最终消息
+    final_logger = get_logger(__name__)  # 获取 logger 以记录最终消息
     final_logger.info("--- VRCMeow 已退出 ---")
