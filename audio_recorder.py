@@ -123,6 +123,7 @@ class AudioManager:
         """Async task for STT processing, run in a dedicated thread's event loop."""
         # Use new nested keys, re-reading them from config inside loop for potential reloads
         # model = self.stt_model # Don't use pre-loaded, read inside loop
+        model = config.get("dashscope.stt.model", "gummy-realtime-v1") # Initialize model before first use
 
         logger.info(
             f"STT processing task (Dashscope, model: {model}) starting in thread..."
