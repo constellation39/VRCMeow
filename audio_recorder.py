@@ -122,10 +122,9 @@ class AudioManager:
         # No longer an async task, but the main logic for the STT thread.
         model = config.get("dashscope.stt.model", "gummy-realtime-v1") # Initialize model before first use
 
-        logger.info(
-        logger.info("STT Processor Thread Started.")
+        logger.info("STT Processor Thread Started.") # Corrected line
         self._update_status("STT Thread Starting...")
-        model = config.get("dashscope.stt.model", "gummy-realtime-v1") # Initialize model before first use
+        # Removed duplicate model initialization
         logger.info(
             f"STT processing loop (Dashscope, model: {model}) starting in thread {threading.current_thread().ident}..."
         )
