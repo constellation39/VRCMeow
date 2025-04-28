@@ -9,30 +9,10 @@ from typing import Optional  # Import Optional for type hints
 from config import config
 from logger_config import setup_logging, get_logger
 
-# Component Imports - Handle potential ImportErrors gracefully if components are optional
-try:
-    from osc_client import VRCClient
-except ImportError:
-    VRCClient = None  # Allow running without VRCClient
-
-try:
-    from llm_client import LLMClient
-except ImportError:
-    LLMClient = None  # Allow running without LLMClient
-
-try:
-    from output_dispatcher import OutputDispatcher
-except ImportError:
-    OutputDispatcher = None  # Allow running without OutputDispatcher
-
-# Only import if components exist
-if VRCClient is None and LLMClient is None and OutputDispatcher is None:
-    # This suggests a major setup issue, maybe log and exit early?
-    # Basic print because logger might not be set up yet.
-    print(
-        "ERROR: Failed to import essential components (VRCClient, LLMClient, OutputDispatcher). Please check dependencies and file structure.",
-        file=sys.stderr)
-    sys.exit(1)  # Exit if core components are missing
+# Component Imports - Assume these imports succeed. If not, the program will fail, which is intended.
+from osc_client import VRCClient
+from llm_client import LLMClient
+from output_dispatcher import OutputDispatcher
 
 
 async def main():
@@ -105,44 +85,43 @@ async def main():
     llm_enabled = config.get('llm.enabled', False)
     logger.info(f"LLM 处理: {'启用' if llm_enabled else '禁用'}")
     if llm_enabled:
-        if LLMClient is None:
-            logger.error("LLM is enabled in config, but LLMClient failed to import. LLM will be disabled.")
-            llm_enabled = False  # Force disable if import failed
-        else:
-            logger.info(f"LLM 模型: {config.get('llm.model')}")
-            # Log other LLM parameters at DEBUG level if desired
-            logger.debug(f"LLM Base URL: {config.get('llm.base_url')}")
-            logger.debug(f"LLM System Prompt: {config.get('llm.system_prompt')[:50]}...")
-            logger.debug(f"LLM Temp: {config.get('llm.temperature')}, Max Tokens: {config.get('llm.max_tokens')}")
+        # Assume LLMClient was imported successfully
+        logger.info(f"LLM 模型: {config.get('llm.model')}")
+        # Log other LLM parameters at DEBUG level if desired
+        logger.debug(f"LLM Base URL: {config.get('llm.base_url')}")
+        logger.debug(f"LLM System Prompt: {config.get('llm.system_prompt')[:50]}...")
+        logger.debug(f"LLM Temp: {config.get('llm.temperature')}, Max Tokens: {config.get('llm.max_tokens')}")
 
-    # 4. 实例化 VRCClient (如果 VRC OSC 输出启用 且 VRCClient 导入成功)
+    # 4. 实例化 VRCClient (如果 VRC OSC 输出启用)
     vrc_client_instance: Optional[VRCClient] = None
-    vrc_osc_enabled = config.get('outputs.vrc_osc.enabled', False)  # Default to False if section missing
-    if vrc_osc_enabled and VRCClient:
+    vrc_osc_enabled = config.get('outputs.vrc_osc.enabled', False)
+    if vrc_osc_enabled:
+        # Assume VRCClient was imported successfully
         vrc_client_instance = VRCClient(
-            address=osc_address,  # Already fetched above
-            port=osc_port,  # Already fetched above
-            interval=osc_interval  # Already fetched above
+            address=osc_address,
+            port=osc_port,
+            interval=osc_interval
         )
-    elif vrc_osc_enabled and not VRCClient:
-        logger.error("VRC OSC is enabled in config, but VRCClient failed to import. OSC output will be disabled.")
+        logger.info("VRCClient 已初始化。")
     else:
-        logger.info("VRC OSC 输出已禁用或 VRCClient 未导入，跳过 VRCClient 初始化。")
+        logger.info("VRC OSC 输出已禁用，跳过 VRCClient 初始化。")
 
-    # 5. 实例化 LLMClient (如果 LLM 启用 且 LLMClient 导入成功)
+    # 5. 实例化 LLMClient (如果 LLM 启用)
     llm_client_instance: Optional[LLMClient] = None
-    if llm_enabled and LLMClient:  # Check both config and successful import
+    if llm_enabled:
+        # Assume LLMClient was imported successfully
         llm_client_instance = LLMClient()
-        if not llm_client_instance.enabled:  # Check if internal initialization failed (e.g., missing API key)
+        if not llm_client_instance.enabled: # Check if internal initialization failed (e.g., missing API key)
             logger.warning("LLMClient 初始化失败或 API Key 缺失，LLM 处理将被禁用。")
-            llm_client_instance = None  # Ensure it's None if disabled
+            llm_client_instance = None # Ensure it's None if disabled internally
+        else:
+            logger.info("LLMClient 已初始化。")
 
-    # 6. 实例化 OutputDispatcher (检查导入是否成功)
-    if OutputDispatcher is None:
-        logger.error("OutputDispatcher 未能导入。无法分发任何输出。程序即将退出。")
-        return  # Exit main if dispatcher missing
-    # Pass the VRC client instance (it can be None if VRC OSC is disabled or failed to import)
+    # 6. 实例化 OutputDispatcher
+    # Assume OutputDispatcher was imported successfully
+    # Pass the VRC client instance (it can be None if VRC OSC is disabled)
     output_dispatcher_instance = OutputDispatcher(vrc_client_instance=vrc_client_instance)
+    logger.info("OutputDispatcher 已初始化。")
 
     # 7. 启动处理流程
     try:
