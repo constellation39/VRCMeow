@@ -457,8 +457,21 @@ def main(page: ft.Page):
                 if is_processing:
                     toggle_button.disabled = True
                 # Re-enable button based on the final state (handled above for True/False)
-                elif is_running is not None: # Only re-enable if state is known (True or False)
+                elif is_running is not None: # Only re-enable if state is known (True or False) and not processing
                      toggle_button.disabled = False
+                 # Ensure button color/icon during processing matches the transition state
+                 if is_processing:
+                    # Determine correct icon based on whether we are starting or stopping
+                    # We infer this by checking app_state.is_running *before* the status update was called
+                    # If app_state.is_running is True *now*, it means we are processing a "Stop" request
+                    # If app_state.is_running is False *now*, it means we are processing a "Start" request
+                    if app_state.is_running: # Processing a stop request
+                        toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED # Show the icon for the *next* state (start)
+                        toggle_button.tooltip = "正在停止..."
+                    else: # Processing a start request
+                        toggle_button.icon = ft.icons.STOP_ROUNDED # Show the icon for the *next* state (stop)
+                        toggle_button.tooltip = "正在启动..."
+                    toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER_700) # Amber during processing
 
                 page.update()
 
