@@ -6,6 +6,7 @@ import pathlib
 import sys
 import yaml # Needed for saving config
 import copy # Needed for handling config data
+import logging # Add missing import for logging constants
 
 # --- 设置正确的工作目录 ---
 # 确定脚本文件所在的目录
