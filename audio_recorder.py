@@ -148,10 +148,10 @@ async def stt_processor(
                 engine_type = "Paraformer"
                 recognizer = create_paraformer_recognizer(
                     main_loop=main_loop,
-                    # llm_client=llm_client, # Pass when Paraformer callback is updated
-                    # output_dispatcher=output_dispatcher # Pass when Paraformer callback is updated
+                    llm_client=llm_client, # Pass LLM client
+                    output_dispatcher=output_dispatcher # Pass dispatcher
                 )
-                logger.warning("Paraformer STT 引擎当前未完全集成 LLM 处理和多目标输出。")
+                # Warning removed as Paraformer is now integrated
 
             if not recognizer:
                 raise RuntimeError(f"未能创建模型 '{model}' 的识别器实例。")
