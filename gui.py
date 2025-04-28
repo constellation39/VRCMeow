@@ -77,8 +77,9 @@ def main(page: ft.Page):
     # --- UI 元素 ---
 
     # == Dashboard Tab Elements (Minimalist Design) ==
-    status_icon = ft.Icon(name=ft.icons.CIRCLE_OUTLINED, color=ft.colors.GREY)
-    status_label = ft.Text("未启动", selectable=True)
+    # Default state: Red status, Green button
+    status_icon = ft.Icon(name=ft.icons.CIRCLE_OUTLINED, color=ft.colors.RED_ACCENT_700) # Default RED
+    status_label = ft.Text("未启动", selectable=True, color=ft.colors.RED_ACCENT_700) # Default RED
     status_row = ft.Row(
         [status_icon, status_label],
         alignment=ft.MainAxisAlignment.CENTER,
@@ -106,7 +107,7 @@ def main(page: ft.Page):
         on_click=None,
         disabled=False,
         icon_size=30, # Make icon slightly larger
-        style=ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700), # Initial color for "Start"
+        style=ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700), # Default GREEN button
     )
     # Removed stop_button definition
 
@@ -423,17 +424,27 @@ def main(page: ft.Page):
         if page:  # 确保页面仍然存在
             def update_ui():
                 status_label.value = message # Update text
-                # Update icon based on state
-                if is_running is True:
+                # Update icon and text color based on state
+                if is_processing:
+                    # Transition State (Starting/Stopping) - Amber status, button handled below
+                    status_icon.name = ft.icons.HOURGLASS_EMPTY_ROUNDED # Use a processing icon
+                    status_icon.color = ft.colors.AMBER_700
+                    status_label.color = ft.colors.AMBER_700
+                elif is_running is True:
+                    # Running State - Green status, Red button
                     status_icon.name = ft.icons.CHECK_CIRCLE_ROUNDED
-                    status_icon.color = ft.colors.GREEN
-                elif is_running is False:
-                    status_icon.name = ft.icons.PAUSE_CIRCLE_ROUNDED # Or STOP_CIRCLE_ROUNDED
-                    status_icon.color = ft.colors.AMBER
-                else: # Not running / Stopped / Unknown startup state
-                    status_icon.name = ft.icons.CIRCLE_OUTLINED
-                    status_icon.color = ft.colors.GREY
-                    # Update button to "Start" state when not running
+                    status_icon.color = ft.colors.GREEN_ACCENT_700
+                    status_label.color = ft.colors.GREEN_ACCENT_700
+                    # Update button to "Stop" state
+                    toggle_button.icon = ft.icons.STOP_ROUNDED
+                    toggle_button.tooltip = "停止"
+                    toggle_button.style = ft.ButtonStyle(color=ft.colors.RED_ACCENT_700)
+                    toggle_button.disabled = False # Enable stop when running
+                else: # Stopped State (is_running is False or None) - Red status, Green button
+                    status_icon.name = ft.icons.CIRCLE_OUTLINED # Or ft.icons.ERROR_OUTLINE if stopped due to error?
+                    status_icon.color = ft.colors.RED_ACCENT_700
+                    status_label.color = ft.colors.RED_ACCENT_700
+                    # Update button to "Start" state
                     toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED
                     toggle_button.tooltip = "启动"
                     toggle_button.style = ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700)
@@ -899,13 +910,9 @@ def main(page: ft.Page):
     # --- Combined Start/Stop Logic ---
     async def _start_recording_internal():
         """Internal logic for starting the process."""
-        # Update button immediately to reflect "stopping" state visually
-        toggle_button.icon = ft.icons.STOP_ROUNDED
-        toggle_button.tooltip = "正在启动..."
-        toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER) # Indicate transition
-        toggle_button.disabled = True
-        update_status_display("正在启动...", is_running=None, is_processing=True) # Also update status row and progress
-        page.update()
+        # Status update now handles button state during processing
+        update_status_display("正在启动...", is_running=None, is_processing=True)
+        # page.update() # update_status_display calls page.update()
 
         try:
             # --- 初始化组件 ---
@@ -1001,18 +1008,13 @@ def main(page: ft.Page):
         """Internal logic for stopping the process."""
         # Only proceed if actually running or if called due to an error needing cleanup
         if not app_state.is_running and not is_error:
-             # If already stopped and not an error, ensure button is in 'Start' state
-             update_status_display("已停止", is_running=False, is_processing=False) # This updates the button
+             # If already stopped and not an error, ensure button/status is in 'Stopped' state (Red/Green)
+             update_status_display("已停止", is_running=False, is_processing=False) # This updates the button/status
              return
 
-        # Update button immediately to reflect "stopping" state visually
-        toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED
-        toggle_button.tooltip = "正在停止..."
-        toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER) # Indicate transition
-        toggle_button.disabled = True
-        # Also update status row and progress indicator
+        # Status update now handles button state during processing
         update_status_display("正在停止...", is_running=True, is_processing=True)
-        page.update()
+        # page.update() # update_status_display calls page.update()
 
         logger.info("GUI Requesting Stop...")
         # tasks_to_await = [] # Not used
