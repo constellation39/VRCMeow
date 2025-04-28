@@ -490,8 +490,10 @@ class AudioManager:
             # Schedule the async task within this loop
             self._stt_task = self._stt_loop.create_task(self._stt_processor_task())
 
-            # Run the event loop until the task completes or stop is signaled
-            self._stt_loop.run_until_complete(self._stt_task)
+            # Run the event loop indefinitely until loop.stop() is called.
+            # This allows processing tasks scheduled via run_coroutine_threadsafe
+            # even if the main _stt_task finishes.
+            self._stt_loop.run_forever()
 
         except Exception as e:
             error_msg = f"Error in STT processor thread: {e}"
@@ -575,6 +577,12 @@ class AudioManager:
 
         # Signal stop event - this will be checked by loops and sd.Stream wait
         self._stop_event.set()
+
+        # Also signal the STT event loop to stop running `run_forever`
+        if self._stt_loop and self._stt_loop.is_running():
+            logger.info("Signaling STT event loop to stop...")
+            self._stt_loop.call_soon_threadsafe(self._stt_loop.stop)
+            # The loop will stop after processing any currently scheduled tasks
 
         # --- Graceful Shutdown ---
         stt_stopped = False
