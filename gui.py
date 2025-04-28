@@ -366,17 +366,7 @@ def main(page: ft.Page):
                 or page.update()  # type: ignore
             )
 
-    # Modify to accept page as an argument
-    def show_snackbar(page_ref: ft.Page, message: str, error: bool = False):
-        """显示一个 SnackBar 通知"""
-        if page_ref: # Use the passed argument
-            page_ref.show_snack_bar(
-                ft.SnackBar(
-                    ft.Text(message),
-                    bgcolor=ft.colors.ERROR if error else ft.colors.GREEN_700,
-                    open=True
-                )
-            )
+    # --- (Removed show_snackbar function) ---
 
     # --- 配置保存/重载逻辑 ---
     async def save_config_handler(e: ft.ControlEvent):
@@ -483,12 +473,41 @@ def main(page: ft.Page):
 
             # Call the save method on the config instance
             await asyncio.to_thread(config.save) # Run synchronous save in thread
-            show_snackbar(page, "配置已成功保存到 config.yaml") # Pass page
+
+            # Show success banner
+            page.banner = ft.Banner(
+                bgcolor=ft.colors.GREEN_100,
+                leading=ft.Icon(ft.icons.CHECK_CIRCLE_OUTLINE, color=ft.colors.GREEN_800),
+                content=ft.Text("配置已成功保存到 config.yaml", color=ft.colors.BLACK),
+                actions=[
+                    ft.TextButton(
+                        "关闭",
+                        on_click=lambda _: close_banner(page), # Define close_banner helper
+                        style=ft.ButtonStyle(color=ft.colors.GREEN_900)
+                    )
+                ],
+            )
+            page.banner.open = True
+            page.update()
 
         except Exception as ex:
             error_msg = f"保存配置时出错: {ex}"
             logger.critical(error_msg, exc_info=True)
-            show_snackbar(page, error_msg, error=True) # Pass page
+            # Show error banner
+            page.banner = ft.Banner(
+                bgcolor=ft.colors.RED_100,
+                leading=ft.Icon(ft.icons.ERROR_OUTLINE, color=ft.colors.RED_800),
+                content=ft.Text(error_msg, color=ft.colors.BLACK),
+                actions=[
+                    ft.TextButton(
+                        "关闭",
+                        on_click=lambda _: close_banner(page), # Define close_banner helper
+                        style=ft.ButtonStyle(color=ft.colors.RED_900)
+                    )
+                ],
+            )
+            page.banner.open = True
+            page.update()
 
     def reload_config_controls():
         """Updates the GUI controls with values from the reloaded config."""
@@ -537,12 +556,46 @@ def main(page: ft.Page):
         try:
             await asyncio.to_thread(config.reload) # Run synchronous reload in thread
             reload_config_controls() # Update GUI fields with new values
-            show_snackbar(page, "配置已从 config.yaml 重新加载") # Pass page
+            # Show success banner
+            page.banner = ft.Banner(
+                bgcolor=ft.colors.GREEN_100,
+                leading=ft.Icon(ft.icons.CHECK_CIRCLE_OUTLINE, color=ft.colors.GREEN_800),
+                content=ft.Text("配置已从 config.yaml 重新加载", color=ft.colors.BLACK),
+                actions=[
+                    ft.TextButton(
+                        "关闭",
+                        on_click=lambda _: close_banner(page), # Define close_banner helper
+                        style=ft.ButtonStyle(color=ft.colors.GREEN_900)
+                    )
+                ],
+            )
+            page.banner.open = True
+            page.update()
         except Exception as ex:
              error_msg = f"重新加载配置时出错: {ex}"
              logger.error(error_msg, exc_info=True)
-             show_snackbar(page, error_msg, error=True) # Pass page
+             # Show error banner
+             page.banner = ft.Banner(
+                 bgcolor=ft.colors.RED_100,
+                 leading=ft.Icon(ft.icons.ERROR_OUTLINE, color=ft.colors.RED_800),
+                 content=ft.Text(error_msg, color=ft.colors.BLACK),
+                 actions=[
+                     ft.TextButton(
+                         "关闭",
+                         on_click=lambda _: close_banner(page), # Define close_banner helper
+                         style=ft.ButtonStyle(color=ft.colors.RED_900)
+                     )
+                 ],
+             )
+             page.banner.open = True
+             page.update()
 
+
+    # --- Helper function to close banner ---
+    def close_banner(page_ref: ft.Page):
+        if page_ref.banner:
+             page_ref.banner.open = False
+             page_ref.update()
 
     # --- Few-Shot Example Add/Remove Logic ---
     def create_example_row(user_text: str = "", assistant_text: str = "") -> ft.Row:
