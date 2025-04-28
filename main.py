@@ -1,4 +1,5 @@
 import asyncio
+
 # import os
 import sounddevice as sd
 from audio_recorder import start_audio_processing
@@ -25,17 +26,23 @@ async def main():
     logger.debug(f"日志级别设置为: {config['logging.level']}")  # Changed to DEBUG
 
     # 2. 获取配置值 (直接使用 config 实例)
-    dashscope_api_key = config.get('dashscope_api_key')  # 使用 get 以防万一
+    dashscope_api_key = config.get("dashscope_api_key")  # 使用 get 以防万一
     # Access OSC settings under the 'outputs' section using dot notation
-    osc_address = config.get('outputs.vrc_osc.address', '127.0.0.1')  # Use get with default
-    osc_port = config.get('outputs.vrc_osc.port', 9000)  # Use get with default
-    osc_interval = config.get('outputs.vrc_osc.message_interval', 1.333)  # Use get with default
-    debug_mode = config.get('audio.debug_echo_mode', False)  # Use get with default
+    osc_address = config.get(
+        "outputs.vrc_osc.address", "127.0.0.1"
+    )  # Use get with default
+    osc_port = config.get("outputs.vrc_osc.port", 9000)  # Use get with default
+    osc_interval = config.get(
+        "outputs.vrc_osc.message_interval", 1.333
+    )  # Use get with default
+    debug_mode = config.get("audio.debug_echo_mode", False)  # Use get with default
     # 不再需要传递 audio_config 和 stt_config 字典
 
     # 3. 检查关键配置：API Key
     if not dashscope_api_key:
-        logger.error("错误：Dashscope API Key 未在 config.yaml 或 DASHSCOPE_API_KEY 环境变量中设置。")
+        logger.error(
+            "错误：Dashscope API Key 未在 config.yaml 或 DASHSCOPE_API_KEY 环境变量中设置。"
+        )
         logger.error("请设置 API Key 后重试。程序即将退出。")
         return
 
@@ -43,7 +50,10 @@ async def main():
     # 警告：在日志中打印 API 密钥存在安全风险。仅用于调试目的。
     # Consider removing or further restricting this log even at DEBUG level in production environments.
     logger.debug(
-        f"使用的 Dashscope API Key (部分隐藏): {dashscope_api_key[:4]}...{dashscope_api_key[-4:]}" if dashscope_api_key else "未设置")  # Masked key
+        f"使用的 Dashscope API Key (部分隐藏): {dashscope_api_key[:4]}...{dashscope_api_key[-4:]}"
+        if dashscope_api_key
+        else "未设置"
+    )  # Masked key
     logger.info(f"OSC 输出将发送到: {osc_address}:{osc_port}")
     logger.info(f"OSC 消息最小间隔: {osc_interval} 秒")
     logger.info(f"音频调试回声模式: {'启用' if debug_mode else '禁用'}")
@@ -54,14 +64,18 @@ async def main():
         default_input_device_index = sd.default.device[0]
         default_output_device_index = sd.default.device[1]
 
-        if default_input_device_index != -1 and default_input_device_index < len(devices):
-            input_device_name = devices[default_input_device_index]['name']
+        if default_input_device_index != -1 and default_input_device_index < len(
+            devices
+        ):
+            input_device_name = devices[default_input_device_index]["name"]
             logger.info(f"默认输入设备: {input_device_name}")
         else:
             logger.warning("未找到默认输入设备或索引无效。")
 
-        if default_output_device_index != -1 and default_output_device_index < len(devices):
-            output_device_name = devices[default_output_device_index]['name']
+        if default_output_device_index != -1 and default_output_device_index < len(
+            devices
+        ):
+            output_device_name = devices[default_output_device_index]["name"]
             logger.info(f"默认输出设备: {output_device_name}")
         else:
             logger.warning("未找到默认输出设备或索引无效。")
@@ -69,9 +83,11 @@ async def main():
         logger.error(f"查询音频设备时出错: {e}", exc_info=True)
 
     # --- 日志记录 STT 配置 (直接从 config 实例读取) ---
-    stt_model = config['stt.model']
-    stt_target_language = config.get('stt.translation_target_language')  # 使用 get 处理 None
-    stt_intermediate_behavior = config.get('stt.intermediate_result_behavior', 'ignore')
+    stt_model = config["stt.model"]
+    stt_target_language = config.get(
+        "stt.translation_target_language"
+    )  # 使用 get 处理 None
+    stt_intermediate_behavior = config.get("stt.intermediate_result_behavior", "ignore")
     translation_enabled = bool(stt_target_language)
 
     logger.info(f"STT 翻译: {'启用' if translation_enabled else '禁用'}")
@@ -81,7 +97,7 @@ async def main():
     logger.info(f"STT 中间结果处理: {stt_intermediate_behavior}")
 
     # --- 日志记录 LLM 配置 ---
-    llm_enabled = config.get('llm.enabled', False)
+    llm_enabled = config.get("llm.enabled", False)
     logger.info(f"LLM 处理: {'启用' if llm_enabled else '禁用'}")
     if llm_enabled:
         # Assume LLMClient was imported successfully
@@ -89,17 +105,17 @@ async def main():
         # Log other LLM parameters at DEBUG level if desired
         logger.debug(f"LLM Base URL: {config.get('llm.base_url')}")
         logger.debug(f"LLM System Prompt: {config.get('llm.system_prompt')[:50]}...")
-        logger.debug(f"LLM Temp: {config.get('llm.temperature')}, Max Tokens: {config.get('llm.max_tokens')}")
+        logger.debug(
+            f"LLM Temp: {config.get('llm.temperature')}, Max Tokens: {config.get('llm.max_tokens')}"
+        )
 
     # 4. 实例化 VRCClient (如果 VRC OSC 输出启用)
     vrc_client_instance: Optional[VRCClient] = None
-    vrc_osc_enabled = config.get('outputs.vrc_osc.enabled', False)
+    vrc_osc_enabled = config.get("outputs.vrc_osc.enabled", False)
     if vrc_osc_enabled:
         # Assume VRCClient was imported successfully
         vrc_client_instance = VRCClient(
-            address=osc_address,
-            port=osc_port,
-            interval=osc_interval
+            address=osc_address, port=osc_port, interval=osc_interval
         )
         logger.info("VRCClient 已初始化。")
     else:
@@ -110,16 +126,20 @@ async def main():
     if llm_enabled:
         # Assume LLMClient was imported successfully
         llm_client_instance = LLMClient()
-        if not llm_client_instance.enabled: # Check if internal initialization failed (e.g., missing API key)
+        if (
+            not llm_client_instance.enabled
+        ):  # Check if internal initialization failed (e.g., missing API key)
             logger.warning("LLMClient 初始化失败或 API Key 缺失，LLM 处理将被禁用。")
-            llm_client_instance = None # Ensure it's None if disabled internally
+            llm_client_instance = None  # Ensure it's None if disabled internally
         else:
             logger.info("LLMClient 已初始化。")
 
     # 6. 实例化 OutputDispatcher
     # Assume OutputDispatcher was imported successfully
     # Pass the VRC client instance (it can be None if VRC OSC is disabled)
-    output_dispatcher_instance = OutputDispatcher(vrc_client_instance=vrc_client_instance)
+    output_dispatcher_instance = OutputDispatcher(
+        vrc_client_instance=vrc_client_instance
+    )
     logger.info("OutputDispatcher 已初始化。")
 
     # 7. 启动处理流程
@@ -131,7 +151,7 @@ async def main():
                 await start_audio_processing(
                     # vrc_client removed
                     llm_client=llm_client_instance,
-                    output_dispatcher=output_dispatcher_instance
+                    output_dispatcher=output_dispatcher_instance,
                 )
         else:
             # If VRC client is disabled or failed, just run audio processing directly
@@ -139,7 +159,7 @@ async def main():
             await start_audio_processing(
                 # vrc_client removed
                 llm_client=llm_client_instance,
-                output_dispatcher=output_dispatcher_instance
+                output_dispatcher=output_dispatcher_instance,
             )
 
         # If VRCClient instantiation failed or OSC is disabled, this part is skipped.

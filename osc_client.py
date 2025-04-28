@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Any, Optional, Union # Added Union
+from typing import Any # Added Union
 
 # Direct import, program will exit if this fails
 from pythonosc import udp_client as pythonosc_udp_client # Rename to avoid conflict

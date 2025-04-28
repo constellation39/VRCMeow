@@ -18,13 +18,19 @@ class OutputDispatcher:
 
     def __init__(self, vrc_client_instance: Optional[VRCClient] = None) -> None:
         self.vrc_client = vrc_client_instance
-        self.outputs_config = config.get('outputs', {})
+        self.outputs_config = config.get("outputs", {})
         self.loop = asyncio.get_running_loop()
 
         # --- Validate File Output Config ---
-        self.file_output_enabled = self.outputs_config.get('file', {}).get('enabled', False)
-        self.file_path = self.outputs_config.get('file', {}).get('path', 'output_log.txt')
-        self.file_format = self.outputs_config.get('file', {}).get('format', "{timestamp} - {text}")
+        self.file_output_enabled = self.outputs_config.get("file", {}).get(
+            "enabled", False
+        )
+        self.file_path = self.outputs_config.get("file", {}).get(
+            "path", "output_log.txt"
+        )
+        self.file_format = self.outputs_config.get("file", {}).get(
+            "format", "{timestamp} - {text}"
+        )
 
         if self.file_output_enabled:
             logger.info(f"File output enabled. Appending results to: {self.file_path}")
@@ -32,19 +38,28 @@ class OutputDispatcher:
             # but aiofiles.open handles file creation.
 
         # --- Console Output Config ---
-        self.console_output_enabled = self.outputs_config.get('console', {}).get('enabled', True)
-        self.console_prefix = self.outputs_config.get('console', {}).get('prefix', "[Final Text]")
+        self.console_output_enabled = self.outputs_config.get("console", {}).get(
+            "enabled", True
+        )
+        self.console_prefix = self.outputs_config.get("console", {}).get(
+            "prefix", "[Final Text]"
+        )
 
         if self.console_output_enabled:
             logger.info("Console output enabled.")
 
         # --- VRC OSC Output Config ---
-        self.vrc_osc_enabled = self.outputs_config.get('vrc_osc', {}).get('enabled', True)
-        self.vrc_osc_format = self.outputs_config.get('vrc_osc', {}).get('format', "{text}")  # Default to just text
+        self.vrc_osc_enabled = self.outputs_config.get("vrc_osc", {}).get(
+            "enabled", True
+        )
+        self.vrc_osc_format = self.outputs_config.get("vrc_osc", {}).get(
+            "format", "{text}"
+        )  # Default to just text
 
         if self.vrc_osc_enabled and not self.vrc_client:
             logger.warning(
-                "OutputDispatcher: VRC OSC output is enabled, but VRCClient instance was not provided. OSC output will be skipped.")
+                "OutputDispatcher: VRC OSC output is enabled, but VRCClient instance was not provided. OSC output will be skipped."
+            )
             self.vrc_osc_enabled = False  # Disable if client missing
         elif self.vrc_osc_enabled:
             logger.info(f"VRC OSC output enabled. Format: '{self.vrc_osc_format}'")
@@ -81,14 +96,20 @@ class OutputDispatcher:
                 formatted_vrc_text = self.vrc_osc_format.format(text=text)
             except KeyError as e:
                 logger.warning(
-                    f"OutputDispatcher: Invalid key '{e}' in vrc_osc format string '{self.vrc_osc_format}'. Sending raw text.")
+                    f"OutputDispatcher: Invalid key '{e}' in vrc_osc format string '{self.vrc_osc_format}'. Sending raw text."
+                )
                 formatted_vrc_text = text  # Fallback to raw text
             except Exception as e:
-                logger.error(f"OutputDispatcher: Error formatting VRC OSC text: {e}. Sending raw text.", exc_info=True)
+                logger.error(
+                    f"OutputDispatcher: Error formatting VRC OSC text: {e}. Sending raw text.",
+                    exc_info=True,
+                )
                 formatted_vrc_text = text  # Fallback to raw text
 
             # VRCClient's send_chatbox should be async
-            dispatch_tasks.append(asyncio.create_task(self.vrc_client.send_chatbox(formatted_vrc_text)))
+            dispatch_tasks.append(
+                asyncio.create_task(self.vrc_client.send_chatbox(formatted_vrc_text))
+            )
 
         # Wait for async tasks like file writing or OSC sending to complete
         if dispatch_tasks:
@@ -100,30 +121,45 @@ class OutputDispatcher:
                     if isinstance(result, Exception):
                         # Log the exception from the failed task
                         # Attempt to get a meaningful name from the task object (coro repr)
-                        task_name = task.get_coro().__qualname__ if hasattr(task, 'get_coro') else "Unknown Task"
-                        logger.error(f"OutputDispatcher: Error in dispatch task '{task_name}': {result}",
-                                     exc_info=result) # Pass exception for traceback
+                        task_name = (
+                            task.get_coro().__qualname__
+                            if hasattr(task, "get_coro")
+                            else "Unknown Task"
+                        )
+                        logger.error(
+                            f"OutputDispatcher: Error in dispatch task '{task_name}': {result}",
+                            exc_info=result,
+                        )  # Pass exception for traceback
             except Exception as e:
                 # This catches errors in the gather itself, though less common
-                logger.error(f"OutputDispatcher: Unexpected error during asyncio.gather for dispatch tasks: {e}", exc_info=True)
+                logger.error(
+                    f"OutputDispatcher: Unexpected error during asyncio.gather for dispatch tasks: {e}",
+                    exc_info=True,
+                )
 
     async def _write_to_file(self, text: str):
         """Appends text asynchronously to the configured log file."""
         try:
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            formatted_line = self.file_format.format(timestamp=timestamp, text=text) + "\n"
+            formatted_line = (
+                self.file_format.format(timestamp=timestamp, text=text) + "\n"
+            )
 
-            async with aiofiles.open(self.file_path, mode='a', encoding='utf-8') as f:
+            async with aiofiles.open(self.file_path, mode="a", encoding="utf-8") as f:
                 await f.write(formatted_line)
             logger.debug(f"Appended text to file: {self.file_path}")
         except Exception as e:
-            logger.error(f"OutputDispatcher: Failed to write to file {self.file_path}: {e}", exc_info=True)
+            logger.error(
+                f"OutputDispatcher: Failed to write to file {self.file_path}: {e}",
+                exc_info=True,
+            )
             raise  # Re-raise to allow gather to catch it
 
 
 # Example Usage
 async def _test_dispatcher():
     from logger_config import setup_logging
+
     setup_logging()
 
     # Mock VRCClient for testing

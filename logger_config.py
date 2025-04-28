@@ -7,12 +7,13 @@ from config import config as app_config
 
 # 配置日志格式
 # 使用 %(filename)s 显示文件名，%(lineno)d 显示行号
-LOG_FORMAT = '%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s'
+LOG_FORMAT = "%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s"
 # 配置日期格式
-DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 # 创建一个全局的日志记录器名称
-APP_LOGGER_NAME = 'VRCMeowApp'
+APP_LOGGER_NAME = "VRCMeowApp"
+
 
 def setup_logging(level: Optional[int] = None):
     """
@@ -23,17 +24,23 @@ def setup_logging(level: Optional[int] = None):
     if level is None:
         try:
             # 尝试从配置获取数字级别
-            level = app_config['logging.level_int']
+            level = app_config["logging.level_int"]
         except KeyError:
             # 如果配置中没有 level_int，尝试从 level 字符串获取
-            level_str = app_config.get('logging.level', 'INFO').upper()
+            level_str = app_config.get("logging.level", "INFO").upper()
             level = logging.getLevelName(level_str)
             if not isinstance(level, int):
-                print(f"Warning: Invalid logging level '{level_str}' in config. Defaulting to INFO.", file=sys.stderr)
+                print(
+                    f"Warning: Invalid logging level '{level_str}' in config. Defaulting to INFO.",
+                    file=sys.stderr,
+                )
                 level = logging.INFO
         except Exception as e:
             # Catch potential errors reading from config (e.g., config file issues)
-            print(f"Warning: Error reading logging level from config: {e}. Defaulting to INFO.", file=sys.stderr)
+            print(
+                f"Warning: Error reading logging level from config: {e}. Defaulting to INFO.",
+                file=sys.stderr,
+            )
             level = logging.INFO
 
     # --- 获取并配置根记录器 ---
@@ -41,7 +48,7 @@ def setup_logging(level: Optional[int] = None):
     # (Although if it failed, the program likely exited already)
     # assert app_config is not None, "Config must be loaded before setting up logging."
 
-    root_logger = logging.getLogger() # 获取根记录器
+    root_logger = logging.getLogger()  # 获取根记录器
     # 设置根记录器的级别
     root_logger.setLevel(level)
 
@@ -49,14 +56,13 @@ def setup_logging(level: Optional[int] = None):
     if root_logger.hasHandlers():
         # Iterate over a copy for safe removal
         for handler in root_logger.handlers[:]:
-             root_logger.removeHandler(handler)
-             handler.close() # Ensure handlers release resources
+            root_logger.removeHandler(handler)
+            handler.close()  # Ensure handlers release resources
 
     # 创建控制台处理器
     console_handler = logging.StreamHandler(sys.stdout)
     # 设置处理器级别 (通常与根记录器级别相同，除非需要更精细的控制)
     console_handler.setLevel(level)
-
 
     # 创建格式化器
     formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
@@ -75,9 +81,9 @@ def setup_logging(level: Optional[int] = None):
     # except Exception as e:
     #     root_logger.error(f"Failed to configure file logging: {e}", exc_info=True)
 
-
     # 返回配置好的根记录器 (虽然通常不需要直接使用它)
     return root_logger
+
 
 # 在模块加载时进行一次配置，或者在使用前调用 setup_logging
 # 这里我们提供一个函数来获取已配置的记录器
@@ -108,6 +114,7 @@ def get_logger(name: str = APP_LOGGER_NAME) -> logging.Logger:
         # The previous warning print is removed as NullHandler addresses the issue.
 
     return logger
+
 
 # Note: Calling setup_logging() here at module load time is generally discouraged
 # as the config might not be fully loaded or other initializations might be pending.

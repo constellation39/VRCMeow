@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from typing import Union
 
 import numpy as np
@@ -13,6 +13,7 @@ from logger_config import get_logger
 
 # Import Dashscope base recognizer types for type hinting
 from dashscope.audio.asr import TranslationRecognizerRealtime, Recognition
+
 # Local STT implementation imports
 from stt_gummy import create_gummy_recognizer
 from stt_paraformer import create_paraformer_recognizer
@@ -58,7 +59,7 @@ async def stt_processor(
     # sample_rate is guaranteed by start_audio_processing but unused here
     # sample_rate = config["audio.sample_rate"]
     # channels = config["audio.channels"] # Unused
-    target_language = config.get("stt.translation_target_language") # Might be None
+    target_language = config.get("stt.translation_target_language")  # Might be None
 
     logger.info(f"STT processing task (Dashscope, model: {model}) starting...")
     recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
