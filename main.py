@@ -1,20 +1,6 @@
-# import asyncio # 不再需要 asyncio.run
 import flet as ft
-
-# 导入新的 GUI 入口点
 from gui import main as gui_main
-
-# Directly from config module - 配置和日志仍然需要
 from logger_config import get_logger
-
-# import os # 不再需要
-# import sounddevice as sd # 设备日志记录移至 GUI 或保持可选
-# from audio_recorder import start_audio_processing # 不再直接调用此函数
-# from typing import Optional # 不再需要
-# Component Imports - 这些模块现在由 GUI 内部管理
-# from osc_client import VRCClient
-# from llm_client import LLMClient
-# from output_dispatcher import OutputDispatcher
 
 
 # 旧的 async def main() 函数及其所有内容都已删除或移至 gui.py
