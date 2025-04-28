@@ -129,10 +129,6 @@ def main(page: ft.Page):
     logging_controls = create_logging_controls(initial_config_data)
     all_config_controls.update(logging_controls)
 
-    # Update the shared dictionary reference imported from gui_config
-    config_controls_dict.clear() # Clear any previous state
-    config_controls_dict.update(all_config_controls)
-
     # Create Config Save/Reload buttons
     save_config_button = ft.ElevatedButton(
         "保存配置",
@@ -193,18 +189,12 @@ def main(page: ft.Page):
                 elif is_running is not None: # Only re-enable if state is known (True or False) and not processing
                      toggle_button.disabled = False
                 # Ensure button color/icon during processing matches the transition state
-                if is_processing: # Corrected indentation for this block
-                    # Determine correct icon based on whether we are starting or stopping
-                    # We infer this by checking app_state.is_running *before* the status update was called
-                    # If app_state.is_running is True *now*, it means we are processing a "Stop" request
-                    # If app_state.is_running is False *now*, it means we are processing a "Start" request
-                    if app_state.is_running: # Processing a stop request
-                        toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED # Show the icon for the *next* state (start)
-                        toggle_button.tooltip = "正在停止..."
-                    else: # Processing a start request
-                        toggle_button.icon = ft.icons.STOP_ROUNDED # Show the icon for the *next* state (stop)
-                        toggle_button.tooltip = "正在启动..."
+                if is_processing:
+                    # Consistent "Processing" state for the button
+                    toggle_button.icon = ft.icons.HOURGLASS_EMPTY_ROUNDED # Use a processing icon for button too
+                    toggle_button.tooltip = "处理中..."
                     toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER_700) # Amber during processing
+                    toggle_button.disabled = True # Always disable during processing
 
                 page.update()
 
@@ -304,51 +294,7 @@ def main(page: ft.Page):
         new_config_data = copy.deepcopy(config.data)
 
         try:
-            # Helper to safely get and convert values from controls
-            def get_control_value(
-                key: str, control_type: type = str, default: Any = None
-            ):
-                control = config_controls.get(key)
-                if control is None:
-                    logger.warning(f"Control for config key '{key}' not found in GUI.")
-                    return default
-
-                value = getattr(control, "value", default)
-
-                # Handle specific control types
-                if isinstance(control, ft.Switch):
-                    return bool(value)
-                if isinstance(control, ft.Dropdown):
-                    return value  # Dropdown value is usually correct type
-
-                # Handle text fields (TextField)
-                if value is None or value == "":
-                    if key in [
-                        "stt.translation_target_language",
-                        "audio.sample_rate",
-                        "llm.base_url",
-                    ]:
-                        # These can be None in the config
-                        return None
-                    elif default is not None:
-                        return default
-                    else:  # Should not happen if default config has values
-                        return ""
-
-                # Type conversion for text fields
-                try:
-                    if control_type == int:
-                        return int(value)
-                    if control_type == float:
-                        return float(value)
-                    return str(value)  # Default to string
-                except ValueError:
-                    logger.error(
-                        f"Invalid value '{value}' for {key}. Expected type {control_type}. Keeping original value."
-                    )
-                    # Retrieve original value to avoid saving invalid data
-                    original_value = config.get(key, default)
-                    return original_value
+            # Use the get_control_value function defined in the main scope
 
             # Recursively update the new_config_data dictionary
             def update_nested_dict(data_dict: Dict, key: str, value: Any):
@@ -721,18 +667,6 @@ def main(page: ft.Page):
     # --- Few-Shot Example Add/Remove Logic (defined within main) ---
     def _create_example_row_internal(user_text: str = "", assistant_text: str = "") -> ft.Row:
          """Creates a Flet Row for a single few-shot example with its remove handler."""
-         # Define the specific remove handler for *this* row instance
-         async def remove_this_row_handler(e_remove: ft.ControlEvent):
-             row_to_remove = e_remove.control.data
-             # Use the correct column variable reference
-             active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column", few_shot_examples_column)
-             if active_few_shot_column and row_to_remove in active_few_shot_column.controls:
-                 active_few_shot_column.controls.remove(row_to_remove)
-                 logger.debug("Removed few-shot example row.")
-                 page.update()
-             else:
-                 logger.warning("Attempted to remove a row not found in the column or column not found.")
-
          # Create controls for the row
          user_input = ft.TextField(
              label="用户输入 (User)",
@@ -751,15 +685,15 @@ def main(page: ft.Page):
 
         # Helper function for remove button handler
         async def remove_this_row(e_remove: ft.ControlEvent):
-            row_to_remove = (
-                e_remove.control.data
-            )  # Get the Row associated with the button
-            if row_to_remove in few_shot_examples_column.controls:
-                few_shot_examples_column.controls.remove(row_to_remove)
+            row_to_remove = e_remove.control.data # Get the Row associated with the button
+            # Use all_config_controls to get the column reference robustly
+            active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
+            if active_few_shot_column and isinstance(active_few_shot_column, ft.Column) and row_to_remove in active_few_shot_column.controls:
+                active_few_shot_column.controls.remove(row_to_remove)
                 logger.debug("Removed few-shot example row.")
                 page.update()
             else:
-                logger.warning("Attempted to remove a row not found in the column.")
+                logger.warning("Attempted to remove a row not found in the column or column control not found/invalid.")
 
         remove_button = ft.IconButton(
             icon=ft.icons.DELETE_OUTLINE,
@@ -778,10 +712,15 @@ def main(page: ft.Page):
 
     async def add_example_handler(e: ft.ControlEvent):
         """Adds a new, empty example row to the column."""
-        new_row = create_example_row()
-        few_shot_examples_column.controls.append(new_row)
-        logger.debug("Added new few-shot example row.")
-        page.update()
+        new_row = _create_example_row_internal() # Use the correct internal function
+        # Use all_config_controls to get the column reference robustly
+        active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
+        if active_few_shot_column and isinstance(active_few_shot_column, ft.Column):
+            active_few_shot_column.controls.append(new_row)
+            logger.debug("Added new few-shot example row.")
+            page.update()
+        else:
+            logger.error("Could not add few-shot example row: Column control not found or invalid.")
 
     # Assign the handler to the button
     add_example_button.on_click = add_example_handler
@@ -860,9 +799,7 @@ def main(page: ft.Page):
             # --- 启动 AudioManager ---
             # AudioManager.start() 会启动后台线程
             app_state.audio_manager.start()
-            # AudioManager.start() is blocking (due to thread join), run in thread? No, start should be quick.
             # The threads inside AudioManager will update the status via callback.
-            app_state.audio_manager.start()
             app_state.is_running = True
             logger.info("AudioManager start requested. Threads are running.")
             # Initial status update comes from AudioManager threads now.
@@ -993,9 +930,9 @@ def main(page: ft.Page):
                 ft.Tab(
                     text="仪表盘",
                     icon=ft.icons.DASHBOARD,
-                    content=dashboard_tab_content,
+                    content=dashboard_tab_layout, # Use correct variable
                 ),
-                ft.Tab(text="配置", icon=ft.icons.SETTINGS, content=config_tab_content),
+                ft.Tab(text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout), # Use correct variable
             ],
             expand=True,  # Make tabs fill the page width
         )
