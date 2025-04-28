@@ -26,21 +26,39 @@ class GummyCallback(TranslationRecognizerCallback):
                  llm_client: Optional[LLMClient],
                  output_dispatcher: Optional[OutputDispatcher]):
         super().__init__()
+        if not output_dispatcher:
+            raise ValueError("OutputDispatcher is required for GummyCallback")
+
         self.loop = loop
         self.llm_client = llm_client
-        self.output_dispatcher = output_dispatcher
-        # --- 直接从 config 实例获取配置 ---
-        # Check if VRC output is enabled overall for intermediate results
-        self.vrc_osc_enabled_globally = config.get('outputs.vrc_osc.enabled', True)
-        # Existing config reads for Gummy behavior
-        self.target_language = config.get('stt.translation_target_language')
+        self.output_dispatcher = output_dispatcher # Keep for final dispatch
+
+        # --- Directly access config ---
+        stt_config = config.get('stt', {})
+        outputs_config = config.get('outputs', {})
+        vrc_osc_config = outputs_config.get('vrc_osc', {})
+
+        self.target_language = stt_config.get('translation_target_language')
         self.enable_translation = bool(self.target_language)
-        self.intermediate_behavior = config.get('stt.intermediate_result_behavior', 'ignore').lower()
+        self.intermediate_behavior = stt_config.get('intermediate_result_behavior', 'ignore').lower()
+
+        # --- VRC Client for Intermediate Messages ---
+        # Store VRC client directly if OSC output is enabled for potentially faster intermediate updates
+        self.vrc_client_for_intermediate: Optional[VRCClient] = None
+        self.vrc_osc_intermediate_enabled = vrc_osc_config.get('enabled', True) and self.intermediate_behavior != 'ignore'
+        if self.vrc_osc_intermediate_enabled:
+            # We need the VRCClient instance from the OutputDispatcher
+            self.vrc_client_for_intermediate = self.output_dispatcher.vrc_client # May be None
+            if not self.vrc_client_for_intermediate:
+                self.logger.warning("Intermediate VRC OSC messages enabled in config, but no VRCClient available in OutputDispatcher.")
+                self.vrc_osc_intermediate_enabled = False # Disable if client is missing
+
         self.logger = get_logger(f"{__name__}.GummyCallback")
-        # 记录初始化信息 at DEBUG level (Original lines kept below)
-        self.logger.debug(  # Changed to DEBUG
-            f"GummyCallback 初始化完成。翻译: {'启用' if self.enable_translation else '禁用'}, 目标语言: {self.target_language if self.enable_translation else 'N/A'}")
-        self.logger.debug(f"  - 中间结果处理: {self.intermediate_behavior}")  # Changed to DEBUG
+        self.logger.debug(
+            f"GummyCallback initialized. Translation: {'Enabled' if self.enable_translation else 'Disabled'} ({self.target_language or 'N/A'}), "
+            f"Intermediate Behavior: {self.intermediate_behavior}, "
+            f"VRC Intermediate OSC: {'Enabled' if self.vrc_osc_intermediate_enabled else 'Disabled'}"
+        )
 
     def on_open(self) -> None:
         self.logger.info("Dashscope Gummy 连接已打开。")  # Keep as INFO
@@ -170,18 +188,23 @@ class GummyCallback(TranslationRecognizerCallback):
             else:
                 self.logger.warning("事件循环未运行，无法调度输出分发器。")
 
-        # --- Handle Intermediate Results (Directly to VRC OSC if enabled) ---
-        # Check intermediate behavior config, VRC client availability, AND global VRC OSC enabled flag
-        elif not is_final and text_to_send and self.vrc_osc_enabled_globally and self.intermediate_behavior != "ignore":
-            # Send intermediate results ('Typing...' or partial) directly to VRC OSC
+        # --- Handle Intermediate Results (Directly to VRC OSC if configured) ---
+        elif not is_final and text_to_send and self.vrc_osc_intermediate_enabled and self.vrc_client_for_intermediate:
+            # Send 'Typing...' or partial text directly via VRC client, bypassing the full dispatcher
+            # This avoids logging intermediate messages to file/console.
             if self.loop.is_running():
+                # Use the stored VRC client instance directly
                 asyncio.run_coroutine_threadsafe(
-                    self.output_dispatcher.dispatch(text_to_send),  # VRCClient likely handles typing status logic
+                    self.vrc_client_for_intermediate.send_chatbox(text_to_send),
                     self.loop
                 )
-                self.logger.debug(f"已调度 OSC 中间消息: {text_to_send}")
+                # Use debug level for potentially frequent intermediate messages
+                self.logger.debug(f"Sent intermediate VRC OSC message: {text_to_send}")
             else:
-                self.logger.warning("事件循环未运行，无法发送 OSC 中间消息。")
+                self.logger.warning("Event loop not running, cannot send intermediate VRC OSC message.")
+        elif not is_final and text_to_send:
+            # Intermediate result exists but VRC OSC intermediate sending is disabled or unavailable
+            self.logger.debug(f"Intermediate result generated but not sent via VRC OSC: {text_to_send}")
 
 
 def create_gummy_recognizer(

@@ -94,23 +94,18 @@ class OutputDispatcher:
         if dispatch_tasks:
             try:
                 # Gather results, logging any exceptions that occurred in tasks
+                # Wait for all tasks and capture exceptions
                 results = await asyncio.gather(*dispatch_tasks, return_exceptions=True)
-                for i, result in enumerate(results):
+                for task, result in zip(dispatch_tasks, results):
                     if isinstance(result, Exception):
                         # Log the exception from the failed task
-                        task_name = "Unknown Task"
-                        if i < len(dispatch_tasks):  # Basic safety check
-                            # Try to infer task type based on order/config (can be brittle)
-                            if self.file_output_enabled and self.vrc_osc_enabled:  # Example inference
-                                task_name = "File Writing Task" if i == 0 else "VRC OSC Task"
-                            elif self.file_output_enabled:
-                                task_name = "File Writing Task"
-                            elif self.vrc_osc_enabled:
-                                task_name = "VRC OSC Task"
-                        logger.error(f"OutputDispatcher: Error in dispatch task ({task_name}): {result}",
-                                     exc_info=result)
+                        # Attempt to get a meaningful name from the task object (coro repr)
+                        task_name = task.get_coro().__qualname__ if hasattr(task, 'get_coro') else "Unknown Task"
+                        logger.error(f"OutputDispatcher: Error in dispatch task '{task_name}': {result}",
+                                     exc_info=result) # Pass exception for traceback
             except Exception as e:
-                logger.error(f"OutputDispatcher: Error during asyncio.gather for dispatch tasks: {e}", exc_info=True)
+                # This catches errors in the gather itself, though less common
+                logger.error(f"OutputDispatcher: Unexpected error during asyncio.gather for dispatch tasks: {e}", exc_info=True)
 
     async def _write_to_file(self, text: str):
         """Appends text asynchronously to the configured log file."""

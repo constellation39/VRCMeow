@@ -140,21 +140,22 @@ class ParaformerCallback(RecognitionCallback):
             elif self.intermediate_behavior == "show_partial":
                 # Paraformer doesn't really give partials like Gummy.
                 # We could send the latest non-final sentence, but it might be confusing.
-                # Option 1: Treat like 'ignore'
-                # Option 2: Treat like 'show_typing'
-                # Option 3: Send the intermediate text (might be repetitive)
-                # Let's treat it like 'show_typing' for now for consistency.
+                # Paraformer doesn't provide granular partial results like Gummy.
+                # Sending intermediate non-final sentences might be confusing or repetitive.
+                # Current behavior: Treat 'show_partial' like 'show_typing' by sending "Typing..."
+                # periodically to indicate activity, consistent with the other option.
                 current_time = time.monotonic()
                 if current_time - self._last_typing_send_time >= self._typing_interval:
+                    log_prefix = "中间状态 (模拟部分)" # Indicate source
                     if self.loop.is_running():
                         asyncio.run_coroutine_threadsafe(
-                            self.output_dispatcher.dispatch("Typing..."),  # Send fixed message
+                            self.output_dispatcher.dispatch("Typing..."), # Send fixed message
                             self.loop
                         )
-                        self.logger.debug("已调度 'Typing...' 状态 (来自 show_partial) 进行分发")
+                        self.logger.debug(f"已调度 '{log_prefix}' 状态进行分发")
                         self._last_typing_send_time = current_time
                     else:
-                        self.logger.warning("事件循环未运行，无法调度 'Typing...' 状态分发。")
+                        self.logger.warning(f"事件循环未运行，无法调度 '{log_prefix}' 状态分发。")
 
             # If behavior is "ignore", do nothing for intermediate results.
 
