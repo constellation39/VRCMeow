@@ -94,8 +94,8 @@ class VRCClient:
             logger.warning("VRC_CLIENT: Client not running, cannot send message.")
             return
 
-        # DEBUG: Log when send_chatbox is called
-        logger.debug(f"VRC_CLIENT: send_chatbox received content: '{content}'")
+        # INFO: Log when send_chatbox is called
+        logger.info(f"VRC_CLIENT: send_chatbox received content: '{content}'")
 
         async with self._lock:
             current_time = time.time()
@@ -113,8 +113,8 @@ class VRCClient:
         """通过 OSC 发送消息。
         注意：内容应该由调用者（例如 OutputDispatcher）提前格式化。
         """
-        # DEBUG: Log when _send_message is called
-        logger.debug(f"VRC_CLIENT: _send_message attempting to send: '{content}'")
+        # INFO: Log when _send_message is called
+        logger.info(f"VRC_CLIENT: _send_message attempting to send: '{content}'")
         try:
             # 内容应该已经由 OutputDispatcher 使用配置的格式字符串格式化。
             # 直接发送接收到的内容。

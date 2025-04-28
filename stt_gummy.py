@@ -144,10 +144,10 @@ class GummyCallback(TranslationRecognizerCallback):
 
             if text_to_send:
                 self.logger.info(f"{log_prefix}: {text_to_send}")
-                # DEBUG: Log final text before potential LLM processing
-                self.logger.debug(f"STT_GUMMY: Final text received: '{text_to_send}'")
+                # INFO: Log final text before potential LLM processing
+                self.logger.info(f"STT_GUMMY: Final text received: '{text_to_send}'")
             else:
-                self.logger.debug("最终结果文本为空，不发送。")
+                self.logger.debug("最终结果文本为空，不发送。") # Keep this as debug for empty results
 
         # --- 处理中间结果 ---
         else:
@@ -228,13 +228,13 @@ class GummyCallback(TranslationRecognizerCallback):
 
             # Dispatch the final text (original or processed) using the dispatcher
             if self.loop.is_running():
-                # DEBUG: Log text just before dispatching
-                self.logger.debug(f"STT_GUMMY: Dispatching final text (post-LLM): '{final_text_to_dispatch}'")
+                # INFO: Log text just before dispatching
+                self.logger.info(f"STT_GUMMY: Dispatching final text (post-LLM): '{final_text_to_dispatch}'")
                 # Schedule the dispatcher's async dispatch method
                 asyncio.run_coroutine_threadsafe(
                     self.output_dispatcher.dispatch(final_text_to_dispatch), self.loop
                 )
-                self.logger.debug(
+                self.logger.info( # Changed to INFO
                     f"STT_GUMMY: Scheduled final text '{final_text_to_dispatch[:50]}...' for dispatch"
                 )
             else:
