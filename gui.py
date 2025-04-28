@@ -230,7 +230,7 @@ def main(page: ft.Page):
     # Few-shot examples are complex for a simple GUI, skip for now.
     llm_section = create_config_section("语言模型 (LLM)", [
         config_controls["llm.enabled"],
-        config_controls["llm.api_key"], # Reuse the key field from API section
+        # config_controls["llm.api_key"], # REMOVED: API Key is now only in the "API Keys" section
         config_controls["llm.base_url"],
         config_controls["llm.model"],
         config_controls["llm.system_prompt"],
