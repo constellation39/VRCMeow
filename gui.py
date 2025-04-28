@@ -51,33 +51,22 @@ def main(page: ft.Page):
     stop_button = ft.ElevatedButton("停止", on_click=None, disabled=True)
 
     # --- 回调函数 (用于更新 UI) ---
-
-    async def _async_update_status(message: str):
-        """(Async) Actual logic to update status text & page."""
-        # Assume page and status_text are accessible from outer scope
-        status_text.value = f"状态: {message}"
-        await page.update_async() # Use async update
-
     def update_status_display(message: str):
-        """(Sync) Schedules the async status update task from any thread."""
-        # page is captured from the outer scope of main()
-        # Schedule the coroutine object returned by _async_update_status() using run_threadsafe
-        page.run_threadsafe(_async_update_status(message))
-
-
-    async def _async_update_output(text: str):
-        """(Async) Actual logic to update output text & page."""
-        # Assume page and output_text are accessible from outer scope
-        current_value = output_text.value if output_text.value is not None else ""
-        output_text.value = current_value + text + "\n"
-        await page.update_async() # Use async update
+        """线程安全地更新状态文本"""
+        if page: # 确保页面仍然存在
+            # 使用 run_thread 执行一个简单的 lambda 来更新 UI
+            page.run_thread(
+                lambda: setattr(status_text, 'value', f"状态: {message}") or page.update() # type: ignore
+            )
 
     def update_output_display(text: str):
-        """(Sync) Schedules the async output update task from any thread."""
-        # page is captured from the outer scope of main()
-        # Schedule the coroutine object returned by _async_update_output() using run_threadsafe
-        page.run_threadsafe(_async_update_output(text))
-
+        """线程安全地将文本附加到输出区域"""
+        if page: # 确保页面仍然存在
+            # 使用 run_thread 执行一个简单的 lambda 来更新 UI
+            current_value = output_text.value if output_text.value is not None else ""
+            page.run_thread(
+                lambda: setattr(output_text, 'value', current_value + text + "\n") or page.update() # type: ignore
+            )
 
     # --- 启动/停止逻辑 ---
     async def start_recording(e: ft.ControlEvent):
