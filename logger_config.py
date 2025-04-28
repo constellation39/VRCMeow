@@ -93,16 +93,19 @@ def get_logger(name: str = APP_LOGGER_NAME) -> logging.Logger:
     # or didn't configure this specific logger (or the root logger).
     # This check helps diagnose configuration issues.
     # Note: This check might be too simplistic if complex logging hierarchies are used.
-    # If the root logger has no handlers, it indicates setup_logging() was likely not called.
-    if not logging.getLogger().hasHandlers():
-         # Only print a warning, do not apply basicConfig as it might interfere
-         # with the intended setup or hide the root cause of the missing setup.
-         print(f"Warning: Root logger has no handlers when getting logger '{name}'. "
-               "Ensure setup_logging() is called before using get_logger().", file=sys.stderr)
-         # Fallback to basicConfig might be considered, but it's often better
-         # to ensure setup_logging is called correctly in the application entry point.
-         # logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT)
-         # logger = logging.getLogger(name) # Re-get logger if basicConfig is used
+    # Check if the logger OR the root logger has handlers.
+    # If neither has handlers, it means logging hasn't been configured yet.
+    # Add a NullHandler to prevent "No handlers could be found" warnings
+    # during initial module imports before setup_logging is called.
+    # See: https://docs.python.org/3/howto/logging.html#configuring-logging-for-a-library
+    if not logger.hasHandlers() and not logging.getLogger().hasHandlers():
+        # Add a NullHandler to this specific logger
+        logger.addHandler(logging.NullHandler())
+        # Optionally, you could add it to the root logger instead,
+        # but adding it here is more targeted.
+        # logging.getLogger().addHandler(logging.NullHandler())
+
+        # The previous warning print is removed as NullHandler addresses the issue.
 
     return logger
 
