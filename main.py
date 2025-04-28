@@ -151,7 +151,7 @@ async def main():
              async with vrc_client_instance:
                  # Start audio processing, passing the necessary components
                  await start_audio_processing(
-                     vrc_client=vrc_client_instance, # Pass for potential intermediate messages
+                     # vrc_client removed
                      llm_client=llm_client_instance,
                      output_dispatcher=output_dispatcher_instance
                  )
@@ -159,7 +159,7 @@ async def main():
             # If VRC client is disabled or failed, just run audio processing directly
             # The OutputDispatcher will handle not sending to VRC OSC
             await start_audio_processing(
-                vrc_client=None, # Pass None
+                # vrc_client removed
                 llm_client=llm_client_instance,
                 output_dispatcher=output_dispatcher_instance
             )
