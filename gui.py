@@ -459,8 +459,8 @@ def main(page: ft.Page):
                 # Re-enable button based on the final state (handled above for True/False)
                 elif is_running is not None: # Only re-enable if state is known (True or False) and not processing
                      toggle_button.disabled = False
-                 # Ensure button color/icon during processing matches the transition state
-                 if is_processing:
+                # Ensure button color/icon during processing matches the transition state
+                if is_processing: # Corrected indentation for this block
                     # Determine correct icon based on whether we are starting or stopping
                     # We infer this by checking app_state.is_running *before* the status update was called
                     # If app_state.is_running is True *now*, it means we are processing a "Stop" request
