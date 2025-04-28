@@ -55,10 +55,10 @@ class AppState:
 
     def __init__(self):
         self.is_running = False
-        self.audio_manager: Optional[AudioManager] = None
-        self.output_dispatcher: Optional[OutputDispatcher] = None
-        self.llm_client: Optional[LLMClient] = None
-        self.vrc_client: Optional[VRCClient] = None
+        self.audio_manager: Optional["AudioManager"] = None # Use quotes for forward refs if needed
+        self.output_dispatcher: Optional["OutputDispatcher"] = None
+        self.llm_client: Optional["LLMClient"] = None
+        self.vrc_client: Optional["VRCClient"] = None
 
 
 def main(page: ft.Page):
@@ -216,7 +216,63 @@ def main(page: ft.Page):
 
     # --- (Removed show_snackbar function) ---
 
-    # --- Helper function get_control_value is now defined below, just before save_config_handler ---
+    # --- Helper function to get value from a control ---
+    def get_control_value(key: str, control_type: type = str, default: Any = None) -> Any:
+        """Safely retrieves and converts the value from a GUI control."""
+        control = all_config_controls.get(key) # Use the aggregated dict
+        if control is None:
+            logger.warning(f"Control for config key '{key}' not found in GUI. Returning default: {default}")
+            return default
+
+        value = getattr(control, "value", default)
+
+        # Handle specific control types first
+        if isinstance(control, ft.Switch):
+            return bool(value) if value is not None else bool(default) # Ensure bool conversion
+        if isinstance(control, ft.Dropdown):
+            # Return the selected value directly, assuming it's the correct type
+            # Handle case where value might be None if nothing is selected and no default
+            return value if value is not None else default
+
+        # Handle text fields (TextField) and potentially others needing string conversion/validation
+        # Treat None or empty string from text field carefully
+        if value is None or value == "":
+            # Check specific keys that explicitly allow None
+            if key in [
+                "dashscope.stt.translation_target_language",
+                "audio.sample_rate", # Sample rate None means auto-detect
+                "llm.base_url",
+                "llm.api_key", # Allow empty API key string, handle downstream
+                "dashscope.api_key", # Allow empty API key string, handle downstream
+            ]:
+                 # If the intended type is not string, return None. If string, return empty string or None based on default.
+                 return None if control_type != str else (value if value is not None else default)
+
+            # If a default value is provided, return it for empty fields (unless None is allowed above)
+            if default is not None:
+                return default
+            # Otherwise, return None for numeric types or empty string for strings
+            elif control_type in [int, float]:
+                return None # Cannot convert empty string to number
+            else:
+                return "" # Default empty string for text
+
+        # Attempt type conversion for non-empty values from text-based inputs
+        try:
+            if control_type == int:
+                return int(value)
+            if control_type == float:
+                # Handle potential locale issues if needed, assuming standard decimal format
+                return float(value)
+            if control_type == bool: # Should be handled by Switch, but as fallback
+                return str(value).lower() in ['true', '1', 'yes', 'on']
+            # Default to string if no other type matches (or if control_type is str)
+            return str(value)
+        except (ValueError, TypeError) as convert_err:
+            logger.error(
+                f"Invalid value '{value}' for '{key}'. Expected type {control_type}. Error: {convert_err}. Returning default value: {default}"
+            )
+            return default # Return default on conversion error
 
     # --- 配置保存/重载逻辑 ---
     async def save_config_handler(e: ft.ControlEvent):
@@ -230,69 +286,6 @@ def main(page: ft.Page):
         new_config_data = copy.deepcopy(config.data)
 
         # Define Helper function inside save_config_handler's scope or keep it in main's scope?
-        # Let's keep it in main's scope as defined previously. This block just removes the duplicate/old definition.
-
-        # Ensure get_control_value is defined *before* this handler if needed outside.
-        # It seems the provided code already has it defined correctly in main's scope.
-        # So, this SEARCH block needs to match the definition in main's scope and remove it.
-
-        control = all_config_controls.get(key) # Use the local aggregated dict
-        if control is None:
-            logger.warning(f"Control for config key '{key}' not found in GUI.")
-            return default
-
-        value = getattr(control, "value", default)
-
-        # Handle specific control types
-        if isinstance(control, ft.Switch):
-            return bool(value)
-        if isinstance(control, ft.Dropdown):
-            return value # Dropdown value is usually correct type
-
-        # Handle text fields (TextField)
-        if value is None or value == "":
-            # Check specific keys that allow None
-            if key in [
-                "dashscope.stt.translation_target_language",
-                "audio.sample_rate",
-                "llm.base_url",
-            ]:
-                return None
-            # For numeric types, if empty and default exists, return default
-            elif (control_type == int or control_type == float) and default is not None:
-                 return default
-            elif default is not None:
-                 return default # General default case
-            else: # Should not happen if default config has values
-                 return ""
-
-        # Type conversion for text fields
-        try:
-            if control_type == int:
-                return int(value)
-            if control_type == float:
-                return float(value)
-            return str(value) # Default to string
-        except (ValueError, TypeError) as convert_err:
-            logger.error(
-                f"Invalid value '{value}' for {key}. Expected type {control_type}. Error: {convert_err}. Keeping original value."
-            )
-            # Retrieve original value to avoid saving invalid data
-            original_value = config.get(key, default) if config else default
-            return original_value
-
-
-    # --- 配置保存/重载逻辑 ---
-    async def save_config_handler(e: ft.ControlEvent):
-        """保存按钮点击事件处理程序 (配置选项卡)"""
-        logger.info("Save configuration button clicked.")
-        # Start with a deep copy of the *current live* config data
-        if not config:
-            logger.error("Cannot save config, config object not available.")
-            # Show error banner?
-            return
-        new_config_data = copy.deepcopy(config.data)
-
         try:
             # Use the get_control_value function defined in the main scope
 
@@ -310,30 +303,31 @@ def main(page: ft.Page):
                 temp_dict[keys[-1]] = value
 
             # Update dictionary from controls
+            # Update dictionary from controls using explicit types/defaults
             update_nested_dict(
                 new_config_data,
                 "dashscope.api_key",
-                get_control_value("dashscope.api_key"),
+                get_control_value("dashscope.api_key", str, ""), # API keys are strings
             )
             update_nested_dict(
                 new_config_data,
                 "dashscope.stt.model",
-                get_control_value("dashscope.stt.model"),
-            )  # New key
+                get_control_value("dashscope.stt.model", str, "gummy-realtime-v1"), # Dropdown returns string
+            )
             update_nested_dict(
                 new_config_data,
                 "dashscope.stt.translation_target_language",
-                get_control_value("dashscope.stt.translation_target_language"),
-            )  # New key
+                get_control_value("dashscope.stt.translation_target_language", str, None), # Allow None
+            )
             update_nested_dict(
                 new_config_data,
                 "dashscope.stt.intermediate_result_behavior",
-                get_control_value("dashscope.stt.intermediate_result_behavior"),
-            )  # New key
+                get_control_value("dashscope.stt.intermediate_result_behavior", str, "ignore"), # Dropdown returns string
+            )
             update_nested_dict(
                 new_config_data,
                 "audio.sample_rate",
-                get_control_value("audio.sample_rate", int, None),
+                get_control_value("audio.sample_rate", int, None), # Allow None (auto-detect)
             )
             update_nested_dict(
                 new_config_data,
@@ -343,33 +337,37 @@ def main(page: ft.Page):
             update_nested_dict(
                 new_config_data,
                 "audio.dtype",
-                get_control_value("audio.dtype", str, "int16"),
+                get_control_value("audio.dtype", str, "int16"), # Dropdown returns string
             )
             update_nested_dict(
                 new_config_data,
                 "audio.debug_echo_mode",
-                get_control_value("audio.debug_echo_mode", bool, False),
+                get_control_value("audio.debug_echo_mode", bool, False), # Switch returns bool
             )
             update_nested_dict(
                 new_config_data,
                 "llm.enabled",
-                get_control_value("llm.enabled", bool, False),
+                get_control_value("llm.enabled", bool, False), # Switch returns bool
             )
             update_nested_dict(
-                new_config_data, "llm.api_key", get_control_value("llm.api_key")
+                new_config_data,
+                "llm.api_key",
+                get_control_value("llm.api_key", str, ""), # API keys are strings
             )
             update_nested_dict(
                 new_config_data,
                 "llm.base_url",
-                get_control_value("llm.base_url", str, None),
+                get_control_value("llm.base_url", str, None), # Allow None
             )
             update_nested_dict(
-                new_config_data, "llm.model", get_control_value("llm.model")
+                new_config_data,
+                "llm.model",
+                get_control_value("llm.model", str, ""),
             )
             update_nested_dict(
                 new_config_data,
                 "llm.system_prompt",
-                get_control_value("llm.system_prompt"),
+                get_control_value("llm.system_prompt", str, ""),
             )
             update_nested_dict(
                 new_config_data,
@@ -384,12 +382,12 @@ def main(page: ft.Page):
             update_nested_dict(
                 new_config_data,
                 "outputs.vrc_osc.enabled",
-                get_control_value("outputs.vrc_osc.enabled", bool, True),
+                get_control_value("outputs.vrc_osc.enabled", bool, True), # Switch returns bool
             )
             update_nested_dict(
                 new_config_data,
                 "outputs.vrc_osc.address",
-                get_control_value("outputs.vrc_osc.address"),
+                get_control_value("outputs.vrc_osc.address", str, "127.0.0.1"),
             )
             update_nested_dict(
                 new_config_data,
@@ -404,30 +402,32 @@ def main(page: ft.Page):
             update_nested_dict(
                 new_config_data,
                 "outputs.console.enabled",
-                get_control_value("outputs.console.enabled", bool, True),
+                get_control_value("outputs.console.enabled", bool, True), # Switch returns bool
             )
             update_nested_dict(
                 new_config_data,
                 "outputs.console.prefix",
-                get_control_value("outputs.console.prefix"),
+                get_control_value("outputs.console.prefix", str, "[VRCMeow]"),
             )
             update_nested_dict(
                 new_config_data,
                 "outputs.file.enabled",
-                get_control_value("outputs.file.enabled", bool, False),
+                get_control_value("outputs.file.enabled", bool, False), # Switch returns bool
             )
             update_nested_dict(
                 new_config_data,
                 "outputs.file.path",
-                get_control_value("outputs.file.path"),
+                get_control_value("outputs.file.path", str, "output.txt"),
             )
             update_nested_dict(
                 new_config_data,
                 "outputs.file.format",
-                get_control_value("outputs.file.format"),
+                get_control_value("outputs.file.format", str, "{timestamp} - {text}"), # Dropdown returns string
             )
             update_nested_dict(
-                new_config_data, "logging.level", get_control_value("logging.level")
+                new_config_data,
+                "logging.level",
+                get_control_value("logging.level", str, "INFO"), # Dropdown returns string
             )
 
             # Update few-shot examples from the dynamic rows
@@ -813,7 +813,6 @@ def main(page: ft.Page):
 
         except Exception as ex:
             error_msg = f"启动过程中出错: {ex}"
-            logger.critical(error_msg, exc_info=True)
             logger.critical(error_msg, exc_info=True)
             # Update status display to show error, which will reset the button state via callback
             update_status_display(f"启动错误: {ex}", is_running=False, is_processing=False)
