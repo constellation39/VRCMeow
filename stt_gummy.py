@@ -42,6 +42,7 @@ class GummyCallback(TranslationRecognizerCallback):
         self.target_language = stt_config.get('translation_target_language')
         self.enable_translation = bool(self.target_language)
         self.intermediate_behavior = stt_config.get('intermediate_result_behavior', 'ignore').lower()
+        self.logger = get_logger(f"{__name__}.GummyCallback") # Initialize logger earlier
 
         # --- VRC Client for Intermediate Messages ---
         # Store VRC client directly if OSC output is enabled for potentially faster intermediate updates
@@ -51,10 +52,11 @@ class GummyCallback(TranslationRecognizerCallback):
             # We need the VRCClient instance from the OutputDispatcher
             self.vrc_client_for_intermediate = self.output_dispatcher.vrc_client # May be None
             if not self.vrc_client_for_intermediate:
+                # Now self.logger exists
                 self.logger.warning("Intermediate VRC OSC messages enabled in config, but no VRCClient available in OutputDispatcher.")
                 self.vrc_osc_intermediate_enabled = False # Disable if client is missing
 
-        self.logger = get_logger(f"{__name__}.GummyCallback")
+        # Log initialization details after all relevant attributes are set
         self.logger.debug(
             f"GummyCallback initialized. Translation: {'Enabled' if self.enable_translation else 'Disabled'} ({self.target_language or 'N/A'}), "
             f"Intermediate Behavior: {self.intermediate_behavior}, "
