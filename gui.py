@@ -102,6 +102,32 @@ def main(page: ft.Page):
             # elevation=2, # Optional: Add shadow
         )
 
+    # -- Audio Settings Definitions (Moved here, before Dashscope section) --
+    config_controls["audio.sample_rate"] = ft.TextField(
+        label="采样率 (Hz)",
+        value=str(config.get('audio.sample_rate') or ""), # Use empty string if None
+        hint_text="留空则使用设备默认值 (例如 16000)",
+        keyboard_type=ft.KeyboardType.NUMBER,
+        tooltip="音频输入采样率。需要与所选 STT 模型兼容"
+    )
+    config_controls["audio.channels"] = ft.TextField(
+        label="声道数",
+        value=str(config.get('audio.channels', 1)),
+        keyboard_type=ft.KeyboardType.NUMBER,
+        tooltip="音频输入声道数 (通常为 1)"
+    )
+    config_controls["audio.dtype"] = ft.TextField(
+        label="数据类型",
+        value=config.get('audio.dtype', 'int16'),
+        tooltip="音频数据类型 (例如 int16)"
+    )
+    config_controls["audio.debug_echo_mode"] = ft.Switch(
+        label="调试回声模式",
+        value=config.get('audio.debug_echo_mode', False),
+        tooltip="将输入音频直接路由到输出以进行测试"
+    )
+    # Note: audio_section definition itself is removed, only controls are defined here
+
     # -- Dashscope Settings --
     config_controls["dashscope.api_key"] = ft.TextField(
         label="API Key", # Label can be simpler now it's under Dashscope section
@@ -172,38 +198,8 @@ def main(page: ft.Page):
     # stt_section = create_config_section("语音识别 (STT)", [...]) # REMOVED
 
 
-    # -- Audio Settings Definitions (Moved before Dashscope section creation) --
-    config_controls["audio.sample_rate"] = ft.TextField(
-        label="采样率 (Hz)",
-        value=str(config.get('audio.sample_rate') or ""), # Use empty string if None
-        hint_text="留空则使用设备默认值 (例如 16000)",
-        keyboard_type=ft.KeyboardType.NUMBER,
-        tooltip="音频输入采样率。需要与所选 STT 模型兼容"
-    )
-    # Note: Channels and dtype are often fixed by the STT model, maybe don't make them configurable?
-    # Let's keep them for now but add a note.
-    config_controls["audio.channels"] = ft.TextField(
-        label="声道数",
-        value=str(config.get('audio.channels', 1)),
-        keyboard_type=ft.KeyboardType.NUMBER,
-        tooltip="音频输入声道数 (通常为 1)"
-    )
-    config_controls["audio.dtype"] = ft.TextField(
-        label="数据类型",
-        value=config.get('audio.dtype', 'int16'),
-        tooltip="音频数据类型 (例如 int16)"
-    )
-    config_controls["audio.debug_echo_mode"] = ft.Switch(
-        label="调试回声模式",
-        value=config.get('audio.debug_echo_mode', False),
-        tooltip="将输入音频直接路由到输出以进行测试"
-    )
-    audio_section = create_config_section("音频输入", [
-        config_controls["audio.sample_rate"],
-        config_controls["audio.channels"],
-        config_controls["audio.dtype"],
-        config_controls["audio.debug_echo_mode"],
-    ]) # REMOVED - Controls moved to Dashscope section
+    # -- Audio Settings Definitions will be moved before Dashscope section creation --
+    # (This block is being deleted from here)
 
 
     # -- LLM Settings --
