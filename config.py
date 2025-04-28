@@ -46,8 +46,8 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
         "api_key": "", # Strongly recommend setting via environment variable (OPENAI_API_KEY)
         "base_url": None, # Optional: e.g., for local LLMs or proxies like "http://localhost:11434/v1"
         "model": "gpt-3.5-turbo", # Or any OpenAI compatible model name
-        "system_prompt_path": "prompts/default_system_prompt.txt", # Default path to system prompt file
-        "system_prompt": "You are a helpful assistant.", # Fallback prompt if file loading fails or path not set
+        # "system_prompt_path": "prompts/default_system_prompt.txt", # REMOVED: Path is no longer used
+        "system_prompt": "You are a helpful assistant.", # Default prompt if not set in config.yaml
         "temperature": 0.7, # Controls randomness (0.0 to 2.0)
         "max_tokens": 150, # Max response length
         # Few-shot examples: List of {"user": "...", "assistant": "..."} dictionaries
@@ -159,47 +159,33 @@ class Config:
                 logger.warning("LLM processing is enabled but API Key not found in config file or OPENAI_API_KEY environment variable.")
 
 
-        # 3. Load LLM System Prompt from file path if specified
+        # 3. Ensure LLM System Prompt exists (using config value or default)
         try:
             # Ensure llm structure exists
             if "llm" not in config or not isinstance(config.get("llm"), dict):
                 config["llm"] = {} # Initialize if missing or wrong type
 
-            system_prompt_path = config.get("llm", {}).get("system_prompt_path")
-            default_prompt = _DEFAULT_CONFIG.get("llm", {}).get("system_prompt", "You are a helpful assistant.") # Get default
+            # Get the default prompt from the _DEFAULT_CONFIG dictionary
+            default_prompt = _DEFAULT_CONFIG.get("llm", {}).get("system_prompt", "You are a helpful assistant.")
 
-            if system_prompt_path:
-                 # Check if the path from config file actually exists before attempting to read
-                 if os.path.exists(system_prompt_path):
-                     try:
-                         with open(system_prompt_path, 'r', encoding='utf-8') as f:
-                             file_content = f.read().strip()
-                             if file_content:
-                                 config["llm"]["system_prompt"] = file_content # Overwrite system_prompt with file content
-                                 logger.info(f"Successfully loaded LLM system prompt from '{system_prompt_path}'.")
-                             else:
-                                 logger.warning(f"LLM system prompt file '{system_prompt_path}' is empty. Using default prompt.")
-                                 config["llm"]["system_prompt"] = config["llm"].get("system_prompt", default_prompt) # Use existing or default
-                     except Exception as e:
-                         logger.error(f"Failed to read LLM system prompt file '{system_prompt_path}': {e}. Using default prompt.", exc_info=True)
-                         config["llm"]["system_prompt"] = config["llm"].get("system_prompt", default_prompt) # Use existing or default
-                 else:
-                     logger.warning(f"LLM system prompt file path specified but not found: '{system_prompt_path}'. Using default prompt.")
-                     config["llm"]["system_prompt"] = config["llm"].get("system_prompt", default_prompt) # Use existing or default
+            # Ensure 'system_prompt' key exists in the loaded config's llm section,
+            # otherwise set it to the default.
+            if "system_prompt" not in config.get("llm", {}):
+                config["llm"]["system_prompt"] = default_prompt
+                logger.info("LLM system prompt not found in config, using default.")
             else:
-                 logger.info("No LLM system prompt file path specified. Using default system prompt.")
-                 # Ensure default is set if not already present from file load
-                 if "system_prompt" not in config.get("llm", {}):
-                     config["llm"]["system_prompt"] = default_prompt
+                # If it exists, log that we are using the one from the config file
+                # (or the one potentially loaded from the file if that logic were still here)
+                logger.debug("Using LLM system prompt from configuration.")
 
         except Exception as e:
-             logger.error(f"Error processing LLM system prompt configuration: {e}. Check 'llm.system_prompt_path'.", exc_info=True)
+             logger.error(f"Error processing LLM system prompt configuration: {e}. Using default prompt.", exc_info=True)
              # Ensure a safe fallback if structure was bad
              if "llm" not in config or not isinstance(config.get("llm"), dict): config["llm"] = {}
-             if "system_prompt" not in config.get("llm", {}): config["llm"]["system_prompt"] = _DEFAULT_CONFIG.get("llm", {}).get("system_prompt", "You are a helpful assistant.")
+             config["llm"]["system_prompt"] = _DEFAULT_CONFIG.get("llm", {}).get("system_prompt", "You are a helpful assistant.")
 
 
-        # 4. Validate and transform (Log level) - Renumbered from 3 to 4
+        # 4. Validate and transform (Log level)
         try:
             # Ensure logging dict structure exists before accessing nested keys
             if "logging" not in config or not isinstance(config.get("logging"), dict):

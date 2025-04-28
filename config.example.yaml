@@ -51,6 +51,7 @@ llm:
   # Model name to use for processing (e.g., "gpt-3.5-turbo", "gpt-4", or a local model name).
   model: "gpt-3.5-turbo"
   # The system prompt instructs the LLM on how to behave or process the input.
+  # This value is used directly as the prompt text.
   system_prompt: "You are a helpful assistant. Please refine the following transcribed text for clarity and conciseness, correcting any obvious errors."
   # Controls the randomness of the output. Lower values (e.g., 0.2) make it more deterministic, higher values (e.g., 1.0) make it more random.
   temperature: 0.7
