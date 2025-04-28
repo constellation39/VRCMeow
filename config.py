@@ -147,7 +147,8 @@ class Config:
         env_llm_api_key = os.getenv('OPENAI_API_KEY')
         if env_llm_api_key:
              # Ensure 'llm' dict exists before setting the key
-            if "llm" not in config: config["llm"] = {}
+            if "llm" not in config:
+                config["llm"] = {}
             if not isinstance(config.get("llm"), dict): # Check if existing llm is dict
                  logger.warning("LLM config section is not a dictionary, cannot override API key. Check config.yaml structure.")
             else:
@@ -181,7 +182,8 @@ class Config:
         except Exception as e:
              logger.error(f"Error processing LLM system prompt configuration: {e}. Using default prompt.", exc_info=True)
              # Ensure a safe fallback if structure was bad
-             if "llm" not in config or not isinstance(config.get("llm"), dict): config["llm"] = {}
+             if "llm" not in config or not isinstance(config.get("llm"), dict):
+                 config["llm"] = {}
              config["llm"]["system_prompt"] = _DEFAULT_CONFIG.get("llm", {}).get("system_prompt", "You are a helpful assistant.")
 
 
@@ -203,7 +205,8 @@ class Config:
         except Exception as e:
             logger.error(f"Error processing logging configuration: {e}. Using default log level INFO.", exc_info=True)
             # Ensure defaults are set if error occurred
-            if "logging" not in config: config["logging"] = {}
+            if "logging" not in config:
+                config["logging"] = {}
             config["logging"]["level"] = "INFO"
             config["logging"]["level_int"] = logging.INFO
 

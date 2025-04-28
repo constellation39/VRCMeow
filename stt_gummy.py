@@ -195,7 +195,7 @@ class GummyCallback(TranslationRecognizerCallback):
         if is_final and text_to_send and self.output_dispatcher:
             # This block handles the final result after STT/Translation
             final_text_to_dispatch = text_to_send
-            llm_task = None
+            # llm_task = None # Unused variable
 
             # Attempt LLM processing if enabled and client available
             if self.llm_client and self.llm_client.enabled:

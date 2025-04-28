@@ -11,21 +11,22 @@ from config import config
 # 获取该模块的 logger 实例
 from logger_config import get_logger
 
-logger = get_logger(__name__)
-
-# 导入 Dashscope 基础识别器类型用于类型提示
+# Import Dashscope base recognizer types for type hinting
 from dashscope.audio.asr import TranslationRecognizerRealtime, Recognition
-
+# Local STT implementation imports
 from stt_gummy import create_gummy_recognizer
-
 from stt_paraformer import create_paraformer_recognizer
 
-# --- 异步队列 ---
+
+logger = get_logger(__name__)
+
+
+# --- Asynchronous Queue ---
 audio_queue = asyncio.Queue()
 
-from typing import TYPE_CHECKING  # Use TYPE_CHECKING for conditional imports
 
 # Component Imports for Type Hinting
+# Use TYPE_CHECKING to avoid circular imports at runtime
 if TYPE_CHECKING:
     try:
         from llm_client import LLMClient
@@ -51,10 +52,17 @@ async def stt_processor(
     stop_event: asyncio.Event,  # Pass stop_event
 ):
     """异步任务，根据配置管理 Dashscope STT 引擎 (Gummy 或 Paraformer) 并处理音频队列。"""
-    # --- Directly import required components if needed inside the function ---
-    # (Imports are usually at module level, this is just an example if needed)
-    # try:
-    #     from llm_client import LLMClient # Not typically needed here if passed as arg
+    # --- Get config directly from the config instance ---
+    # api_key = config["dashscope_api_key"] # Unused
+    model = config["stt.model"]
+    # sample_rate is guaranteed by start_audio_processing but unused here
+    # sample_rate = config["audio.sample_rate"]
+    # channels = config["audio.channels"] # Unused
+    target_language = config.get("stt.translation_target_language") # Might be None
+
+    logger.info(f"STT processing task (Dashscope, model: {model}) starting...")
+    recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
+    main_loop = asyncio.get_running_loop()
     # except ImportError:
     #      LLMClient = None
     # try:
@@ -62,20 +70,9 @@ async def stt_processor(
     # except ImportError:
     #     OutputDispatcher = None
 
-    # --- 直接从 config 实例获取配置 ---
-    api_key = config["dashscope_api_key"]
-    model = config["stt.model"]
-    sample_rate = config[
-        "audio.sample_rate"
-    ]  # 必须存在 (由 start_audio_processing 保证)
-    channels = config["audio.channels"]
-    target_language = config.get(
-        "stt.translation_target_language"
-    )  # 使用 get 处理 None
-
-    logger.info(f"STT 处理任务 (Dashscope, 模型: {model}) 启动中...")
-    recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
-    main_loop = asyncio.get_running_loop()
+    #     from output_dispatcher import OutputDispatcher # Not typically needed here
+    # except ImportError:
+    #     OutputDispatcher = None
     engine_type = "Unknown"  # 初始化引擎类型
 
     # --- 重连参数 ---
@@ -278,10 +275,10 @@ async def start_audio_processing(
     channels = config["audio.channels"]
     dtype = config["audio.dtype"]
     debug_echo_mode = config["audio.debug_echo_mode"]
-    model = config["stt.model"]
-    target_language = config.get("stt.translation_target_language")
+    # model = config["stt.model"] # Unused variable
+    # target_language = config.get("stt.translation_target_language") # Unused variable
 
-    # --- 定义音频回调函数 (闭包访问 debug_echo_mode) ---
+    # --- Define the audio callback function (accesses debug_echo_mode via closure) ---
     def audio_callback(
         indata: np.ndarray,
         outdata: np.ndarray,
