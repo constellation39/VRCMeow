@@ -87,6 +87,23 @@ class OutputDispatcher:
         # INFO: Log when dispatch starts for a non-empty text
         logger.info(f"OUTPUT_DISP: Starting dispatch for text: '{text}'")
 
+        # Determine and log enabled outputs
+        enabled_outputs = []
+        if self.console_output_enabled:
+            enabled_outputs.append("Console")
+        if self.file_output_enabled:
+            enabled_outputs.append(f"File ({self.file_path})")
+        if self.vrc_osc_enabled:
+            enabled_outputs.append("VRC OSC")
+        if self.gui_output_callback:
+            enabled_outputs.append("GUI")
+
+        if enabled_outputs:
+            logger.info(f"OUTPUT_DISP: Enabled outputs for this dispatch: {', '.join(enabled_outputs)}")
+        else:
+            logger.warning("OUTPUT_DISP: No outputs enabled for dispatch.")
+
+
         dispatch_tasks = []
 
         # 1. Console Output
