@@ -4,7 +4,6 @@ from typing import Optional, Dict, Any
 import os
 import pathlib
 import sys
-import yaml # Needed for saving config
 import copy # Needed for handling config data
 import logging # Add missing import for logging constants
 
@@ -363,7 +362,8 @@ def main(page: ft.Page):
             # 使用 run_thread 执行一个简单的 lambda 来更新 UI
             current_value = output_text.value if output_text.value is not None else ""
             page.run_thread(
-                lambda: setattr(output_text, 'value', current_value + text + "\n") or page.update()  # type: ignore
+                lambda: setattr(output_text, "value", current_value + text + "\n")
+                or page.update()  # type: ignore
             )
 
     # Modify to accept page as an argument
