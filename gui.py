@@ -500,7 +500,8 @@ def main(page: ft.Page):
             logger.info("GUI 请求启动，正在初始化组件...")
 
             # 检查关键配置 (可以在这里再次检查或依赖 main.py 中的早期检查)
-            dashscope_api_key = config.get("dashscope_api_key")
+            # Use the new nested key 'dashscope.api_key'
+            dashscope_api_key = config.get("dashscope.api_key")
             if not dashscope_api_key:
                  error_msg = "错误：Dashscope API Key 未设置。"
                  logger.error(error_msg)

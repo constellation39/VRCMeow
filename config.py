@@ -24,7 +24,9 @@ DEFAULT_CONFIG_PATH = "config.yaml"
 
 # --- Default Config (kept private for clarity) ---
 _DEFAULT_CONFIG: Dict[str, Any] = {
-    "dashscope_api_key": "",  # Strongly recommend setting via environment variable (DASHSCOPE_API_KEY)
+    "dashscope": {
+        "api_key": "", # Strongly recommend setting via environment variable (DASHSCOPE_API_KEY)
+    },
     "stt": {
         # If set, enables translation (only for supported models like Gummy)
         "translation_target_language": None,  # e.g., "en", "ja", "ko"
@@ -134,14 +136,19 @@ class Config:
         except Exception as e:
             logger.error(f"Unknown error loading config file {config_path}: {e}. Using default config.", exc_info=True)
 
-        # 2. Environment variable override (API Key)
-        env_api_key = os.getenv('DASHSCOPE_API_KEY')
-        if env_api_key:
-            # Ensure 'dashscope_api_key' exists at the top level
-            config['dashscope_api_key'] = env_api_key
-            logger.info("Overridden Dashscope API Key using DASHSCOPE_API_KEY environment variable.")
-        elif not config.get('dashscope_api_key'):
-            # Check if the key exists and is empty or if it doesn't exist at all
+        # 2. Environment variable override (Dashscope API Key)
+        env_dash_api_key = os.getenv('DASHSCOPE_API_KEY')
+        if env_dash_api_key:
+            # Ensure 'dashscope' dict exists before setting the key
+            if "dashscope" not in config:
+                config["dashscope"] = {}
+            if not isinstance(config.get("dashscope"), dict): # Check if existing dashscope is dict
+                logger.warning("Dashscope config section is not a dictionary, cannot override API key. Check config.yaml structure.")
+            else:
+                config['dashscope']['api_key'] = env_dash_api_key
+                logger.info("Overridden Dashscope API Key using DASHSCOPE_API_KEY environment variable.")
+        elif not config.get("dashscope", {}).get("api_key"):
+            # Check if the key is missing/empty within the dashscope section
              logger.warning("Dashscope API Key not found in config file or DASHSCOPE_API_KEY environment variable.")
 
         # 2b. Environment variable override (LLM API Key)
@@ -313,10 +320,10 @@ except Exception as e:
     # Attempt to provide a minimal fallback using _DEFAULT_CONFIG directly
     # Note: This won't have env vars or log level conversion applied correctly
     class FallbackConfig:
-        _data = {k: v.copy() if isinstance(v, dict) else v for k, v in _DEFAULT_CONFIG.items()}
-        # Ensure minimal structure exists
-        if "logging" not in _data:
-            _data["logging"] = {}
+        # Create a deep copy of defaults for fallback
+        _data = copy.deepcopy(_DEFAULT_CONFIG)
+        # Ensure minimal structure exists for logging (already handled by deepcopy if default is okay)
+        if "logging" not in _data: _data["logging"] = {}
         _data["logging"]["level"] = _DEFAULT_CONFIG.get("logging", {}).get("level", "INFO")
         _data["logging"]["level_int"] = getattr(logging, _data["logging"]["level"], logging.INFO)
         # Ensure llm section exists (even in fallback, though keys won't be overridden)
@@ -366,9 +373,10 @@ if __name__ == '__main__':
         print(f"\nLogging Level (dict access): {config['logging']['level']}") # Direct dict access
         print(f"Logging Level (dot notation __getitem__): {config['logging.level']}") # Dot notation via __getitem__
         print(f"STT Model (direct instance data): {config.data['stt']['model']}") # Access raw data
-        print(f"OSC Address (get method): {config.get('vrc_osc.address', 'default_ip')}") # Dot notation via get()
-        print(f"OSC Port (get method): {config.get('vrc_osc.port', 9999)}")
-        print(f"API Key (get method): {config.get('dashscope_api_key', 'NOT_SET')}") # Top-level get
+        print(f"OSC Address (get method): {config.get('outputs.vrc_osc.address', 'default_ip')}") # Dot notation via get() - Corrected key path
+        print(f"OSC Port (get method): {config.get('outputs.vrc_osc.port', 9999)}") # Corrected key path
+        print(f"Dashscope API Key (get method): {config.get('dashscope.api_key', 'NOT_SET')}") # Updated key path
+        print(f"LLM API Key (get method): {config.get('llm.api_key', 'NOT_SET')}") # Updated key path
 
         # Test non-existent key with get
         print(f"Non-existent key (get): {config.get('invalid.key', 'MISSING')}")
