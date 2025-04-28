@@ -36,33 +36,33 @@ except ImportError as e:
 # --- 异步队列 ---
 audio_queue = asyncio.Queue()
 
-
-from typing import TYPE_CHECKING # Use TYPE_CHECKING for conditional imports
+from typing import TYPE_CHECKING  # Use TYPE_CHECKING for conditional imports
 
 # Component Imports for Type Hinting
 if TYPE_CHECKING:
     try:
         from llm_client import LLMClient
     except ImportError:
-        LLMClient = None # type: ignore
+        LLMClient = None  # type: ignore
     try:
         from output_dispatcher import OutputDispatcher
     except ImportError:
-        OutputDispatcher = None # type: ignore
+        OutputDispatcher = None  # type: ignore
     try:
         from osc_client import VRCClient
     except ImportError:
-        VRCClient = None # type: ignore
+        VRCClient = None  # type: ignore
+
 
 # Actual imports needed at runtime (handled elsewhere, these are just for hints)
 
 
 # --- STT 处理核心逻辑 ---
 async def stt_processor(
-        vrc_client: Optional['VRCClient'],        # Use forward reference string hint
-        llm_client: Optional['LLMClient'],        # Use forward reference string hint
-        output_dispatcher: 'OutputDispatcher',    # Use forward reference string hint (required)
-        stop_event: asyncio.Event                 # Pass stop_event
+        vrc_client: Optional['VRCClient'],  # Use forward reference string hint
+        llm_client: Optional['LLMClient'],  # Use forward reference string hint
+        output_dispatcher: 'OutputDispatcher',  # Use forward reference string hint (required)
+        stop_event: asyncio.Event  # Pass stop_event
 ):
     """异步任务，根据配置管理 Dashscope STT 引擎 (Gummy 或 Paraformer) 并处理音频队列。"""
     # --- Directly import required components if needed inside the function ---
@@ -122,12 +122,12 @@ async def stt_processor(
                     main_loop=main_loop,
                     vrc_client=vrc_client,
                     llm_client=llm_client,
-                    output_dispatcher=output_dispatcher # Must be provided
+                    output_dispatcher=output_dispatcher  # Must be provided
                 )
             else:
-                 logger.error("create_gummy_recognizer function not available. Cannot create Gummy recognizer.")
-                 stop_event.set()
-                 return
+                logger.error("create_gummy_recognizer function not available. Cannot create Gummy recognizer.")
+                stop_event.set()
+                return
 
         elif is_paraformer_model:
             # Check if the imported function exists before calling
@@ -137,16 +137,17 @@ async def stt_processor(
                 # 注意: Paraformer 回调也需要更新以使用 LLMClient 和 OutputDispatcher
                 # TODO: Update Paraformer callback and pass llm_client/output_dispatcher
                 recognizer = create_paraformer_recognizer(
-                     main_loop=main_loop,
-                     vrc_client=vrc_client,
-                     # llm_client=llm_client, # Pass when Paraformer callback is updated
-                     # output_dispatcher=output_dispatcher # Pass when Paraformer callback is updated
+                    main_loop=main_loop,
+                    vrc_client=vrc_client,
+                    # llm_client=llm_client, # Pass when Paraformer callback is updated
+                    # output_dispatcher=output_dispatcher # Pass when Paraformer callback is updated
                 )
                 logger.warning("Paraformer STT 引擎当前未完全集成 LLM 处理和多目标输出，其回调函数需要更新。")
             else:
-                 logger.error("create_paraformer_recognizer function not available. Cannot create Paraformer recognizer.")
-                 stop_event.set()
-                 return
+                logger.error(
+                    "create_paraformer_recognizer function not available. Cannot create Paraformer recognizer.")
+                stop_event.set()
+                return
         # else branch handled earlier
 
         # --- 启动识别器和主处理循环 ---
@@ -219,9 +220,9 @@ async def stt_processor(
 
 # --- 音频捕获和主控制逻辑 ---
 async def start_audio_processing(
-        vrc_client: Optional['VRCClient'], # Use forward reference string hints
-        llm_client: Optional['LLMClient'], # Use forward reference string hints
-        output_dispatcher: 'OutputDispatcher' # Use forward reference string hints (required)
+        vrc_client: Optional['VRCClient'],  # Use forward reference string hints
+        llm_client: Optional['LLMClient'],  # Use forward reference string hints
+        output_dispatcher: 'OutputDispatcher'  # Use forward reference string hints (required)
 ):
     """启动实时音频捕获和 Dashscope STT 处理。"""
     stop_event = asyncio.Event()
@@ -271,20 +272,21 @@ async def start_audio_processing(
                 logger.debug(f"  - 最大输入声道: {default_input_device_info['max_input_channels']}")
                 logger.debug(f"  - 默认采样率: {default_input_device_info['default_samplerate']} Hz")
             else:
-                logger.warning("无法获取默认麦克风信息。") # Keep warning as INFO/WARN is appropriate
+                logger.warning("无法获取默认麦克风信息。")  # Keep warning as INFO/WARN is appropriate
             if default_output_device_info:
                 logger.debug(f"默认扬声器: {default_output_device_info['name']}")
                 logger.debug(f"  - 最大输出声道: {default_output_device_info['max_output_channels']}")
                 logger.debug(f"  - 默认采样率: {default_output_device_info['default_samplerate']} Hz")
             else:
-                logger.warning("无法获取默认扬声器信息。") # Keep warning
+                logger.warning("无法获取默认扬声器信息。")  # Keep warning
 
             # --- 决定最终使用的采样率 ---
             if sample_rate_config is None:
                 if default_input_device_info and 'default_samplerate' in default_input_device_info:
                     # 使用设备默认采样率，并转换为整数
                     sample_rate = int(default_input_device_info['default_samplerate'])
-                    logger.debug(f"配置中未指定 sample_rate，将使用默认麦克风的采样率: {sample_rate} Hz") # Changed to DEBUG
+                    logger.debug(
+                        f"配置中未指定 sample_rate，将使用默认麦克风的采样率: {sample_rate} Hz")  # Changed to DEBUG
                 else:
                     # 如果无法获取设备信息或默认采样率，回退到一个标准值
                     sample_rate = 16000  # 回退值
@@ -313,17 +315,17 @@ async def start_audio_processing(
             try:
                 # 尝试直接修改内部字典 (谨慎使用)
                 config._config_data['audio']['sample_rate'] = sample_rate
-                logger.debug(f"已将运行时确定的采样率 ({sample_rate} Hz) 更新回配置。") # Changed to DEBUG
+                logger.debug(f"已将运行时确定的采样率 ({sample_rate} Hz) 更新回配置。")  # Changed to DEBUG
             except Exception as e:
                 logger.error(f"无法更新配置中的运行时采样率: {e}")
         # 或者，确保 stt_processor 总是从 config 中读取最新的 'audio.sample_rate'
 
         # 使用最终确定的 sample_rate 记录日志
         logger.info(f"最终使用的采样率: {sample_rate} Hz")  # Keep as INFO
-        logger.info(f"最终使用的声道数: {channels}") # Keep as INFO
-        logger.info(f"最终使用的音频格式: {dtype}") # Keep as INFO
+        logger.info(f"最终使用的声道数: {channels}")  # Keep as INFO
+        logger.info(f"最终使用的音频格式: {dtype}")  # Keep as INFO
         # logger.info(f"调试回声模式: {'启用' if debug_echo_mode else '禁用'}") # Removed, logged in main.py
-        logger.info(f"VRChat OSC 输出: {'启用' if vrc_client else '禁用'}") # Keep as INFO
+        logger.info(f"VRChat OSC 输出: {'启用' if vrc_client else '禁用'}")  # Keep as INFO
         # logger.info(f"STT 引擎: Dashscope (模型: {model})") # Removed, logged in main.py
         # logger.info(f"  - 翻译 (...): ...") # Removed translation status log here, covered in main.py
 
@@ -333,9 +335,9 @@ async def start_audio_processing(
         # audio_config 字典已被修改以包含正确的 sample_rate
         # 传递客户端/分发器实例给 stt_processor
         stt_task = asyncio.create_task(stt_processor(
-            vrc_client=vrc_client, # Pass instance (can be None)
-            llm_client=llm_client, # Pass instance (can be None)
-            output_dispatcher=output_dispatcher, # Pass instance (required)
+            vrc_client=vrc_client,  # Pass instance (can be None)
+            llm_client=llm_client,  # Pass instance (can be None)
+            output_dispatcher=output_dispatcher,  # Pass instance (required)
             stop_event=stop_event
         ))
 
