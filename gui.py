@@ -239,7 +239,20 @@ def main(page: ft.Page):
         keyboard_type=ft.KeyboardType.NUMBER,
         tooltip="LLM 响应的最大长度"
     )
-    # Few-shot examples are complex for a simple GUI, skip for now.
+
+    # --- Few-Shot Examples UI Elements ---
+    # Column to hold the dynamic example rows
+    few_shot_examples_column = ft.Column(controls=[], spacing=5)
+    config_controls["llm.few_shot_examples_column"] = few_shot_examples_column # Store ref
+
+    add_example_button = ft.TextButton(
+        "添加 Few-Shot 示例",
+        icon=ft.icons.ADD,
+        on_click=None, # Handler will be defined later
+        tooltip="添加一个用户输入/助手响应示例对"
+    )
+    # --- End Few-Shot Examples UI ---
+
     llm_section = create_config_section("语言模型 (LLM)", [
         config_controls["llm.enabled"],
         config_controls["llm.api_key"], # ADDED: API Key moved into the LLM section
@@ -248,6 +261,11 @@ def main(page: ft.Page):
         config_controls["llm.system_prompt"],
         config_controls["llm.temperature"],
         config_controls["llm.max_tokens"],
+        ft.Divider(height=5),
+        ft.Text("Few-Shot 示例", style=ft.TextThemeStyle.TITLE_SMALL),
+        ft.Text("这些示例指导 LLM 如何响应特定输入。", size=11, italic=True),
+        few_shot_examples_column, # Add the column here
+        add_example_button,       # Add the button here
     ])
 
     # -- Output Settings --
@@ -440,6 +458,21 @@ def main(page: ft.Page):
             update_nested_dict(new_config_data, "outputs.file.format", get_control_value("outputs.file.format"))
             update_nested_dict(new_config_data, "logging.level", get_control_value("logging.level"))
 
+            # Update few-shot examples from the dynamic rows
+            examples_list = []
+            for row in few_shot_examples_column.controls:
+                if isinstance(row, ft.Row) and len(row.controls) >= 2:
+                     # Assume first two controls are the TextFields
+                     user_tf = row.controls[0]
+                     assistant_tf = row.controls[1]
+                     if isinstance(user_tf, ft.TextField) and isinstance(assistant_tf, ft.TextField):
+                         user_text = user_tf.value or ""
+                         assistant_text = assistant_tf.value or ""
+                         if user_text or assistant_text: # Only save if at least one field has text
+                             examples_list.append({"user": user_text, "assistant": assistant_text})
+            logger.debug(f"Saving {len(examples_list)} few-shot examples.")
+            update_nested_dict(new_config_data, "llm.few_shot_examples", examples_list)
+
             # Directly update the singleton's internal data BEFORE saving
             config._config_data = new_config_data
             # Recalculate derived values like logging level int after update
@@ -479,6 +512,21 @@ def main(page: ft.Page):
                 # Add other control types if necessary
             except Exception as ex:
                  logger.error(f"Error reloading control for key '{key}' with value '{value}': {ex}")
+
+        # Reload few-shot examples
+        few_shot_examples_column.controls.clear() # Remove existing rows
+        loaded_examples = config.get('llm.few_shot_examples', [])
+        if isinstance(loaded_examples, list):
+            logger.info(f"Reloading {len(loaded_examples)} few-shot examples into GUI.")
+            for example in loaded_examples:
+                if isinstance(example, dict) and 'user' in example and 'assistant' in example:
+                    new_row = create_example_row(example.get('user', ''), example.get('assistant', ''))
+                    few_shot_examples_column.controls.append(new_row)
+                else:
+                    logger.warning(f"Skipping invalid few-shot example during reload: {example}")
+        else:
+             logger.warning("'llm.few_shot_examples' in config is not a list. Cannot reload examples.")
+
         page.update()
 
 
@@ -493,6 +541,52 @@ def main(page: ft.Page):
              error_msg = f"重新加载配置时出错: {ex}"
              logger.error(error_msg, exc_info=True)
              show_snackbar(error_msg, error=True)
+
+
+    # --- Few-Shot Example Add/Remove Logic ---
+    def create_example_row(user_text: str = "", assistant_text: str = "") -> ft.Row:
+        """Creates a Flet Row for a single few-shot example."""
+        user_input = ft.TextField(
+            label="用户输入 (User)", value=user_text, multiline=True, max_lines=3, expand=True
+        )
+        assistant_output = ft.TextField(
+            label="助手响应 (Assistant)", value=assistant_text, multiline=True, max_lines=3, expand=True
+        )
+
+        # Helper function for remove button handler
+        async def remove_this_row(e_remove: ft.ControlEvent):
+            row_to_remove = e_remove.control.data # Get the Row associated with the button
+            if row_to_remove in few_shot_examples_column.controls:
+                few_shot_examples_column.controls.remove(row_to_remove)
+                logger.debug("Removed few-shot example row.")
+                page.update()
+            else:
+                logger.warning("Attempted to remove a row not found in the column.")
+
+        remove_button = ft.IconButton(
+            icon=ft.icons.DELETE_OUTLINE,
+            tooltip="删除此示例",
+            on_click=remove_this_row,
+            icon_color=ft.colors.RED_ACCENT_400
+        )
+
+        new_row = ft.Row(
+            controls=[user_input, assistant_output, remove_button],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        )
+        remove_button.data = new_row # Associate the row with the button for removal
+        return new_row
+
+    async def add_example_handler(e: ft.ControlEvent):
+        """Adds a new, empty example row to the column."""
+        new_row = create_example_row()
+        few_shot_examples_column.controls.append(new_row)
+        logger.debug("Added new few-shot example row.")
+        page.update()
+
+    # Assign the handler to the button
+    add_example_button.on_click = add_example_handler
 
 
     # --- 启动/停止逻辑 (Dashboard Tab) ---
@@ -703,6 +797,20 @@ def main(page: ft.Page):
             expand=True, # Make tabs fill the page width
         )
     )
+
+    # Initial population of few-shot examples on first load
+    logger.debug("Initial population of few-shot examples UI.")
+    initial_examples = config.get('llm.few_shot_examples', [])
+    if isinstance(initial_examples, list):
+        for example in initial_examples:
+            if isinstance(example, dict) and 'user' in example and 'assistant' in example:
+                initial_row = create_example_row(example.get('user', ''), example.get('assistant', ''))
+                few_shot_examples_column.controls.append(initial_row)
+            else:
+                logger.warning(f"Skipping invalid few-shot example during initial load: {example}")
+    else:
+        logger.warning("'llm.few_shot_examples' in initial config is not a list.")
+
 
     # Initial page update
     page.update()
