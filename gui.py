@@ -727,8 +727,8 @@ def main(page: ft.Page):
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
-        remove_button.data = new_row  # Associate the row with the button for removal
-        return new_row
+         remove_button.data = new_row  # Associate the row with the button for removal
+         return new_row
 
     async def add_example_handler(e: ft.ControlEvent):
         """Adds a new, empty example row to the column."""
