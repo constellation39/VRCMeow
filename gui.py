@@ -76,21 +76,48 @@ def main(page: ft.Page):
 
     # --- UI 元素 ---
 
-    # == Dashboard Tab Elements ==
-    status_text = ft.Text("状态: 未启动", selectable=True)
+    # == Dashboard Tab Elements (Minimalist Design) ==
+    status_icon = ft.Icon(name=ft.icons.CIRCLE_OUTLINED, color=ft.colors.GREY)
+    status_label = ft.Text("未启动", selectable=True)
+    status_row = ft.Row(
+        [status_icon, status_label],
+        alignment=ft.MainAxisAlignment.CENTER,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=5, # Add spacing between icon and text
+    )
+
     output_text = ft.TextField(
-        label="最终输出",
+        # Removed label for minimalism
+        hint_text="最终输出将显示在这里...", # Add hint text
         multiline=True,
         read_only=True,
-        expand=True,  # 允许文本区域扩展填充空间
-        min_lines=5,  # Keep min_lines for the output text
+        expand=True,
+        min_lines=5,
+        border_radius=ft.border_radius.all(8), # Add slight rounding
+        border_color=ft.colors.with_opacity(0.5, ft.colors.OUTLINE), # Subtle border
+        filled=True, # Use a filled background
+        bgcolor=ft.colors.with_opacity(0.02, ft.colors.ON_SURFACE), # Very subtle background
+        content_padding=15, # Add padding inside the text field
     )
-    start_button = ft.ElevatedButton(
-        "启动", on_click=None, disabled=False, tooltip="启动音频处理和连接"
+
+    start_button = ft.IconButton(
+        icon=ft.icons.PLAY_ARROW_ROUNDED,
+        tooltip="启动",
+        on_click=None,
+        disabled=False,
+        icon_size=30, # Make icon slightly larger
+        style=ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700), # Use theme color
     )
-    stop_button = ft.ElevatedButton(
-        "停止", on_click=None, disabled=True, tooltip="停止所有后台进程"
+    stop_button = ft.IconButton(
+        icon=ft.icons.STOP_ROUNDED,
+        tooltip="停止",
+        on_click=None,
+        disabled=True,
+        icon_size=30, # Make icon slightly larger
+        style=ft.ButtonStyle(color=ft.colors.RED_ACCENT_700), # Use theme color
     )
+    # Progress indicator (optional, can be shown during start/stop)
+    progress_indicator = ft.ProgressRing(width=20, height=20, stroke_width=2, visible=False)
 
     # == Configuration Tab Elements ==
     # We will store references to input controls to easily read their values later
@@ -391,14 +418,31 @@ def main(page: ft.Page):
     )
 
     # --- 回调函数 (用于更新 UI 和处理事件) ---
-    def update_status_display(message: str):
-        """线程安全地更新状态文本"""
+    def update_status_display(message: str, is_running: Optional[bool] = None, is_processing: bool = False):
+        """线程安全地更新状态文本和图标"""
         if page:  # 确保页面仍然存在
-            # 使用 run_thread 执行一个简单的 lambda 来更新 UI
-            page.run_thread(
-                lambda: setattr(status_text, "value", f"状态: {message}")
-                or page.update()  # type: ignore
-            )
+            def update_ui():
+                status_label.value = message # Update text
+                # Update icon based on state
+                if is_running is True:
+                    status_icon.name = ft.icons.CHECK_CIRCLE_ROUNDED
+                    status_icon.color = ft.colors.GREEN
+                elif is_running is False:
+                    status_icon.name = ft.icons.PAUSE_CIRCLE_ROUNDED # Or STOP_CIRCLE_ROUNDED
+                    status_icon.color = ft.colors.AMBER
+                else: # Not running / Stopped / Unknown startup state
+                    status_icon.name = ft.icons.CIRCLE_OUTLINED
+                    status_icon.color = ft.colors.GREY
+
+                # Show/hide progress indicator
+                progress_indicator.visible = is_processing
+
+                page.update()
+
+            # Run UI updates on the Flet thread
+            # Use page.run() if Flet version supports it, or keep page.run_thread()
+            # Assuming page.run_thread for compatibility as used elsewhere
+            page.run_thread(update_ui) # type: ignore
 
     def update_output_display(text: str):
         """线程安全地将文本附加到输出区域"""
@@ -846,10 +890,10 @@ def main(page: ft.Page):
         if app_state.is_running:
             return
 
-        update_status_display("正在启动...")
+        update_status_display("正在启动...", is_running=None, is_processing=True) # Show progress
         start_button.disabled = True
-        stop_button.disabled = False
-        page.update()  # 更新按钮状态
+        stop_button.disabled = True # Disable both during transition
+        page.update() # Update button state
 
         try:
             # --- 初始化组件 ---
@@ -861,8 +905,8 @@ def main(page: ft.Page):
             if not dashscope_api_key:
                 error_msg = "错误：Dashscope API Key 未设置。"
                 logger.error(error_msg)
-                update_status_display(error_msg)
-                # 重置按钮状态
+                update_status_display(error_msg, is_running=False, is_processing=False) # Show error state
+                # Reset button state
                 start_button.disabled = False
                 stop_button.disabled = True
                 page.update()
@@ -916,9 +960,16 @@ def main(page: ft.Page):
             # --- 启动 AudioManager ---
             # AudioManager.start() 会启动后台线程
             app_state.audio_manager.start()
+            # AudioManager.start() is blocking (due to thread join), run in thread? No, start should be quick.
+            # The threads inside AudioManager will update the status via callback.
+            app_state.audio_manager.start()
             app_state.is_running = True
-            logger.info("AudioManager 已启动。系统运行中。")
-            # 状态将在 AudioManager 内部通过回调更新为 "Running" 等
+            logger.info("AudioManager start requested. Threads are running.")
+            # Initial status update comes from AudioManager threads now.
+            # e.g., update_status_display("运行中", is_running=True, is_processing=False) will be called by AudioManager
+            # We only enable the stop button here AFTER the start request succeeded.
+            stop_button.disabled = False # Enable stop only after successful start request
+            page.update()
 
         except Exception as ex:
             error_msg = f"启动过程中出错: {ex}"
@@ -931,11 +982,20 @@ def main(page: ft.Page):
         """停止按钮点击事件处理程序或错误处理调用"""
         if (
             not app_state.is_running and not is_error
-        ):  # 如果因错误调用，即使未标记为运行也要尝试停止
+        ): # If called due to error, try stopping even if not marked running
+            # If not running and not error, just ensure buttons are correct
+            if not app_state.is_running:
+                 start_button.disabled = False
+                 stop_button.disabled = True
+                 update_status_display("已停止", is_running=False, is_processing=False) # Update status if needed
+                 page.update()
             return
 
-        update_status_display("正在停止...")
-        start_button.disabled = True  # 在停止完成前禁用两个按钮
+        # Only show "Stopping..." if it was actually running
+        if app_state.is_running:
+            update_status_display("正在停止...", is_running=True, is_processing=True) # Show progress while stopping
+
+        start_button.disabled = True # Disable both buttons during stop
         stop_button.disabled = True
         page.update()
 
@@ -972,12 +1032,14 @@ def main(page: ft.Page):
         app_state.llm_client = None
         app_state.output_dispatcher = None
 
-        app_state.is_running = False
-        logger.info("所有组件已停止。")
-        update_status_display("已停止")
-        start_button.disabled = False  # 重新启用启动按钮
-        stop_button.disabled = True
-        page.update()
+        app_state.is_running = False # Mark as not running logically first
+        logger.info("All components requested to stop.")
+        # Final status update ("Stopped" or "Stopped (with issues)") comes from AudioManager callback
+        # update_status_display("已停止", is_running=False, is_processing=False) # Removed, handled by callback
+        # Button state update also handled by AudioManager callback upon final stop status
+        # start_button.disabled = False
+        # stop_button.disabled = True
+        # page.update() # Update handled by callback
 
     # --- 绑定事件 ---
     start_button.on_click = start_recording
@@ -1000,18 +1062,31 @@ def main(page: ft.Page):
     reload_config_button.on_click = reload_config_handler
     page.on_window_event = on_window_event
 
-    # --- Layout using Tabs ---
+    # --- Layout using Tabs (Dashboard Redesigned) ---
     dashboard_tab_content = ft.Column(
         [
-            ft.Row([start_button, stop_button], alignment=ft.MainAxisAlignment.CENTER),
-            status_text,
+            # Status display at the top
+            ft.Container(status_row, padding=ft.padding.only(top=15, bottom=5)), # Reduced bottom padding
+
+            # Start/Stop buttons below status, centered
+            ft.Row(
+                [start_button, progress_indicator, stop_button], # Add progress indicator between buttons
+                alignment=ft.MainAxisAlignment.CENTER,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=20, # Space out the buttons
+            ),
+
+            # Output text area taking remaining space
             ft.Container(
-                output_text, expand=True
-            ),  # Make output text area fill available space
+                output_text,
+                expand=True, # Make container expand
+                padding=ft.padding.only(top=15, bottom=10, left=10, right=10) # Padding around text area
+            ),
         ],
-        expand=True,  # Make column fill tab height
-        alignment=ft.MainAxisAlignment.START,
-        spacing=10,  # Add spacing between elements
+        expand=True,
+        alignment=ft.MainAxisAlignment.START, # Align items to the top
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Center items horizontally
+        spacing=10, # Overall spacing for the column
     )
 
     config_tab_content = ft.Column(

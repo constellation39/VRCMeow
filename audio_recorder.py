@@ -60,7 +60,11 @@ class AudioManager:
     ):
         self.llm_client = llm_client
         self.output_dispatcher = output_dispatcher
-        self.status_callback = status_callback
+        # Store the raw callback
+        self._raw_status_callback = status_callback
+        # Wrapper for the callback to include state (initialized later if needed)
+        self.status_callback: Optional[Callable[[str, Optional[bool], bool], None]] = None
+
 
         self._audio_queue = queue.Queue()  # Thread-safe queue
         self._stop_event = (
@@ -104,17 +108,18 @@ class AudioManager:
             logger.warning("Falling back to 16000 Hz sample rate due to error.")
             return 16000
 
-    def _update_status(self, message: str):
-        """Helper to call the status callback if it exists."""
-        logger.info(f"AudioManager Status: {message}")  # Log status internally
+    # Remove the old _update_status signature that didn't take kwargs
+    # def _update_status(self, message: str): ... # REMOVED
+
+    # Keep the correctly defined overload signature
+    def _update_status(self, message: str, *, is_running: Optional[bool] = None, is_processing: bool = False):
+        """Helper to call the status callback with running and processing state."""
+        logger.info(f"AudioManager Status: {message} (Running: {is_running}, Processing: {is_processing})") # Log status internally
+        # Use the wrapped status_callback
         if self.status_callback:
             try:
-                # Assuming the callback needs to be run in the main (GUI) thread eventually.
-                # For now, just call it directly. GUI integration might need thread-safe calls.
                 # Pass the new arguments to the callback
-                # Determine default state if not provided explicitly (e.g., assume not running if None)
-                # Note: The GUI's update_status_display handles None for is_running
-                self.status_callback(message, is_running=kwargs.get('is_running'), is_processing=kwargs.get('is_processing', False))
+                self.status_callback(message, is_running=is_running, is_processing=is_processing)
             except Exception as e:
                 logger.error(f"Error calling status callback: {e}", exc_info=True)
 
@@ -138,7 +143,7 @@ class AudioManager:
         model = config.get("dashscope.stt.model", "gummy-realtime-v1") # Initialize model before first use
 
         logger.info("STT Processor Thread Started.") # Corrected line
-        self._update_status("STT 线程启动中...", is_processing=True) # Indicate processing during startup
+        if self.status_callback: self._update_status("STT 线程启动中...", is_processing=True) # Indicate processing during startup
         # Removed duplicate model initialization
         logger.info(
             f"STT processing loop (Dashscope, model: {model}) starting in thread {threading.current_thread().ident}..."
@@ -182,7 +187,7 @@ class AudioManager:
                     error_msg = f"不支持的 Dashscope 模型: {model}。请使用 'gummy-' 或 'paraformer-' 前缀。"
                     logger.error(error_msg)
                     # Fatal error, set status to stopped/error state
-                    self._update_status(f"错误: {error_msg}", is_running=False, is_processing=False)
+                    if self.status_callback: self._update_status(f"错误: {error_msg}", is_running=False, is_processing=False)
                     self._stop_event.set()  # Signal stop
                     break  # Exit reconnect loop
 
@@ -195,9 +200,11 @@ class AudioManager:
 
                 # --- Select and create recognizer ---
                 # Indicate processing (connecting) state
-                self._update_status(
-                    f"连接 STT (模型: {model}, 尝试 {retry_count + 1}/{max_retries})...", is_processing=True
-                )
+                # Ensure self._update_status is callable here
+                if self.status_callback:
+                     self._update_status(
+                         f"连接 STT (模型: {model}, 尝试 {retry_count + 1}/{max_retries})...", is_processing=True
+                     )
                 logger.info(
                     f"Attempting to connect STT service (Model: {model}, Attempt {retry_count + 1}/{max_retries})..."
                 )
@@ -235,7 +242,7 @@ class AudioManager:
                     f"Dashscope {engine_type} Recognizer connected and started."
                 )
                 # Update status to indicate running (connected), not processing anymore until data flows
-                self._update_status(f"STT 已连接 (引擎: {engine_type})", is_running=True, is_processing=False)
+                if self.status_callback: self._update_status(f"STT 已连接 (引擎: {engine_type})", is_running=True, is_processing=False)
                 retry_count = 0  # Reset retries on success
                 current_delay = initial_retry_delay  # Reset delay
 
@@ -272,7 +279,7 @@ class AudioManager:
                             exc_info=True,
                         )
                         # Indicate error, but potentially still 'running' while trying to reconnect
-                        self._update_status(f"STT 发送错误: {send_error}", is_running=True, is_processing=True) # Show processing for reconnect attempt
+                        if self.status_callback: self._update_status(f"STT 发送错误: {send_error}", is_running=True, is_processing=True) # Show processing for reconnect attempt
                         logger.info("假设连接丢失，尝试重新连接...")
                         try:
                             # Attempt to stop the failed recognizer
@@ -302,7 +309,7 @@ class AudioManager:
                     exc_info=True,
                 )
                 # Indicate connection error, not running, but processing (retrying)
-                self._update_status(f"STT 连接错误: {connect_error}", is_running=False, is_processing=True)
+                if self.status_callback: self._update_status(f"STT 连接错误: {connect_error}", is_running=False, is_processing=True)
                 if recognizer:  # If recognizer was created but start failed
                     try:
                         recognizer.stop()
@@ -321,14 +328,14 @@ class AudioManager:
                     final_error_msg = f"STT 在 {max_retries} 次重试后连接失败 (模型: '{model}')。正在停止 STT 处理。"
                     logger.critical(final_error_msg)
                     # Indicate final error state: not running, not processing
-                    self._update_status(f"错误: {final_error_msg}", is_running=False, is_processing=False)
+                    if self.status_callback: self._update_status(f"错误: {final_error_msg}", is_running=False, is_processing=False)
                     self._stop_event.set() # Signal stop
                     break  # Exit reconnect loop
 
                 wait_msg = f"将在 {current_delay:.1f} 秒后重试 STT 连接..."
                 logger.info(wait_msg)
                 # Indicate waiting state (not running, still processing/retrying)
-                self._update_status(wait_msg, is_running=False, is_processing=True)
+                if self.status_callback: self._update_status(wait_msg, is_running=False, is_processing=True)
                 # Use threading Event's wait method, which is blocking but interruptible
                 stopped_during_wait = self._stop_event.wait(timeout=current_delay)
                 if stopped_during_wait:
@@ -343,9 +350,9 @@ class AudioManager:
                 )  # Exponential backoff
 
         # --- Final Cleanup after loop exit ---
-        logger.info(f"STT processing loop (Dashscope {engine_type}) stopping...") # Use loop instead of task
+        logger.info(f"STT processing loop (Dashscope {engine_type}) stopping...")
         # Indicate stopping state (was running, now processing stop)
-        self._update_status(f"STT 任务停止中 (引擎: {engine_type})", is_running=True, is_processing=True) # Use Task instead of Thread? User seems to use Task here
+        if self.status_callback: self._update_status(f"STT 任务停止中 (引擎: {engine_type})", is_running=True, is_processing=True)
         if recognizer:  # Check if a recognizer was active when the loop exited
             try:
                 logger.info(
@@ -362,7 +369,7 @@ class AudioManager:
                     f"Error stopping final recognizer instance: {e}", exc_info=True
                 )
                 # Indicate error during stop, final state will be 'Stopped' or 'Stopped (with issues)' later
-                self._update_status(f"停止 STT 时出错: {e}", is_running=False, is_processing=False)
+                if self.status_callback: self._update_status(f"停止 STT 时出错: {e}", is_running=False, is_processing=False)
         else:
             logger.info("没有活动的 Recognizer 实例需要停止。")
 
@@ -451,7 +458,7 @@ class AudioManager:
             logger.info(f"  Dtype: {self.dtype}")
             logger.info(f"  Debug Echo: {self.debug_echo_mode}")
             # Indicate processing during startup
-            self._update_status("音频流启动中...", is_processing=True)
+            if self.status_callback: self._update_status("音频流启动中...", is_processing=True)
 
             # Use sounddevice Stream context manager to handle both input and output (for echo)
             with sd.Stream(
@@ -470,8 +477,8 @@ class AudioManager:
                     f"Audio stream active. Actual Sample Rate: {actual_rate} Hz."
                 )
                 # Indicate running state, not processing (unless STT is connecting etc.)
-                # The overall 'running' state depends on STT too. Maybe set to 'Running' overall in start()?
-                self._update_status("音频流运行中", is_running=True, is_processing=False)
+                # The overall 'running' state depends on STT too. Set here tentatively.
+                if self.status_callback: self._update_status("音频流运行中", is_running=True, is_processing=False)
                 # Keep the stream running until stop_event is set
                 self._stop_event.wait()  # Block here until stop() is called
 
@@ -483,7 +490,7 @@ class AudioManager:
                 f"Check support for {self.sample_rate} Hz, {self.channels} channels, {self.dtype}."
             )
             # Indicate fatal error state
-            self._update_status(f"错误: {error_msg}", is_running=False, is_processing=False)
+            if self.status_callback: self._update_status(f"错误: {error_msg}", is_running=False, is_processing=False)
             self._stop_event.set()  # Signal other threads to stop
         except ValueError as e:
             error_msg = f"Audio Parameter Error: {e}. Check config."
@@ -492,13 +499,13 @@ class AudioManager:
                 f"Verify sample rate ({self.sample_rate}), channels ({self.channels}), dtype ({self.dtype})."
             )
             # Indicate fatal error state
-            self._update_status(f"错误: {error_msg}", is_running=False, is_processing=False)
+            if self.status_callback: self._update_status(f"错误: {error_msg}", is_running=False, is_processing=False)
             self._stop_event.set()
         except Exception as e:
             error_msg = f"Unknown error in audio stream thread: {e}"
             logger.error(error_msg, exc_info=True)
             # Indicate fatal error state
-            self._update_status(f"错误: {error_msg}", is_running=False, is_processing=False)
+            if self.status_callback: self._update_status(f"错误: {error_msg}", is_running=False, is_processing=False)
             self._stop_event.set()  # Signal stop on unexpected errors
         finally:
             logger.info("Audio stream thread finishing.")
@@ -516,7 +523,7 @@ class AudioManager:
 
         logger.info("Starting AudioManager...")
         # Indicate processing during overall startup
-        self._update_status("正在启动...", is_processing=True)
+        if self.status_callback: self._update_status("正在启动...", is_processing=True)
         self._stop_event.clear()  # Reset stop event for a new run
 
         # Start the STT processor thread
@@ -545,7 +552,7 @@ class AudioManager:
         logger.info("Stopping AudioManager...")
         # Indicate processing during overall stop sequence
         # Keep is_running=True initially as things are still shutting down
-        self._update_status("正在停止...", is_running=True, is_processing=True)
+        if self.status_callback: self._update_status("正在停止...", is_running=True, is_processing=True)
 
         # Signal stop event - this will be checked by loops and sd.Stream wait
         self._stop_event.set()
@@ -591,11 +598,11 @@ class AudioManager:
         if audio_stopped and stt_stopped:
             logger.info("AudioManager stopped successfully.")
             # Final status: Stopped, not running, not processing
-            self._update_status("已停止", is_running=False, is_processing=False)
+            if self.status_callback: self._update_status("已停止", is_running=False, is_processing=False)
         else:
             logger.warning("AudioManager stopped with potential issues (threads did not join).")
             # Final status: Stopped (with issues), not running, not processing
-            self._update_status("已停止 (有潜在问题)", is_running=False, is_processing=False)
+            if self.status_callback: self._update_status("已停止 (有潜在问题)", is_running=False, is_processing=False)
 
 
 # --- Remove the old standalone start function ---
