@@ -77,10 +77,11 @@ class AudioManager:
 
         # Load necessary config values during initialization
         self.sample_rate = config.get("audio.sample_rate")  # Get initial value
-        self.channels = config["audio.channels"]
-        self.dtype = config["audio.dtype"]
-        self.debug_echo_mode = config["audio.debug_echo_mode"]
-        self.stt_model = config["stt.model"]
+        self.channels = config.get("audio.channels", 1) # Use get for robustness
+        self.dtype = config.get("audio.dtype", "int16")
+        self.debug_echo_mode = config.get("audio.debug_echo_mode", False)
+        # Use new nested key for STT model
+        self.stt_model = config.get("dashscope.stt.model", "gummy-realtime-v1")
 
         # Dynamically determine sample rate if not configured
         if self.sample_rate is None:
@@ -120,14 +121,8 @@ class AudioManager:
     # --- STT Processing Logic (Now an async method) ---
     async def _stt_processor_task(self):
         """Async task for STT processing, run in a dedicated thread's event loop."""
-        # Config values are accessed via self now
-        model = self.stt_model  # Use pre-loaded config
-        # sample_rate is guaranteed by start_audio_processing but unused here
-        # sample_rate = config["audio.sample_rate"]
-        # channels = config["audio.channels"] # Unused
-        target_language = config.get(
-            "stt.translation_target_language"
-        )  # Re-read in case it changed via reload
+        # Use new nested keys, re-reading them from config inside loop for potential reloads
+        # model = self.stt_model # Don't use pre-loaded, read inside loop
 
         logger.info(
             f"STT processing task (Dashscope, model: {model}) starting in thread..."
@@ -156,20 +151,23 @@ class AudioManager:
 
         # API Key check happens in main.py before AudioManager is created
 
-        # --- Determine translation based on potentially reloaded config ---
-        target_language = config.get(
-            "stt.translation_target_language"
-        )  # Re-check config
-        enable_translation = bool(target_language)
+        # --- Outer Reconnect Loop ---
+        while not self._stop_event.is_set():
+            recognizer = None  # 每次尝试连接前重置
+            try:
+                # --- Check config and model compatibility (re-check each loop) ---
+                # Read model and target language using new keys
+                model = config.get("dashscope.stt.model", "gummy-realtime-v1")
+                target_language = config.get(
+                    "dashscope.stt.translation_target_language"
+                )
+                enable_translation = bool(target_language)
+                self.stt_model = model  # Update instance var if needed by other logic
 
-        # --- Select API based on potentially reloaded config ---
-        # Re-check model compatibility each loop iteration
-        model = config["stt.model"]  # Re-read model from config
-        self.stt_model = model  # Update instance variable if changed
-        is_gummy_model = model.startswith("gummy-")
-        is_paraformer_model = model.startswith("paraformer-")
+                is_gummy_model = model.startswith("gummy-")
+                is_paraformer_model = model.startswith("paraformer-")
 
-        if not is_gummy_model and not is_paraformer_model:
+                if not is_gummy_model and not is_paraformer_model:
             error_msg = (
                 f"Unsupported Dashscope model: {model}. Use 'gummy-' or 'paraformer-'."
             )

@@ -26,10 +26,20 @@ DEFAULT_CONFIG_PATH = "config.yaml"
 _DEFAULT_CONFIG: Dict[str, Any] = {
     "dashscope": {
         "api_key": "", # Strongly recommend setting via environment variable (DASHSCOPE_API_KEY)
+        "stt": { # STT settings moved under Dashscope
+            # If set, enables translation (only for supported models like Gummy)
+            "translation_target_language": None,  # e.g., "en", "ja", "ko"
+            # Available models: "gummy-realtime-v1" (supports translation), "paraformer-realtime-v2", "paraformer-realtime-v1" (recognition only)
+            "model": "gummy-realtime-v1",
+            # How to handle intermediate (non-final) STT results
+            # "ignore": Ignore intermediate results.
+            # "show_typing": Send a fixed "Typing..." message (VRC OSC only).
+            # "show_partial": Send the incomplete recognized text (VRC OSC only).
+            "intermediate_result_behavior": "ignore",
+        }
     },
-    "stt": {
-        # If set, enables translation (only for supported models like Gummy)
-        "translation_target_language": None,  # e.g., "en", "ja", "ko"
+    # "stt": { ... } # REMOVED old top-level stt block
+    "audio": {
         # Available models: "gummy-realtime-v1" (supports translation), "paraformer-realtime-v2", "paraformer-realtime-v1" (recognition only)
         "model": "gummy-realtime-v1",
         # How to handle intermediate (non-final) STT results

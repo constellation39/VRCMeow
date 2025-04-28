@@ -111,9 +111,40 @@ def main(page: ft.Page):
         hint_text="从环境变量 DASHSCOPE_API_KEY 覆盖",
         tooltip="阿里云 Dashscope 服务所需的 API Key"
     )
-    # Add any other Dashscope specific settings here in the future
-    dashscope_section = create_config_section("Dashscope 设置", [
+    # Add STT settings under Dashscope
+    config_controls["dashscope.stt.model"] = ft.Dropdown(
+        label="STT 模型",
+        value=config.get('dashscope.stt.model', 'gummy-realtime-v1'), # New key
+        options=[
+            ft.dropdown.Option("gummy-realtime-v1", "Gummy (支持翻译)"),
+            ft.dropdown.Option("paraformer-realtime-v2", "Paraformer V2 (仅识别)"),
+            ft.dropdown.Option("paraformer-realtime-v1", "Paraformer V1 (仅识别)"),
+        ],
+        tooltip="选择 Dashscope 提供的语音识别模型"
+    )
+    config_controls["dashscope.stt.translation_target_language"] = ft.TextField(
+        label="翻译目标语言 (Gummy)",
+        value=config.get('dashscope.stt.translation_target_language') or "", # New key, Use empty string if None
+        hint_text="留空则禁用翻译 (例如: en, ja, ko)",
+        tooltip="如果使用 Gummy 并希望翻译，在此处输入目标语言代码"
+    )
+    config_controls["dashscope.stt.intermediate_result_behavior"] = ft.Dropdown(
+        label="中间结果处理 (VRC OSC)",
+        value=config.get('dashscope.stt.intermediate_result_behavior', 'ignore'), # New key
+        options=[
+            ft.dropdown.Option("ignore", "忽略"),
+            ft.dropdown.Option("show_typing", "显示 'Typing...'"),
+            ft.dropdown.Option("show_partial", "显示部分文本"),
+        ],
+        tooltip="如何处理非最终的语音识别结果 (仅影响 VRChat 输出)"
+    )
+    dashscope_section = create_config_section("Dashscope 设置 (含 STT)", [
         config_controls["dashscope.api_key"],
+        ft.Divider(height=5), # Add a small divider
+        ft.Text("语音识别 (STT)", style=ft.TextThemeStyle.TITLE_SMALL), # Sub-header
+        config_controls["dashscope.stt.model"],
+        config_controls["dashscope.stt.translation_target_language"],
+        config_controls["dashscope.stt.intermediate_result_behavior"],
     ])
 
 
@@ -128,38 +159,11 @@ def main(page: ft.Page):
     )
     # api_keys_section = create_config_section("API Keys", [...]) # REMOVED
 
-    # -- STT Settings --
-    config_controls["stt.model"] = ft.Dropdown(
-        label="STT 模型",
-        value=config.get('stt.model', 'gummy-realtime-v1'),
-        options=[
-            ft.dropdown.Option("gummy-realtime-v1", "Gummy (支持翻译)"),
-            ft.dropdown.Option("paraformer-realtime-v2", "Paraformer V2 (仅识别)"),
-            ft.dropdown.Option("paraformer-realtime-v1", "Paraformer V1 (仅识别)"),
-        ],
-        tooltip="选择语音识别模型"
-    )
-    config_controls["stt.translation_target_language"] = ft.TextField(
-        label="翻译目标语言 (Gummy)",
-        value=config.get('stt.translation_target_language') or "", # Use empty string if None
-        hint_text="留空则禁用翻译 (例如: en, ja, ko)",
-        tooltip="如果使用 Gummy 并希望翻译，在此处输入目标语言代码"
-    )
-    config_controls["stt.intermediate_result_behavior"] = ft.Dropdown(
-        label="中间结果处理 (VRC OSC)",
-        value=config.get('stt.intermediate_result_behavior', 'ignore'),
-        options=[
-            ft.dropdown.Option("ignore", "忽略"),
-            ft.dropdown.Option("show_typing", "显示 'Typing...'"),
-            ft.dropdown.Option("show_partial", "显示部分文本"),
-        ],
-        tooltip="如何处理非最终的语音识别结果 (仅影响 VRChat 输出)"
-    )
-    stt_section = create_config_section("语音识别 (STT)", [
-        config_controls["stt.model"],
-        config_controls["stt.translation_target_language"],
-        config_controls["stt.intermediate_result_behavior"],
-    ])
+    # -- STT Settings --  # REMOVED - These controls are now part of dashscope_section
+    # config_controls["stt.model"] = ...
+    # config_controls["stt.translation_target_language"] = ...
+    # config_controls["stt.intermediate_result_behavior"] = ...
+    # stt_section = create_config_section("语音识别 (STT)", [...]) # REMOVED
 
     # -- Audio Settings --
     config_controls["audio.sample_rate"] = ft.TextField(
@@ -663,9 +667,9 @@ def main(page: ft.Page):
                 alignment=ft.MainAxisAlignment.END # Align buttons to the right
             ),
             ft.Divider(height=10),
-            # Sections - Removed api_keys_section, added dashscope_section
-            dashscope_section,
-            stt_section,
+            # Sections - Removed stt_section
+            dashscope_section, # Now contains STT settings
+            # stt_section, # REMOVED
             audio_section,
             llm_section,
             vrc_osc_output_section,
