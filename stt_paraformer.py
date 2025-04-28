@@ -209,12 +209,12 @@ class ParaformerCallback(RecognitionCallback):
 
         # Dispatch the final text (original or processed) using the dispatcher
         if self.loop.is_running() and self.output_dispatcher:
-            # INFO: Log text just before dispatching (moved here)
-            self.logger.info(f"STT_PARA: Dispatching final text: '{final_text_to_dispatch}'")
+            # INFO: Log just before awaiting the actual dispatch call within the helper coroutine
+            self.logger.info(f"STT_PARA_HELPER: About to await output_dispatcher.dispatch for: '{final_text_to_dispatch}'")
             # Directly await the dispatch coroutine as we are already in an async context managed by the loop
             await self.output_dispatcher.dispatch(final_text_to_dispatch)
             self.logger.info(
-                f"STT_PARA: Dispatched final text '{final_text_to_dispatch[:50]}...'"
+                f"STT_PARA_HELPER: Finished awaiting output_dispatcher.dispatch for '{final_text_to_dispatch[:50]}...'"
             )
         else:
              # This case might happen if the loop stops between LLM processing and dispatching
