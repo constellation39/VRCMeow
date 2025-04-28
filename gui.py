@@ -163,10 +163,10 @@ def main(page: ft.Page):
         ],
         tooltip="如何处理非最终的语音识别结果 (仅影响 VRChat 输出)"
     )
-    dashscope_section = create_config_section("Dashscope 设置 (含 STT)", [
+    dashscope_section = create_config_section("Dashscope 设置", [ # Changed title
         config_controls["dashscope.api_key"],
         ft.Divider(height=5), # Add a small divider
-        ft.Text("语音识别 (STT)", style=ft.TextThemeStyle.TITLE_SMALL), # Sub-header
+        # ft.Text("语音识别 (STT)", style=ft.TextThemeStyle.TITLE_SMALL), # REMOVED Sub-header
         config_controls["dashscope.stt.model"],
         config_controls["dashscope.stt.translation_target_language"],
         config_controls["dashscope.stt.intermediate_result_behavior"],
