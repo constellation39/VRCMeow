@@ -451,8 +451,8 @@ class AudioManager:
             logger.info(f"  Debug Echo: {self.debug_echo_mode}")
             self._update_status("Audio Stream Starting...")
 
-            # Use sounddevice Stream context manager
-            with sd.Stream(
+            # Use sounddevice InputStream context manager for explicit input
+            with sd.InputStream(
                 samplerate=self.sample_rate,
                 channels=self.channels,
                 dtype=self.dtype,
