@@ -107,19 +107,21 @@ class VRCClient:
                 self._message_updated.set()  # 通知后台任务有新消息
 
     async def _send_message(self, content: ArgValue) -> None:
-        """通过 OSC 发送消息。"""
+        """通过 OSC 发送消息。
+        注意：内容应该由调用者（例如 OutputDispatcher）提前格式化。
+        """
         try:
-            # Apply the format string
-            formatted_content = self.format_string.format(text=content)
+            # 内容应该已经由 OutputDispatcher 使用配置的格式字符串格式化。
+            # 直接发送接收到的内容。
 
             # 首先发送 typing=False 清除输入状态
             self._osc_client.send_message("/chatbox/typing", False)
-            # 然后发送 *格式化后* 的消息内容，send_now=True 表示立即发送
+            # 然后发送 *已格式化* 的消息内容，send_now=True 表示立即发送
             self._osc_client.send_message(
-                "/chatbox/input", [formatted_content, True]
+                "/chatbox/input", [content, True]
             )  # VRC 需要列表 [message, send_now=True]
             self._last_send_time = time.time()  # 更新上次发送时间
-            logger.info(f"OSC 消息已发送: {formatted_content}") # Log the formatted content
+            logger.info(f"OSC 消息已发送: {content}") # Log the content as received
         except Exception as e:
             logger.error(
                 f"发送 OSC 消息时出错: {e}", exc_info=True
