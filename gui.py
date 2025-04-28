@@ -145,6 +145,12 @@ def main(page: ft.Page):
         config_controls["dashscope.stt.model"],
         config_controls["dashscope.stt.translation_target_language"],
         config_controls["dashscope.stt.intermediate_result_behavior"],
+        ft.Divider(height=5), # Add another divider
+        ft.Text("音频输入", style=ft.TextThemeStyle.TITLE_SMALL), # Sub-header for Audio
+        config_controls["audio.sample_rate"], # Added Audio controls
+        config_controls["audio.channels"],
+        config_controls["audio.dtype"],
+        config_controls["audio.debug_echo_mode"],
     ])
 
 
@@ -165,7 +171,8 @@ def main(page: ft.Page):
     # config_controls["stt.intermediate_result_behavior"] = ...
     # stt_section = create_config_section("语音识别 (STT)", [...]) # REMOVED
 
-    # -- Audio Settings --
+
+    # -- Audio Settings Definitions (Moved before Dashscope section creation) --
     config_controls["audio.sample_rate"] = ft.TextField(
         label="采样率 (Hz)",
         value=str(config.get('audio.sample_rate') or ""), # Use empty string if None
@@ -196,7 +203,7 @@ def main(page: ft.Page):
         config_controls["audio.channels"],
         config_controls["audio.dtype"],
         config_controls["audio.debug_echo_mode"],
-    ])
+    ]) # REMOVED - Controls moved to Dashscope section
 
 
     # -- LLM Settings --
@@ -667,10 +674,10 @@ def main(page: ft.Page):
                 alignment=ft.MainAxisAlignment.END # Align buttons to the right
             ),
             ft.Divider(height=10),
-            # Sections - Removed stt_section
-            dashscope_section, # Now contains STT settings
+            # Sections - Removed stt_section and audio_section
+            dashscope_section, # Now contains STT and Audio settings
             # stt_section, # REMOVED
-            audio_section,
+            # audio_section, # REMOVED
             llm_section,
             vrc_osc_output_section,
             console_output_section,
