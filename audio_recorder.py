@@ -77,7 +77,7 @@ class AudioManager:
 
         # Load necessary config values during initialization
         self.sample_rate = config.get("audio.sample_rate")  # Get initial value
-        self.channels = config.get("audio.channels", 1) # Use get for robustness
+        self.channels = config.get("audio.channels", 1)  # Use get for robustness
         self.dtype = config.get("audio.dtype", "int16")
         self.debug_echo_mode = config.get("audio.debug_echo_mode", False)
         # Use new nested key for STT model
@@ -168,13 +168,13 @@ class AudioManager:
                 is_paraformer_model = model.startswith("paraformer-")
 
                 if not is_gummy_model and not is_paraformer_model:
-            error_msg = (
-                f"Unsupported Dashscope model: {model}. Use 'gummy-' or 'paraformer-'."
-            )
-            logger.error(error_msg)
-            self._update_status(f"Error: {error_msg}")
-            self._stop_event.set()  # Signal stop to all threads
-            return
+                    error_msg = f"Unsupported Dashscope model: {model}. Use 'gummy-' or 'paraformer-'."
+                    logger.error(error_msg)
+                    self._update_status(f"Error: {error_msg}")
+                    self._stop_event.set()  # Signal stop to all threads
+                    return
+            except:
+                pass
 
         # --- Outer Reconnect Loop ---
         while not self._stop_event.is_set():
@@ -217,7 +217,7 @@ class AudioManager:
                     engine_type = "Gummy"
                     recognizer = create_gummy_recognizer(
                         main_loop=self._stt_loop,
-                        sample_rate=self.sample_rate, # Pass the determined sample rate
+                        sample_rate=self.sample_rate,  # Pass the determined sample rate
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
                     )
@@ -227,7 +227,7 @@ class AudioManager:
                     engine_type = "Paraformer"
                     recognizer = create_paraformer_recognizer(
                         main_loop=self._stt_loop,
-                        sample_rate=self.sample_rate, # Pass the determined sample rate
+                        sample_rate=self.sample_rate,  # Pass the determined sample rate
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
                     )
@@ -277,7 +277,7 @@ class AudioManager:
                         # 发送音频帧 - 可能在此处发生连接错误
                         recognizer.send_audio_frame(audio_data.tobytes())
 
-                        self._audio_queue.task_done() # Use self._audio_queue
+                        self._audio_queue.task_done()  # Use self._audio_queue
                     except asyncio.TimeoutError:
                         # 队列为空，继续检查停止信号
                         continue
