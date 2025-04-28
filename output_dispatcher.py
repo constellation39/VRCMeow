@@ -28,12 +28,7 @@ class OutputDispatcher:
         self.vrc_client = vrc_client_instance
         self.gui_output_callback = gui_output_callback # 存储回调
         self.outputs_config = config.get("outputs", {})
-        # Safely get the running loop, handle cases where it might not be running yet during init
-        try:
-             self.loop = asyncio.get_running_loop()
-        except RuntimeError:
-             logger.warning("OutputDispatcher initialized outside of a running event loop. Will try to get loop later.")
-             self.loop = None # Or asyncio.get_event_loop() if supporting older Python/policies
+        # self.loop is no longer needed
 
         # --- Validate File Output Config ---
         self.file_output_enabled = self.outputs_config.get("file", {}).get(
@@ -110,23 +105,34 @@ class OutputDispatcher:
             logger.info(f"OUTPUT_DISP: Enabled outputs for this dispatch: {', '.join(enabled_outputs)}")
         else:
             logger.warning("OUTPUT_DISP: No outputs enabled for dispatch.")
+            return # Exit early if nothing to do
 
 
-        dispatch_tasks = []
-
-        # 1. Console Output
+        # 1. Console Output (Synchronous)
         if self.console_output_enabled:
             # Console print is generally fast enough, run directly
             # Use print for direct console output, logger for internal app logging
             print(f"{self.console_prefix} {text}")
 
-        # 2. File Output (Async)
+        # 2. File Output (Async - Await directly)
         if self.file_output_enabled:
-            dispatch_tasks.append(asyncio.create_task(self._write_to_file(text)))
+            try:
+                # DEBUG: Log before awaiting file write
+                logger.debug(f"OUTPUT_DISP: Awaiting _write_to_file for text: '{text}'")
+                await self._write_to_file(text)
+                # DEBUG: Log after successful file write
+                logger.debug("OUTPUT_DISP: Finished awaiting _write_to_file")
+            except Exception as file_err:
+                 # Log error directly here, no need to gather exceptions later
+                 logger.error(
+                     f"OutputDispatcher: Error during file write task: {file_err}",
+                     exc_info=file_err
+                 )
 
-        # 3. VRC OSC Output (Async)
+
+        # 3. VRC OSC Output (Async - Await directly)
         if self.vrc_osc_enabled and self.vrc_client:
-            # Format the text according to the configured format string
+            formatted_vrc_text = text # Default to raw text
             try:
                 formatted_vrc_text = self.vrc_osc_format.format(text=text)
             except KeyError as e:
@@ -139,16 +145,22 @@ class OutputDispatcher:
                     f"OutputDispatcher: Error formatting VRC OSC text: {e}. Sending raw text.",
                     exc_info=True,
                 )
-                formatted_vrc_text = text  # Fallback to raw text
+                # formatted_vrc_text will be the fallback (raw text)
 
-            # VRCClient's send_chatbox should be async
-            # INFO: Log before calling VRCClient.send_chatbox
-            logger.info(f"OUTPUT_DISP: Calling VRCClient.send_chatbox with: '{formatted_vrc_text}'")
-            dispatch_tasks.append(
-                asyncio.create_task(self.vrc_client.send_chatbox(formatted_vrc_text))
-            )
+            try:
+                # INFO: Log before calling VRCClient.send_chatbox
+                logger.info(f"OUTPUT_DISP: Awaiting VRCClient.send_chatbox with: '{formatted_vrc_text}'")
+                await self.vrc_client.send_chatbox(formatted_vrc_text)
+                # DEBUG: Log after successful send
+                logger.debug("OUTPUT_DISP: Finished awaiting VRCClient.send_chatbox")
+            except Exception as osc_err:
+                 # Log error directly here
+                 logger.error(
+                     f"OutputDispatcher: Error during VRC OSC send task: {osc_err}",
+                     exc_info=osc_err
+                 )
 
-        # 4. GUI Output (Direct Call - Callback handles thread safety)
+        # 4. GUI Output (Synchronous Call - Callback handles thread safety)
         if self.gui_output_callback:
             try:
                 # 直接调用回调，假设回调是线程安全的 (例如，使用 page.run_thread_safe)
@@ -156,33 +168,10 @@ class OutputDispatcher:
                 logger.debug("Dispatched text to GUI.")
             except Exception as gui_err:
                  logger.error(f"OutputDispatcher: Error calling GUI output callback: {gui_err}", exc_info=True)
-                 # 不将此添加到 dispatch_tasks，因为回调应快速返回
+                 # Assuming callback is synchronous or handles its own threading/async calls safely
 
-        # Wait for background async tasks like file writing or OSC sending to complete
-        if dispatch_tasks:
-            try:
-                # Gather results, logging any exceptions that occurred in tasks
-                # Wait for all tasks and capture exceptions
-                results = await asyncio.gather(*dispatch_tasks, return_exceptions=True)
-                for task, result in zip(dispatch_tasks, results):
-                    if isinstance(result, Exception):
-                        # Log the exception from the failed task
-                        # Attempt to get a meaningful name from the task object (coro repr)
-                        task_name = (
-                            task.get_coro().__qualname__
-                            if hasattr(task, "get_coro")
-                            else "Unknown Task"
-                        )
-                        logger.error(
-                            f"OutputDispatcher: Error in dispatch task '{task_name}': {result}",
-                            exc_info=result,
-                        )  # Pass exception for traceback
-            except Exception as e:
-                # This catches errors in the gather itself, though less common
-                logger.error(
-                    f"OutputDispatcher: Unexpected error during asyncio.gather for dispatch tasks: {e}",
-                    exc_info=True,
-                )
+        # No more asyncio.gather needed as operations are awaited directly above.
+        logger.info(f"OUTPUT_DISP: Exiting dispatch method for text: '{text}'")
 
     async def _write_to_file(self, text: str):
         """Appends text asynchronously to the configured log file."""

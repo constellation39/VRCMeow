@@ -68,12 +68,9 @@ class AudioManager:
         )  # Use threading.Event for cross-thread signaling
         self._audio_thread: Optional[threading.Thread] = None
         self._stt_thread: Optional[threading.Thread] = None
-        self._stt_task: Optional[asyncio.Task] = (
-            None  # To hold the asyncio task reference
-        )
-        self._stt_loop: Optional[asyncio.AbstractEventLoop] = (
-            None  # Loop for the STT thread
-        )
+        # Remove asyncio related attributes
+        # self._stt_task: Optional[asyncio.Task] = None
+        # self._stt_loop: Optional[asyncio.AbstractEventLoop] = None
 
         # Load necessary config values during initialization
         self.sample_rate = config.get("audio.sample_rate")  # Get initial value
@@ -118,22 +115,23 @@ class AudioManager:
             except Exception as e:
                 logger.error(f"Error calling status callback: {e}", exc_info=True)
 
-    # --- STT Processing Logic (Now an async method) ---
-    async def _stt_processor_task(self):
-        """Async task for STT processing, run in a dedicated thread's event loop."""
-        # Use new nested keys, re-reading them from config inside loop for potential reloads
-        # model = self.stt_model # Don't use pre-loaded, read inside loop
+    # --- STT Processing Logic (Now synchronous, runs in its own thread) ---
+    # Rename and remove async def
+    def _run_stt_processor(self):
+        """Target function for the STT processing thread. Handles recognizer lifecycle and data feeding."""
+        # No longer an async task, but the main logic for the STT thread.
         model = config.get("dashscope.stt.model", "gummy-realtime-v1") # Initialize model before first use
 
         logger.info(
-            f"STT processing task (Dashscope, model: {model}) starting in thread..."
+        logger.info("STT Processor Thread Started.")
+        self._update_status("STT Thread Starting...")
+        model = config.get("dashscope.stt.model", "gummy-realtime-v1") # Initialize model before first use
+        logger.info(
+            f"STT processing loop (Dashscope, model: {model}) starting in thread {threading.current_thread().ident}..."
         )
-        self._update_status(f"STT Task Starting (Model: {model})")
+        # self._update_status(f"STT Task Starting (Model: {model})") # Update status handled later
         recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
-        # main_loop = asyncio.get_running_loop() # Use self._stt_loop which is set when the thread starts
-        # except ImportError:
-        #      LLMClient = None
-        # try:
+        # No event loop needed here
         #     from output_dispatcher import OutputDispatcher # Not typically needed here
         # except ImportError:
         #     OutputDispatcher = None
@@ -145,7 +143,7 @@ class AudioManager:
 
         # --- Reconnect Parameters ---
         max_retries = 5
-        initial_retry_delay = 1.0  # 初始重试延迟 (秒)
+        initial_retry_delay = 1.0  # Initial retry delay (seconds)
         max_retry_delay = 30.0  # 最大重试延迟 (秒)
         retry_count = 0
         current_delay = initial_retry_delay
@@ -188,23 +186,23 @@ class AudioManager:
                     f"Attempting to connect STT service (Model: {model}, Attempt {retry_count + 1}/{max_retries})..."
                 )
                 if is_gummy_model:
-                    if create_gummy_recognizer is None:
+                    if create_gummy_recognizer is None: # Keep check
                         raise RuntimeError("Gummy STT module failed to load.")
                     engine_type = "Gummy"
                     logger.info(f"Creating Gummy Recognizer (translation: {enable_translation})...")
                     recognizer = create_gummy_recognizer(
-                        main_loop=self._stt_loop,
+                        # Remove main_loop argument
                         sample_rate=self.sample_rate, # Pass the determined sample rate
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
                     )
                 elif is_paraformer_model:
-                    if create_paraformer_recognizer is None:
+                    if create_paraformer_recognizer is None: # Keep check
                         raise RuntimeError("Paraformer STT module failed to load.")
                     engine_type = "Paraformer"
                     logger.info("Creating Paraformer Recognizer...")
                     recognizer = create_paraformer_recognizer(
-                        main_loop=self._stt_loop,
+                        # Remove main_loop argument
                         sample_rate=self.sample_rate, # Pass the determined sample rate
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
@@ -478,77 +476,7 @@ class AudioManager:
             self._stop_event.set()
             # Status update upon stopping is handled in the stop() method generally
 
-    def _run_stt_processor(self):
-        """Target function for the STT processing thread."""
-        logger.info("STT Processor Thread Started.")
-        self._update_status("STT Thread Starting...")
-        try:
-            # Create a new event loop for this thread
-            self._stt_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._stt_loop)
-            logger.info(f"STT Event Loop running in Thread ID: {threading.current_thread().ident}") # Log thread ID
-
-            # Schedule the async task within this loop
-            self._stt_task = self._stt_loop.create_task(self._stt_processor_task())
-
-            # Run the event loop indefinitely until loop.stop() is called.
-            # This allows processing tasks scheduled via run_coroutine_threadsafe
-            # even if the main _stt_task finishes.
-            self._stt_loop.run_forever()
-
-        except Exception as e:
-            error_msg = f"Error in STT processor thread: {e}"
-            logger.error(error_msg, exc_info=True)
-            self._update_status(f"Error: {error_msg}")
-        finally:
-            logger.info(">>> STT processor thread entering FINALLY block.") # Log entry
-            logger.info("STT processor thread finishing.")
-            if self._stt_loop and self._stt_loop.is_running():
-                 logger.info("... STT loop is running, attempting to stop.")
-                 self._stt_loop.stop()  # Stop the loop if it's still running
-            elif self._stt_loop:
-                 logger.info("... STT loop is NOT running when finally block reached.")
-            else:
-                 logger.info("... STT loop is None when finally block reached.")
-
-            if self._stt_loop:
-                # Cancel any remaining tasks in the loop before closing
-                for task in asyncio.all_tasks(self._stt_loop):
-                    if not task.done():
-                        task.cancel()
-                # Run loop briefly to allow cancellations to process
-                try:
-                    # Gather cancelled tasks to suppress CancelledError propagation
-                    cancelled_tasks = [
-                        task
-                        for task in asyncio.all_tasks(self._stt_loop)
-                        if task.cancelled()
-                    ]
-                    if cancelled_tasks:
-                        self._stt_loop.run_until_complete(
-                            asyncio.gather(*cancelled_tasks, return_exceptions=True)
-                        )
-                except Exception as loop_cancel_err:
-                    logger.error(
-                        f"Error during STT loop task cancellation: {loop_cancel_err}",
-                        exc_info=True,
-                    )
-
-                # Close the loop
-                try:
-                    self._stt_loop.close()
-                    logger.info("STT event loop closed.")
-                except Exception as loop_close_err:
-                    logger.error(
-                        f"Error closing STT event loop: {loop_close_err}", exc_info=True
-                    )
-
-            self._stt_loop = None
-            self._stt_task = None
-            # Ensure stop event is set if this thread exits unexpectedly
-            self._stop_event.set()
-            # Status update upon stopping is handled in the stop() method
-            logger.info("<<< STT processor thread exiting FINALLY block.") # Log exit
+    # Removed _run_stt_processor (old async one) - the synchronous logic is now directly above
 
     def start(self):
         """Starts the audio stream and STT processing in background threads."""
@@ -560,9 +488,11 @@ class AudioManager:
         self._update_status("Starting...")
         self._stop_event.clear()  # Reset stop event for a new run
 
-        # Start the STT processor thread first (it needs the loop ready)
+        # Start the STT processor thread
         self._stt_thread = threading.Thread(
-            target=self._run_stt_processor, name="STTProcessorThread", daemon=True
+            target=self._run_stt_processor, # Target the synchronous method
+            name="STTProcessorThread",
+            daemon=True
         )
         self._stt_thread.start()
 
@@ -587,11 +517,7 @@ class AudioManager:
         # Signal stop event - this will be checked by loops and sd.Stream wait
         self._stop_event.set()
 
-        # Also signal the STT event loop to stop running `run_forever`
-        if self._stt_loop and self._stt_loop.is_running():
-            logger.info("Signaling STT event loop to stop...")
-            self._stt_loop.call_soon_threadsafe(self._stt_loop.stop)
-            # The loop will stop after processing any currently scheduled tasks
+        # No need to signal an event loop anymore
 
         # --- Graceful Shutdown ---
         stt_stopped = False
@@ -627,8 +553,7 @@ class AudioManager:
         # Clean up references
         self._audio_thread = None
         self._stt_thread = None
-        # self._stt_task = None # Cleaned up in _run_stt_processor finally
-        # self._stt_loop = None # Cleaned up in _run_stt_processor finally
+        # No asyncio refs to clean
 
         if audio_stopped and stt_stopped:
              logger.info("AudioManager stopped successfully.")

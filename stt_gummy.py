@@ -12,13 +12,12 @@ from logger_config import get_logger
 # 直接从 config 模块导入 config 实例
 from config import config
 
+import time # Import time for potential sleeps if needed
+
 # Import VRCClient for type hinting and usage in callback
 from llm_client import LLMClient
 from output_dispatcher import OutputDispatcher
 from osc_client import VRCClient  # Import VRCClient
-
-
-# Import LLMClient and OutputDispatcher for type hinting and usage
 
 
 # --- Callback for Gummy API (Translation/Transcription) ---
@@ -27,7 +26,7 @@ class GummyCallback(TranslationRecognizerCallback):
 
     def __init__(
         self,
-        loop: asyncio.AbstractEventLoop,
+        # loop: asyncio.AbstractEventLoop, # Remove loop parameter
         llm_client: Optional[LLMClient],
         output_dispatcher: Optional[OutputDispatcher],
     ):
@@ -35,7 +34,7 @@ class GummyCallback(TranslationRecognizerCallback):
         if not output_dispatcher:
             raise ValueError("OutputDispatcher is required for GummyCallback")
 
-        self.loop = loop
+        # self.loop = loop # Remove loop storage
         self.llm_client = llm_client
         self.output_dispatcher = output_dispatcher  # Keep for final dispatch
 
@@ -81,13 +80,54 @@ class GummyCallback(TranslationRecognizerCallback):
             f"VRC Intermediate OSC: {'Enabled' if self.vrc_osc_intermediate_enabled else 'Disabled'}"
         )
 
-    def _log_dispatch_result(self, future: asyncio.Future):
-        """Callback function added to the future returned by run_coroutine_threadsafe."""
-        try:
-            result = future.result()  # Raises exception if the coroutine failed
-            self.logger.info(f"STT_GUMMY: Coroutine dispatch task completed successfully. Result: {result}")
-        except Exception as e:
-            self.logger.error(f"STT_GUMMY: Coroutine dispatch task failed with exception!", exc_info=e) # Log exception info
+    # Remove _log_dispatch_result method
+
+    def _dispatch_in_background(self, text: str):
+        """
+        Handles LLM processing (if enabled) and final dispatch in a separate thread.
+        Uses asyncio.run() to manage async operations within the thread.
+        """
+        thread_id = threading.current_thread().ident
+        self.logger.info(f"[Thread-{thread_id}] STT_GUMMY_BG: Starting background dispatch for text: '{text[:50]}...'")
+        final_text_to_dispatch = text
+
+        # --- LLM Processing (if enabled) ---
+        if self.llm_client and self.llm_client.enabled:
+            self.logger.info(f"[Thread-{thread_id}] STT_GUMMY_BG: Sending to LLM for processing: '{text[:50]}...'")
+            try:
+                # Use asyncio.run() to execute the async LLM call
+                processed_text = asyncio.run(
+                    asyncio.wait_for(
+                        self.llm_client.process_text(text),
+                        timeout=config.get("llm.request_timeout", 10.0)
+                    )
+                )
+                if processed_text:
+                    final_text_to_dispatch = processed_text
+                    self.logger.info(f"[Thread-{thread_id}] STT_GUMMY_BG: LLM processing successful: '{final_text_to_dispatch[:50]}...'")
+                else:
+                    self.logger.warning(f"[Thread-{thread_id}] STT_GUMMY_BG: LLM returned empty result, dispatching original.")
+            except asyncio.TimeoutError:
+                self.logger.error(f"[Thread-{thread_id}] STT_GUMMY_BG: LLM processing timed out, dispatching original.")
+            except Exception as e:
+                self.logger.error(f"[Thread-{thread_id}] STT_GUMMY_BG: LLM processing error: {e}", exc_info=True)
+        else:
+             self.logger.debug(f"[Thread-{thread_id}] STT_GUMMY_BG: LLM processing disabled.")
+
+        # --- Final Dispatch ---
+        if self.output_dispatcher:
+            self.logger.info(f"[Thread-{thread_id}] STT_GUMMY_BG: Calling dispatcher for: '{final_text_to_dispatch[:50]}...'")
+            try:
+                # Use asyncio.run() to execute the async dispatch call
+                asyncio.run(self.output_dispatcher.dispatch(final_text_to_dispatch))
+                self.logger.info(f"[Thread-{thread_id}] STT_GUMMY_BG: Dispatch finished successfully.")
+            except Exception as e:
+                self.logger.error(f"[Thread-{thread_id}] STT_GUMMY_BG: Error during dispatch: {e}", exc_info=True)
+        else:
+            self.logger.error(f"[Thread-{thread_id}] STT_GUMMY_BG: OutputDispatcher missing, cannot dispatch.")
+
+        self.logger.info(f"[Thread-{thread_id}] STT_GUMMY_BG: Background dispatch thread finished.")
+
 
     def on_open(self) -> None:
         self.logger.info("Dashscope Gummy 连接已打开。")  # Keep as INFO
@@ -206,130 +246,56 @@ class GummyCallback(TranslationRecognizerCallback):
         if is_final and text_to_send and self.output_dispatcher:
             # This block handles the final result after STT/Translation
 
-            # Schedule the processing and dispatching asynchronously
-            if self.loop.is_running():
-                if self.llm_client and self.llm_client.enabled:
-                    # Schedule the helper function that handles LLM and dispatch
-                    target_coro = self._process_with_llm_and_dispatch(text_to_send)
-                    self.logger.info(
-                        f"STT_GUMMY: PRE-SCHEDULE LLM processing & dispatch for: '{text_to_send[:50]}...'"
-                    )
-                    future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
-                    self.logger.info(
-                        f"STT_GUMMY: POST-SCHEDULE LLM processing & dispatch (Future: {future})"
-                    )
-                    # Add the done callback to check the future's result/exception
-                    future.add_done_callback(self._log_dispatch_result)
-                elif self.output_dispatcher:
-                    # LLM disabled, schedule dispatch directly
-                    # <-- Add check before scheduling -->
-                    self.logger.info(
-                        f"STT_GUMMY: Checking output_dispatcher before scheduling dispatch. Type: {type(self.output_dispatcher)}"
-                    )
-                    if self.output_dispatcher:  # Double check it's not None
-                        target_coro = self.output_dispatcher.dispatch(text_to_send)
-                        self.logger.info(
-                            f"STT_GUMMY: PRE-SCHEDULE direct dispatch for: '{text_to_send[:50]}...'"
-                        )
-                        future = asyncio.run_coroutine_threadsafe(
-                            target_coro, self.loop
-                        )
-                        self.logger.info(
-                            f"STT_GUMMY: POST-SCHEDULE direct dispatch (Future: {future})"
-                        )
-                        # Add the done callback to check the future's result/exception
-                        future.add_done_callback(self._log_dispatch_result)
-                    else:
-                        self.logger.error(
-                            "STT_GUMMY: self.output_dispatcher became None unexpectedly before scheduling dispatch!"
-                        )
-                else:
-                    self.logger.error(
-                        "STT_GUMMY: Cannot dispatch final text - OutputDispatcher missing."
-                    )
+            # Create and start a background thread for LLM (if enabled) and dispatching
+            self.logger.info(f"STT_GUMMY: Preparing background thread for final dispatch of '{text_to_send[:50]}...'")
+            dispatch_thread = threading.Thread(
+                target=self._dispatch_in_background,
+                args=(text_to_send,),
+                name=f"GummyDispatchThread-{text_to_send[:10]}", # Give thread a name
+                daemon=True # Ensure thread exits if main program exits
+            )
+            dispatch_thread.start()
+            self.logger.info(f"STT_GUMMY: Started background dispatch thread: {dispatch_thread.name}")
 
-                self.logger.info(  # Log that scheduling happened
-                    f"STT_GUMMY: Scheduled final processing/dispatch for '{text_to_send[:50]}...'"
-                )
-            else:
-                self.logger.warning("事件循环未运行，无法调度最终结果处理。")
-
-        # --- Handle Intermediate Results (Directly to VRC OSC if configured) ---
-        elif (
-            not is_final
-            and text_to_send
-            and self.vrc_osc_intermediate_enabled
-            and self.vrc_client_for_intermediate
+        # --- Handle Intermediate Results ---
+        elif ( # Combined intermediate handling
+            not is_final and text_to_send
         ):
-            # Send 'Typing...' or partial text directly via VRC client, bypassing the full dispatcher
-            # This avoids logging intermediate messages to file/console.
-            if self.loop.is_running():
-                # Use the stored VRC client instance directly
-                asyncio.run_coroutine_threadsafe(
-                    self.vrc_client_for_intermediate.send_chatbox(text_to_send),
-                    self.loop,
-                )
-                # Use debug level for potentially frequent intermediate messages
-                self.logger.debug(f"Sent intermediate VRC OSC message: {text_to_send}")
-            else:
-                self.logger.warning(
-                    "Event loop not running, cannot send intermediate VRC OSC message."
-                )
-        elif not is_final and text_to_send:
-            # Intermediate result exists but VRC OSC intermediate sending is disabled or unavailable
-            self.logger.debug(
-                f"Intermediate result generated but not sent via VRC OSC: {text_to_send}"
-            )
+             # Intermediate result generated ('Typing...' or partial text)
+             if self.vrc_osc_intermediate_enabled and self.vrc_client_for_intermediate:
+                 # Send directly via VRC client in a background thread
+                 self.logger.debug(f"STT_GUMMY: Preparing background thread for intermediate VRC OSC: {text_to_send}")
+                 osc_thread = threading.Thread(
+                     target=self._send_osc_intermediate,
+                     args=(text_to_send,),
+                     name=f"GummyOscIntermediateThread",
+                     daemon=True
+                 )
+                 osc_thread.start()
+             else:
+                 # Intermediate result exists but VRC OSC intermediate sending is disabled or unavailable
+                 self.logger.debug(f"Intermediate result generated but VRC OSC sending disabled/unavailable: {text_to_send}")
 
-    async def _process_with_llm_and_dispatch(self, original_text: str):
-        """Processes text with LLM (if enabled) and then dispatches."""
-        final_text_to_dispatch = original_text
-        if self.llm_client and self.llm_client.enabled:
-            self.logger.info(
-                f"STT_GUMMY: Sending to LLM for processing: '{original_text[:50]}...'"
-            )
+    def _send_osc_intermediate(self, text: str):
+        """Sends intermediate OSC message using asyncio.run in a thread."""
+        thread_id = threading.current_thread().ident
+        if self.vrc_client_for_intermediate:
+            self.logger.debug(f"[Thread-{thread_id}] STT_GUMMY_OSC_BG: Sending intermediate OSC: {text}")
             try:
-                # Await the LLM processing directly here
-                processed_text = await asyncio.wait_for(
-                    self.llm_client.process_text(original_text),
-                    timeout=config.get(
-                        "llm.request_timeout", 10.0
-                    ),  # Use configured timeout
-                )
-                if processed_text:
-                    final_text_to_dispatch = processed_text
-                    self.logger.info(
-                        f"LLM 处理完成: '{final_text_to_dispatch[:50]}...'"
-                    )
-                else:
-                    # LLMClient handles logging errors/empty results internally
-                    self.logger.warning("LLM 处理失败或返回空，将分发原始文本。")
-            except asyncio.TimeoutError:
-                self.logger.error("LLM 处理超时，将分发原始文本。")
+                asyncio.run(self.vrc_client_for_intermediate.send_chatbox(text))
+                self.logger.debug(f"[Thread-{thread_id}] STT_GUMMY_OSC_BG: Intermediate OSC sent successfully.")
             except Exception as e:
-                self.logger.error(f"LLM 处理过程中发生错误: {e}", exc_info=True)
+                self.logger.error(f"[Thread-{thread_id}] STT_GUMMY_OSC_BG: Error sending intermediate OSC: {e}", exc_info=True)
         else:
-            self.logger.debug("LLM processing disabled, dispatching original text.")
+             self.logger.error(f"[Thread-{thread_id}] STT_GUMMY_OSC_BG: VRC client missing for intermediate OSC.")
 
-        # Dispatch the final text (original or processed) using the dispatcher
-        if self.loop.is_running() and self.output_dispatcher:
-            # INFO: Log just before awaiting the actual dispatch call within the helper coroutine
-            self.logger.info(
-                f"STT_GUMMY_HELPER: About to await output_dispatcher.dispatch for: '{final_text_to_dispatch}'"
-            )
-            # Directly await the dispatch coroutine as we are already in an async context managed by the loop
-            await self.output_dispatcher.dispatch(final_text_to_dispatch)
-            self.logger.info(
-                f"STT_GUMMY_HELPER: Finished awaiting output_dispatcher.dispatch for '{final_text_to_dispatch[:50]}...'"
-            )
-        else:
-            # This case might happen if the loop stops between LLM processing and dispatching
-            self.logger.warning("事件循环未运行或分发器不可用，无法分发最终文本。")
+
+    # Remove _process_with_llm_and_dispatch method
 
 
 def create_gummy_recognizer(
-    main_loop: asyncio.AbstractEventLoop,
-    sample_rate: int,  # Add sample_rate argument
+    # Remove main_loop parameter
+    sample_rate: int,
     llm_client: Optional[LLMClient],
     output_dispatcher: Optional[OutputDispatcher],
 ) -> TranslationRecognizerRealtime:
@@ -357,7 +323,8 @@ def create_gummy_recognizer(
 
     # Create the callback instance, passing all necessary clients/dispatchers
     callback = GummyCallback(
-        loop=main_loop, llm_client=llm_client, output_dispatcher=output_dispatcher
+        # Remove loop argument
+        llm_client=llm_client, output_dispatcher=output_dispatcher
     )
 
     # Prepare parameters for the recognizer

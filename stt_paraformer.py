@@ -1,7 +1,8 @@
 import asyncio
+import threading # Import threading
 from typing import Optional
 from dashscope.audio.asr import RecognitionCallback, Recognition, RecognitionResult
-import time  # Import time for LLM timeout
+import time  # Import time for LLM timeout and typing status
 from logger_config import get_logger
 
 # 直接从 config 模块导入 config 实例
@@ -19,7 +20,7 @@ class ParaformerCallback(RecognitionCallback):
 
     def __init__(
         self,
-        loop: asyncio.AbstractEventLoop,
+        # loop: asyncio.AbstractEventLoop, # Remove loop parameter
         llm_client: Optional[LLMClient],
         output_dispatcher: Optional[OutputDispatcher],
     ):
@@ -27,7 +28,7 @@ class ParaformerCallback(RecognitionCallback):
         if not output_dispatcher:
             raise ValueError("OutputDispatcher is required for ParaformerCallback")
 
-        self.loop = loop
+        # self.loop = loop # Remove loop storage
         self.llm_client = llm_client
         self.output_dispatcher = output_dispatcher
         # --- 直接从 config 实例获取配置 ---
@@ -43,6 +44,66 @@ class ParaformerCallback(RecognitionCallback):
         self._typing_interval = (
             1.0  # Minimum interval between typing status updates (seconds)
         )
+
+    def _dispatch_in_background(self, text: str):
+        """
+        Handles LLM processing (if enabled) and final dispatch in a separate thread.
+        Uses asyncio.run() to manage async operations within the thread.
+        """
+        thread_id = threading.current_thread().ident
+        self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: Starting background dispatch for text: '{text[:50]}...'")
+        final_text_to_dispatch = text
+
+        # --- LLM Processing (if enabled) ---
+        if self.llm_client and self.llm_client.enabled:
+            self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: Sending to LLM for processing: '{text[:50]}...'")
+            try:
+                processed_text = asyncio.run(
+                    asyncio.wait_for(
+                        self.llm_client.process_text(text),
+                        timeout=config.get("llm.request_timeout", 10.0)
+                    )
+                )
+                if processed_text:
+                    final_text_to_dispatch = processed_text
+                    self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: LLM processing successful: '{final_text_to_dispatch[:50]}...'")
+                else:
+                    self.logger.warning(f"[Thread-{thread_id}] STT_PARA_BG: LLM returned empty result, dispatching original.")
+            except asyncio.TimeoutError:
+                self.logger.error(f"[Thread-{thread_id}] STT_PARA_BG: LLM processing timed out, dispatching original.")
+            except Exception as e:
+                self.logger.error(f"[Thread-{thread_id}] STT_PARA_BG: LLM processing error: {e}", exc_info=True)
+        else:
+             self.logger.debug(f"[Thread-{thread_id}] STT_PARA_BG: LLM processing disabled.")
+
+        # --- Final Dispatch ---
+        if self.output_dispatcher:
+            self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: Calling dispatcher for: '{final_text_to_dispatch[:50]}...'")
+            try:
+                asyncio.run(self.output_dispatcher.dispatch(final_text_to_dispatch))
+                self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: Dispatch finished successfully.")
+            except Exception as e:
+                self.logger.error(f"[Thread-{thread_id}] STT_PARA_BG: Error during dispatch: {e}", exc_info=True)
+        else:
+            self.logger.error(f"[Thread-{thread_id}] STT_PARA_BG: OutputDispatcher missing, cannot dispatch.")
+
+        self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: Background dispatch thread finished.")
+
+
+    def _dispatch_intermediate_in_background(self, text: str):
+        """Dispatches intermediate messages ('Typing...' or partial) using asyncio.run in a thread."""
+        thread_id = threading.current_thread().ident
+        if self.output_dispatcher:
+            self.logger.debug(f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Dispatching intermediate: {text}")
+            try:
+                # Dispatch intermediate messages through the full dispatcher
+                asyncio.run(self.output_dispatcher.dispatch(text))
+                self.logger.debug(f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Intermediate dispatch successful.")
+            except Exception as e:
+                self.logger.error(f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Error dispatching intermediate: {e}", exc_info=True)
+        else:
+             self.logger.error(f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: OutputDispatcher missing for intermediate dispatch.")
+
 
     def on_open(self) -> None:
         self.logger.info("Dashscope Paraformer 连接已打开。")  # Keep as INFO
@@ -106,52 +167,34 @@ class ParaformerCallback(RecognitionCallback):
             # INFO: Log final text before potential LLM processing
             self.logger.info(f"STT_PARA: Final text received: '{text_to_process}'")
 
-            # --- Schedule LLM Processing and Dispatch ---
-            if self.loop.is_running():
-                if self.llm_client and self.llm_client.enabled:
-                    # Schedule the helper function that handles LLM and dispatch
-                    target_coro = self._process_with_llm_and_dispatch(text_to_process)
-                    self.logger.info(f"STT_PARA: PRE-SCHEDULE LLM processing & dispatch for: '{text_to_process[:50]}...'")
-                    future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
-                    self.logger.info(f"STT_PARA: POST-SCHEDULE LLM processing & dispatch (Future: {future})")
-                elif self.output_dispatcher:
-                    # LLM disabled, schedule dispatch directly
-                    target_coro = self.output_dispatcher.dispatch(text_to_process)
-                    self.logger.info(f"STT_PARA: PRE-SCHEDULE direct dispatch for: '{text_to_process[:50]}...'")
-                    future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
-                    self.logger.info(f"STT_PARA: POST-SCHEDULE direct dispatch (Future: {future})")
-                else:
-                    self.logger.error("STT_PARA: Cannot dispatch final text - OutputDispatcher missing.")
-
-                self.logger.info( # Log that scheduling happened
-                    f"STT_PARA: Scheduled final processing/dispatch for '{text_to_process[:50]}...'"
-                )
-            else:
-                 self.logger.warning("事件循环未运行，无法调度最终结果处理。")
+            # --- Start Background Thread for LLM/Dispatch ---
+            self.logger.info(f"STT_PARA: Preparing background thread for final dispatch of '{text_to_process[:50]}...'")
+            dispatch_thread = threading.Thread(
+                target=self._dispatch_in_background,
+                args=(text_to_process,),
+                name=f"ParaformerDispatchThread-{text_to_process[:10]}",
+                daemon=True
+            )
+            dispatch_thread.start()
+            self.logger.info(f"STT_PARA: Started background dispatch thread: {dispatch_thread.name}")
 
         # --- Handle Intermediate Result ---
-        else:  # Not final
+        else:  # Not final (Intermediate result from Paraformer)
             if self.intermediate_behavior == "show_typing":
                 # Send "Typing..." status periodically via dispatcher
                 current_time = time.monotonic()
                 if current_time - self._last_typing_send_time >= self._typing_interval:
-                    log_prefix = "中间状态"
-                    # Dispatch "Typing..." - OutputDispatcher decides how to handle this
-                    if self.loop.is_running():
-                        asyncio.run_coroutine_threadsafe(
-                            self.output_dispatcher.dispatch(
-                                "Typing..."
-                            ),  # Send fixed message
-                            self.loop,
-                        )
-                        self.logger.debug("已调度 'Typing...' 状态进行分发")
-                        self._last_typing_send_time = (
-                            current_time  # Update last send time
-                        )
-                    else:
-                        self.logger.warning(
-                            "事件循环未运行，无法调度 'Typing...' 状态分发。"
-                        )
+                    log_prefix = "中间状态 (Typing...)"
+                    # Dispatch "Typing..." in background thread
+                    self.logger.debug(f"STT_PARA: Preparing background thread for intermediate dispatch: '{log_prefix}'")
+                    intermediate_thread = threading.Thread(
+                        target=self._dispatch_intermediate_in_background,
+                        args=("Typing...",), # Send fixed message
+                        name="ParaformerIntermediateThread-Typing",
+                        daemon=True
+                    )
+                    intermediate_thread.start()
+                    self._last_typing_send_time = current_time  # Update last send time
                 # else: # Suppress frequent typing updates
                 #    self.logger.debug("Typing... 状态更新已抑制 (过于频繁)")
 
@@ -160,72 +203,28 @@ class ParaformerCallback(RecognitionCallback):
                 # We could send the latest non-final sentence, but it might be confusing.
                 # Paraformer doesn't provide granular partial results like Gummy.
                 # We will send the latest non-final sentence as the partial result.
-                log_prefix = "中间结果 (部分)"  # Indicate source
-                self.logger.debug(f"{log_prefix}: {text_to_process}")
-                # Dispatch the partial text
-                if self.loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        self.output_dispatcher.dispatch(
-                            text_to_process
-                        ),  # Send actual partial text
-                        self.loop,
-                    )
-                    self.logger.debug(
-                        f"已调度 '{log_prefix}' 文本 '{text_to_process[:50]}...' 进行分发"
-                    )
-                else:
-                    self.logger.warning(
-                        f"事件循环未运行，无法调度 '{log_prefix}' 文本分发。"
-                    )
+                log_prefix = "中间结果 (部分)"
+                self.logger.debug(f"STT_PARA: {log_prefix}: {text_to_process}")
+                # Dispatch the partial text in background thread
+                self.logger.debug(f"STT_PARA: Preparing background thread for intermediate dispatch: '{log_prefix}'")
+                intermediate_thread = threading.Thread(
+                    target=self._dispatch_intermediate_in_background,
+                    args=(text_to_process,), # Send actual partial text
+                    name=f"ParaformerIntermediateThread-Partial",
+                    daemon=True
+                )
+                intermediate_thread.start()
                 # Note: We don't use _last_typing_send_time here as we dispatch every partial result.
 
             # If behavior is "ignore", do nothing for intermediate results.
 
-    async def _process_with_llm_and_dispatch(self, original_text: str):
-        """Processes text with LLM (if enabled) and then dispatches."""
-        final_text_to_dispatch = original_text
-        if self.llm_client and self.llm_client.enabled:
-            self.logger.info(f"STT_PARA: Sending to LLM for processing: '{original_text[:50]}...'")
-            try:
-                # Await the LLM processing directly here
-                processed_text = await asyncio.wait_for(
-                    self.llm_client.process_text(original_text),
-                    timeout=config.get("llm.request_timeout", 10.0) # Use configured timeout
-                )
-                if processed_text:
-                    final_text_to_dispatch = processed_text
-                    self.logger.info(
-                        f"LLM 处理完成: '{final_text_to_dispatch[:50]}...'"
-                    )
-                else:
-                    # LLMClient handles logging errors/empty results internally
-                    self.logger.warning("LLM 处理失败或返回空，将分发原始文本。")
-            except asyncio.TimeoutError:
-                self.logger.error("LLM 处理超时，将分发原始文本。")
-            except Exception as e:
-                self.logger.error(
-                    f"LLM 处理过程中发生错误: {e}", exc_info=True
-                )
-        else:
-             self.logger.debug("LLM processing disabled, dispatching original text.")
 
-        # Dispatch the final text (original or processed) using the dispatcher
-        if self.loop.is_running() and self.output_dispatcher:
-            # INFO: Log just before awaiting the actual dispatch call within the helper coroutine
-            self.logger.info(f"STT_PARA_HELPER: About to await output_dispatcher.dispatch for: '{final_text_to_dispatch}'")
-            # Directly await the dispatch coroutine as we are already in an async context managed by the loop
-            await self.output_dispatcher.dispatch(final_text_to_dispatch)
-            self.logger.info(
-                f"STT_PARA_HELPER: Finished awaiting output_dispatcher.dispatch for '{final_text_to_dispatch[:50]}...'"
-            )
-        else:
-             # This case might happen if the loop stops between LLM processing and dispatching
-             self.logger.warning("事件循环未运行或分发器不可用，无法分发最终文本。")
+    # Remove _process_with_llm_and_dispatch method
 
 
 def create_paraformer_recognizer(
-    main_loop: asyncio.AbstractEventLoop,
-    sample_rate: int, # Add sample_rate argument
+    # Remove main_loop parameter
+    sample_rate: int,
     llm_client: Optional[LLMClient],
     output_dispatcher: Optional[OutputDispatcher],
 ) -> Recognition:
@@ -253,7 +252,8 @@ def create_paraformer_recognizer(
 
     # Create the callback instance, passing dispatcher and llm client
     callback = ParaformerCallback(
-        loop=main_loop, llm_client=llm_client, output_dispatcher=output_dispatcher
+        # Remove loop argument
+        llm_client=llm_client, output_dispatcher=output_dispatcher
     )
 
     # Prepare parameters for the recognizer
