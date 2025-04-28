@@ -80,11 +80,14 @@ class OutputDispatcher:
         Args:
             text: The final text string to dispatch (original or LLM-processed).
         """
+        # INFO: Log entry point of dispatch to confirm execution start
+        logger.info(f"OUTPUT_DISP: Entering dispatch method with text: '{text}'")
+
         if not text:
             logger.debug("OUTPUT_DISP: Received empty text, nothing to dispatch.")
             return
 
-        # INFO: Log when dispatch starts for a non-empty text
+        # INFO: Log when dispatch starts for a non-empty text (now redundant with above, but keep for flow)
         logger.info(f"OUTPUT_DISP: Starting dispatch for text: '{text}'")
 
         # Determine and log enabled outputs
