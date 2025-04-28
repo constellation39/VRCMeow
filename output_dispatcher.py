@@ -42,11 +42,13 @@ class OutputDispatcher:
 
         # --- VRC OSC Output Config ---
         self.vrc_osc_enabled = self.outputs_config.get('vrc_osc', {}).get('enabled', True)
+        self.vrc_osc_format = self.outputs_config.get('vrc_osc', {}).get('format', "{text}") # Default to just text
+
         if self.vrc_osc_enabled and not self.vrc_client:
              logger.warning("OutputDispatcher: VRC OSC output is enabled, but VRCClient instance was not provided. OSC output will be skipped.")
              self.vrc_osc_enabled = False # Disable if client missing
         elif self.vrc_osc_enabled:
-            logger.info("VRC OSC output enabled.")
+            logger.info(f"VRC OSC output enabled. Format: '{self.vrc_osc_format}'")
 
 
     async def dispatch(self, text: str):
@@ -76,8 +78,18 @@ class OutputDispatcher:
 
         # 3. VRC OSC Output (Async)
         if self.vrc_osc_enabled and self.vrc_client:
+             # Format the text according to the configured format string
+             try:
+                 formatted_vrc_text = self.vrc_osc_format.format(text=text)
+             except KeyError as e:
+                 logger.warning(f"OutputDispatcher: Invalid key '{e}' in vrc_osc format string '{self.vrc_osc_format}'. Sending raw text.")
+                 formatted_vrc_text = text # Fallback to raw text
+             except Exception as e:
+                 logger.error(f"OutputDispatcher: Error formatting VRC OSC text: {e}. Sending raw text.", exc_info=True)
+                 formatted_vrc_text = text # Fallback to raw text
+
              # VRCClient's send_chatbox should be async
-             dispatch_tasks.append(asyncio.create_task(self.vrc_client.send_chatbox(text)))
+             dispatch_tasks.append(asyncio.create_task(self.vrc_client.send_chatbox(formatted_vrc_text)))
 
         # Wait for async tasks like file writing or OSC sending to complete
         if dispatch_tasks:

@@ -59,6 +59,7 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
             "address": "127.0.0.1",
             "port": 9000,
             "message_interval": 1.333, # Minimum interval between messages (seconds)
+            "format": "{text}", # Format string for VRChat output ({text})
         },
         "console": {
             "enabled": True, # Print final results to console
