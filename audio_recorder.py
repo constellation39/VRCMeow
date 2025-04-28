@@ -218,7 +218,8 @@ class AudioManager:
                         raise RuntimeError("Gummy STT module failed to load.")
                     engine_type = "Gummy"
                     recognizer = create_gummy_recognizer(
-                        main_loop=self._stt_loop,  # Use the loop of the STT thread
+                        main_loop=self._stt_loop,
+                        sample_rate=self.sample_rate, # Pass the determined sample rate
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
                     )
@@ -227,7 +228,8 @@ class AudioManager:
                         raise RuntimeError("Paraformer STT module failed to load.")
                     engine_type = "Paraformer"
                     recognizer = create_paraformer_recognizer(
-                        main_loop=self._stt_loop,  # Use the loop of the STT thread
+                        main_loop=self._stt_loop,
+                        sample_rate=self.sample_rate, # Pass the determined sample rate
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
                     )

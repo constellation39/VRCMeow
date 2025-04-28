@@ -194,6 +194,7 @@ class ParaformerCallback(RecognitionCallback):
 
 def create_paraformer_recognizer(
     main_loop: asyncio.AbstractEventLoop,
+    sample_rate: int, # Add sample_rate argument
     llm_client: Optional[LLMClient],
     output_dispatcher: Optional[OutputDispatcher],
 ) -> Recognition:
@@ -212,11 +213,11 @@ def create_paraformer_recognizer(
     logger.debug("使用 Paraformer API (仅识别)")  # Changed to DEBUG
 
     # --- 直接从 config 实例获取配置 ---
-    # 注意：config 实例现在是从模块顶部导入的
+    # --- Directly access config for elements NOT passed as arguments ---
+    # Note: config instance is imported at the top of the module
     api_key = config["dashscope_api_key"]
     model = config["stt.model"]
-    # 确保从 config 获取最新的 sample_rate (可能被 audio_recorder 更新)
-    sample_rate = config["audio.sample_rate"]
+    # sample_rate is now passed as an argument
     channels = config["audio.channels"]
 
     # Create the callback instance, passing dispatcher and llm client

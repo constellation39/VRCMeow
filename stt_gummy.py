@@ -266,6 +266,7 @@ class GummyCallback(TranslationRecognizerCallback):
 
 def create_gummy_recognizer(
     main_loop: asyncio.AbstractEventLoop,
+    sample_rate: int, # Add sample_rate argument
     llm_client: Optional[LLMClient],
     output_dispatcher: Optional[OutputDispatcher],
 ) -> TranslationRecognizerRealtime:
@@ -283,11 +284,10 @@ def create_gummy_recognizer(
     logger = get_logger(__name__)  # Use logger from this module
     logger.debug("使用 Gummy API (支持翻译)")  # Changed to DEBUG
 
-    # --- 直接从 config 实例获取配置 ---
+    # --- Directly access config for elements NOT passed as arguments ---
     api_key = config["dashscope_api_key"]
     model = config["stt.model"]
-    # 确保从 config 获取最新的 sample_rate，因为它可能在 audio_recorder 中被更新
-    sample_rate = config["audio.sample_rate"]
+    # sample_rate is now passed as an argument
     channels = config["audio.channels"]
     target_language = config.get("stt.translation_target_language")
     enable_translation = bool(target_language)
