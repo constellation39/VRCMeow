@@ -84,10 +84,18 @@ async def stt_processor(
     target_language = config.get('stt.translation_target_language')  # 使用 get 处理 None
 
     logger.info(f"STT 处理任务 (Dashscope, 模型: {model}) 启动中...")
-    recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None  # 统一变量名
+    recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
     main_loop = asyncio.get_running_loop()
+    engine_type = "Unknown" # 初始化引擎类型
 
-    # API Key 已经在 main.py 检查过
+    # --- 重连参数 ---
+    max_retries = 5  # 最大重试次数
+    initial_retry_delay = 1.0  # 初始重试延迟 (秒)
+    max_retry_delay = 30.0  # 最大重试延迟 (秒)
+    retry_count = 0
+    current_delay = initial_retry_delay
+
+    # API Key 已经在 main.py 检查过 (假设如此)
 
     # 根据预读取的 target_language 是否设置来决定是否启用翻译
     enable_translation = bool(target_language)
@@ -101,121 +109,147 @@ async def stt_processor(
         stop_event.set()
         return
 
-    # 检查翻译配置与模型的兼容性
-    if enable_translation and is_paraformer_model:
-        logger.warning(f"模型 '{model}' (Paraformer) 不支持翻译。'translation_target_language' 配置将被忽略。")
-        enable_translation = False  # 强制禁用翻译
-    # Gummy 模型需要 target_language 才能翻译，enable_translation 已由此派生，无需额外检查
+    # --- 外层重连循环 ---
+    while not stop_event.is_set():
+        recognizer = None  # 每次尝试连接前重置
+        try:
+            # --- 检查翻译配置与模型的兼容性 (每次尝试连接前重新检查，以防配置重载) ---
+            # 重新获取最新的配置值
+            model = config['stt.model'] # 重新获取模型，可能已改变
+            target_language = config.get('stt.translation_target_language')
+            enable_translation = bool(target_language)
+            is_gummy_model = model.startswith("gummy-")
+            is_paraformer_model = model.startswith("paraformer-")
 
-    try:
-        # --- 根据模型选择并创建识别器 ---
-        if is_gummy_model:
-            if create_gummy_recognizer is None:
-                logger.error("Gummy STT 模块未能加载，无法创建识别器。")
-                stop_event.set()
-                return
-            engine_type = "Gummy"
-            # 创建 Gummy 识别器, 传递所需客户端和分发器
-            # Check if the imported function exists before calling
-            if create_gummy_recognizer:
+            if not is_gummy_model and not is_paraformer_model:
+                logger.error(f"不支持的 Dashscope 模型: {model}。请使用 'gummy-' 或 'paraformer-' 开头的模型。")
+                stop_event.set() # 致命错误，停止
+                break # 退出重连循环
+
+            if enable_translation and is_paraformer_model:
+                logger.warning(f"模型 '{model}' (Paraformer) 不支持翻译。'translation_target_language' 配置将被忽略。")
+                enable_translation = False
+
+            # --- 根据模型选择并创建识别器 ---
+            logger.info(f"尝试连接 STT 服务 (模型: {model}, 尝试次数 {retry_count + 1}/{max_retries})...")
+            if is_gummy_model:
+                if create_gummy_recognizer is None:
+                    raise RuntimeError("Gummy STT 模块未能加载。") # 改为抛出异常
+                engine_type = "Gummy"
                 recognizer = create_gummy_recognizer(
                     main_loop=main_loop,
                     vrc_client=vrc_client,
                     llm_client=llm_client,
-                    output_dispatcher=output_dispatcher  # Must be provided
+                    output_dispatcher=output_dispatcher
                 )
-            else:
-                logger.error("create_gummy_recognizer function not available. Cannot create Gummy recognizer.")
-                stop_event.set()
-                return
-
-        elif is_paraformer_model:
-            # Check if the imported function exists before calling
-            if create_paraformer_recognizer:
+            elif is_paraformer_model:
+                if create_paraformer_recognizer is None:
+                     raise RuntimeError("Paraformer STT 模块未能加载。") # 改为抛出异常
                 engine_type = "Paraformer"
-                # 创建 Paraformer 识别器, 传递所需客户端和分发器
-                # 注意: Paraformer 回调也需要更新以使用 LLMClient 和 OutputDispatcher
-                # TODO: Update Paraformer callback and pass llm_client/output_dispatcher
                 recognizer = create_paraformer_recognizer(
                     main_loop=main_loop,
                     vrc_client=vrc_client,
                     # llm_client=llm_client, # Pass when Paraformer callback is updated
                     # output_dispatcher=output_dispatcher # Pass when Paraformer callback is updated
                 )
-                logger.warning("Paraformer STT 引擎当前未完全集成 LLM 处理和多目标输出，其回调函数需要更新。")
-            else:
-                logger.error(
-                    "create_paraformer_recognizer function not available. Cannot create Paraformer recognizer.")
-                stop_event.set()
-                return
-        # else branch handled earlier
+                logger.warning("Paraformer STT 引擎当前未完全集成 LLM 处理和多目标输出。")
 
-        # --- 启动识别器和主处理循环 ---
-        if recognizer:  # 确保识别器已成功创建
+            if not recognizer:
+                raise RuntimeError(f"未能创建模型 '{model}' 的识别器实例。")
+
+            # --- 启动识别器 ---
             recognizer.start()
-            logger.info(f"Dashscope {engine_type} Recognizer 已启动。")
-        else:
-            # 如果 recognizer 仍然是 None (理论上不应发生，因为前面有检查)
-            logger.error(f"未能初始化 Dashscope {engine_type} Recognizer。")
-            stop_event.set()
-            return
+            logger.info(f"Dashscope {engine_type} Recognizer 已连接并启动。")
+            retry_count = 0  # 连接成功，重置重试计数
+            current_delay = initial_retry_delay # 重置延迟
 
-        # --- 主处理循环 ---
-        while not stop_event.is_set():
-            try:
-                # 从队列中获取音频数据 (int16 numpy array)
-                audio_data = await asyncio.wait_for(audio_queue.get(), timeout=0.1)
+            # --- 内层音频处理循环 ---
+            while not stop_event.is_set():
+                try:
+                    # 从队列中获取音频数据
+                    audio_data = await asyncio.wait_for(audio_queue.get(), timeout=0.1)
 
-                # 将 numpy 数组转换为 bytes 发送给选定的识别器
-                recognizer.send_audio_frame(audio_data.tobytes())
+                    # 发送音频帧 - 可能在此处发生连接错误
+                    recognizer.send_audio_frame(audio_data.tobytes())
 
-                audio_queue.task_done()  # 标记任务完成
-            except asyncio.TimeoutError:
-                # 队列为空，继续检查停止信号
-                continue
-            except asyncio.QueueFull:
-                # 理论上不应发生，因为我们是从队列中 get
-                logger.warning("STT 处理器中的音频队列意外已满。")
-                continue
-            except Exception as e:
-                # 捕获发送音频帧或其他可能的错误
-                logger.error(f"STT 处理任务在发送音频时出错: {e}", exc_info=True)
-                # 短暂暂停以避免错误刷屏
-                await asyncio.sleep(1)
+                    audio_queue.task_done()
+                except asyncio.TimeoutError:
+                    # 队列为空，继续检查停止信号
+                    continue
+                except asyncio.QueueFull:
+                    logger.warning("STT 处理器中的音频队列意外已满。")
+                    continue
+                except Exception as send_error:
+                    # 捕获发送音频帧时的错误，假设是连接问题
+                    logger.error(f"发送音频帧到 STT 服务时出错: {send_error}", exc_info=True)
+                    logger.info("假设连接丢失，将尝试重新连接...")
+                    try:
+                        # 尝试停止当前失败的 recognizer
+                        recognizer.stop()
+                        logger.info(f"已停止故障的 Dashscope {engine_type} Recognizer 实例。")
+                    except Exception as stop_err:
+                        logger.error(f"停止故障的 recognizer 时出错: {stop_err}", exc_info=True)
+                    recognizer = None # 清理引用
+                    break # 跳出内层循环，触发外层重连
 
-    except Exception as e:
-        # 捕获初始化或启动过程中的错误
-        logger.error(f"初始化或运行 Dashscope Recognizer 时出错: {e}", exc_info=True)
-        stop_event.set()  # 确保其他部分停止
-    finally:
-        # engine_type 在 try 块中设置，如果初始化失败则为 "Unknown"
-        logger.info(f"STT 处理任务 (Dashscope {engine_type}) 正在停止...")
-        # 检查 recognizer 是否已定义并成功初始化
-        if 'recognizer' in locals() and recognizer:
-            try:
-                logger.info(f"正在停止 Dashscope {engine_type} Recognizer...")
-                # 停止识别器，这会关闭连接并可能调用 on_close/on_complete
-                recognizer.stop()
-                logger.info(f"Dashscope {engine_type} Recognizer 已停止。")
-            except Exception as e:
-                logger.error(f"停止 Dashscope {engine_type} Recognizer 时出错: {e}", exc_info=True)
-        else:
-            logger.info("Recognizer 未初始化，无需停止。")
-
-        # 清空队列中可能剩余的任务（如果应用要求）
-        logger.info("正在清空剩余音频队列...")
-        processed_count = 0
-        while not audio_queue.empty():
-            try:
-                audio_queue.get_nowait()
-                audio_queue.task_done()
-                processed_count += 1
-            except asyncio.QueueEmpty:
+            # 如果内层循环是因为 stop_event 而退出，则也退出外层循环
+            if stop_event.is_set():
+                logger.info("接收到停止信号，退出 STT 处理循环。")
                 break
-        if processed_count > 0:
-            logger.info(f"已从队列中丢弃 {processed_count} 个剩余音频块。")
-        # 使用 engine_type 更新最终日志
-        logger.info(f"STT 处理任务 (Dashscope {engine_type}) 已停止。")
+
+        except Exception as connect_error:
+            # --- 处理连接或启动过程中的错误 ---
+            logger.error(f"连接或启动 Dashscope {engine_type} Recognizer 时出错: {connect_error}", exc_info=True)
+            if recognizer: # 如果 recognizer 已创建但启动失败
+                try:
+                    recognizer.stop()
+                except Exception as stop_err:
+                    logger.error(f"停止启动失败的 recognizer 时出错: {stop_err}", exc_info=True)
+                recognizer = None
+
+            retry_count += 1
+            if retry_count >= max_retries:
+                logger.critical(f"STT 连接失败达到最大重试次数 ({max_retries})。停止 STT 处理。")
+                stop_event.set() # 设置停止信号，通知其他部分停止
+                break # 退出重连循环
+
+            logger.info(f"等待 {current_delay:.1f} 秒后重试...")
+            try:
+                # 等待时也检查 stop_event
+                await asyncio.wait_for(stop_event.wait(), timeout=current_delay)
+                # 如果 wait() 完成而不是超时，说明 stop_event 被设置了
+                logger.info("等待重试期间接收到停止信号。")
+                break # 退出重连循环
+            except asyncio.TimeoutError:
+                # 等待超时，正常继续重试
+                current_delay = min(current_delay * 2, max_retry_delay) # 指数退避
+
+    # --- 循环结束后的最终清理 ---
+    logger.info(f"STT 处理任务 (Dashscope {engine_type}) 正在停止...")
+    if recognizer: # 可能在循环退出时还有一个活动的 recognizer
+        try:
+            logger.info(f"正在停止最后的 Dashscope {engine_type} Recognizer 实例...")
+            recognizer.stop()
+            logger.info(f"最后的 Dashscope {engine_type} Recognizer 实例已停止。")
+        except Exception as e:
+            logger.error(f"停止最后的 recognizer 实例时出错: {e}", exc_info=True)
+    else:
+        logger.info("没有活动的 Recognizer 实例需要停止。")
+
+    # 清空队列中可能剩余的任务
+    logger.info("正在清空剩余音频队列...")
+    processed_count = 0
+    while not audio_queue.empty():
+        try:
+            audio_queue.get_nowait()
+            audio_queue.task_done()
+            processed_count += 1
+        except asyncio.QueueEmpty:
+            break
+    if processed_count > 0:
+        logger.info(f"已从队列中丢弃 {processed_count} 个剩余音频块。")
+
+    logger.info(f"STT 处理任务 (Dashscope {engine_type}) 已完全停止。")
 
 
 # --- 音频捕获和主控制逻辑 ---
