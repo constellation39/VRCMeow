@@ -54,16 +54,24 @@ def main(page: ft.Page):
     def update_status_display(message: str):
         """线程安全地更新状态文本"""
         if page: # 确保页面仍然存在
-            page.run_threadsafe(
-                lambda: setattr(status_text, 'value', f"状态: {message}") or page.update() # type: ignore
-            )
+            async def update_task():
+                """Async task to update status text."""
+                status_text.value = f"状态: {message}"
+                page.update()
+            # page.run_threadsafe now receives an async function
+            page.run_threadsafe(update_task)
 
     def update_output_display(text: str):
         """线程安全地将文本附加到输出区域"""
         if page: # 确保页面仍然存在
-            page.run_threadsafe(
-                lambda: setattr(output_text, 'value', (output_text.value or "") + text + "\n") or page.update() # type: ignore
-            )
+            async def update_task():
+                """Async task to update output text."""
+                # Ensure value is not None before appending
+                current_value = output_text.value if output_text.value is not None else ""
+                output_text.value = current_value + text + "\n"
+                page.update()
+            # page.run_threadsafe now receives an async function
+            page.run_threadsafe(update_task)
 
     # --- 启动/停止逻辑 ---
     async def start_recording(e: ft.ControlEvent):
