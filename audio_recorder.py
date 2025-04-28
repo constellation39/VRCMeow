@@ -216,9 +216,10 @@ class AudioManager:
                     if create_gummy_recognizer is None:
                         raise RuntimeError("Gummy STT module failed to load.")
                     engine_type = "Gummy"
+                    logger.info(f"Creating Gummy Recognizer (translation: {enable_translation})...")
                     recognizer = create_gummy_recognizer(
                         main_loop=self._stt_loop,
-                        sample_rate=self.sample_rate,  # Pass the determined sample rate
+                        sample_rate=self.sample_rate, # Pass the determined sample rate
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
                     )
@@ -226,9 +227,10 @@ class AudioManager:
                     if create_paraformer_recognizer is None:
                         raise RuntimeError("Paraformer STT module failed to load.")
                     engine_type = "Paraformer"
+                    logger.info("Creating Paraformer Recognizer...")
                     recognizer = create_paraformer_recognizer(
                         main_loop=self._stt_loop,
-                        sample_rate=self.sample_rate,  # Pass the determined sample rate
+                        sample_rate=self.sample_rate, # Pass the determined sample rate
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
                     )
@@ -258,33 +260,23 @@ class AudioManager:
                             # Check stop event if queue is empty
                             if self._stop_event.is_set():
                                 break
+                            # Check stop event if queue is empty
+                            if self._stop_event.is_set():
+                                break
                             continue  # Continue waiting for data
+
+                        # DEBUG: Log that we got data and are sending it
+                        # logger.debug(f"STT Processor: Got audio data block, size: {len(audio_data)}")
 
                         # Send audio frame (can raise errors on connection issues)
                         recognizer.send_audio_frame(
                             audio_data.tobytes()
                         )  # audio_data is np.ndarray here
 
+                        # DEBUG: Log successful send
+                        # logger.debug("STT Processor: Sent audio frame successfully.")
+
                         self._audio_queue.task_done()  # Mark task as done for the queue
-                    except asyncio.TimeoutError:  # This shouldn't happen with queue.get
-                        # Should not be reached with queue.get, but kept for safety
-                        continue
-                    except queue.Full:  # This shouldn't happen with queue.get
-                        logger.warning(
-                            "Audio queue unexpectedly full in STT processor."
-                        )
-                        continue
-
-                        # 发送音频帧 - 可能在此处发生连接错误
-                        recognizer.send_audio_frame(audio_data.tobytes())
-
-                        self._audio_queue.task_done()  # Use self._audio_queue
-                    except asyncio.TimeoutError:
-                        # 队列为空，继续检查停止信号
-                        continue
-                    except asyncio.QueueFull:
-                        logger.warning("STT 处理器中的音频队列意外已满。")
-                        continue
                     except Exception as send_error:
                         # 捕获发送音频帧时的错误，假设是连接问题
                         logger.error(
@@ -335,12 +327,11 @@ class AudioManager:
                 if retry_count >= max_retries:
                     # Note: error_msg was defined within the IF block in the previous version,
                     # but here it seems to be referenced before definition if the loop gets here.
-                    # Assuming the user's provided actual code snipped had `error_msg` defined earlier
-                    # or intended to define it here. Re-creating based on the previous REPLACE logic.
-                    error_msg = f"STT connection failed after {max_retries} retries. Stopping STT processing."
-                    logger.critical(error_msg)
-                    self._update_status(f"Error: {error_msg}")
-                    self._stop_event.set()  # Signal stop
+                    # Define error message here to ensure it's always available
+                    final_error_msg = f"STT connection failed after {max_retries} retries for model '{model}'. Stopping STT processing."
+                    logger.critical(final_error_msg)
+                    self._update_status(f"Error: {final_error_msg}")
+                    self._stop_event.set() # Signal stop
                     break  # Exit reconnect loop
 
                 wait_msg = f"Retrying STT connection in {current_delay:.1f} seconds..."
