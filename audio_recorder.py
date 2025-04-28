@@ -445,8 +445,19 @@ class AudioManager:
     def _run_audio_stream(self):
         """Target function for the audio processing thread."""
         try:
-            # Log configuration being used
-            logger.info("Audio Stream Thread Started. Config:")
+            # --- Log Device Info ---
+            try:
+                default_input = sd.query_devices(kind='input')
+                default_output = sd.query_devices(kind='output')
+                input_name = default_input.get('name', 'Not Found') if default_input else 'Not Found'
+                output_name = default_output.get('name', 'Not Found') if default_output else 'Not Found'
+                logger.info(f"Default Input Device: {input_name}")
+                logger.info(f"Default Output Device: {output_name}")
+            except Exception as dev_err:
+                logger.warning(f"Could not query audio devices: {dev_err}")
+
+            # --- Log Configuration ---
+            logger.info("Audio Stream Thread Configuration:")
             logger.info(f"  Sample Rate: {self.sample_rate} Hz")
             logger.info(f"  Channels: {self.channels}")
             logger.info(f"  Dtype: {self.dtype}")
