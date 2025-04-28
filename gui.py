@@ -51,27 +51,33 @@ def main(page: ft.Page):
     stop_button = ft.ElevatedButton("停止", on_click=None, disabled=True)
 
     # --- 回调函数 (用于更新 UI) ---
+
+    async def _async_update_status(message: str):
+        """(Async) Actual logic to update status text & page."""
+        # Assume page and status_text are accessible from outer scope
+        status_text.value = f"状态: {message}"
+        await page.update_async() # Use async update
+
     def update_status_display(message: str):
-        """线程安全地更新状态文本"""
-        if page: # 确保页面仍然存在
-            async def update_task():
-                """Async task to update status text."""
-                status_text.value = f"状态: {message}"
-                page.update()
-            # page.run_threadsafe now receives an async function
-            page.run_threadsafe(update_task)
+        """(Sync) Schedules the async status update task from any thread."""
+        # page is captured from the outer scope of main()
+        # Schedule the coroutine object returned by _async_update_status()
+        page.run_threadsafe(_async_update_status(message))
+
+
+    async def _async_update_output(text: str):
+        """(Async) Actual logic to update output text & page."""
+        # Assume page and output_text are accessible from outer scope
+        current_value = output_text.value if output_text.value is not None else ""
+        output_text.value = current_value + text + "\n"
+        await page.update_async() # Use async update
 
     def update_output_display(text: str):
-        """线程安全地将文本附加到输出区域"""
-        if page: # 确保页面仍然存在
-            async def update_task():
-                """Async task to update output text."""
-                # Ensure value is not None before appending
-                current_value = output_text.value if output_text.value is not None else ""
-                output_text.value = current_value + text + "\n"
-                page.update()
-            # page.run_threadsafe now receives an async function
-            page.run_threadsafe(update_task)
+        """(Sync) Schedules the async output update task from any thread."""
+        # page is captured from the outer scope of main()
+        # Schedule the coroutine object returned by _async_update_output()
+        page.run_threadsafe(_async_update_output(text))
+
 
     # --- 启动/停止逻辑 ---
     async def start_recording(e: ft.ControlEvent):
