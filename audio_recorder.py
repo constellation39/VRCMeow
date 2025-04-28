@@ -233,9 +233,7 @@ class AudioManager:
                             # Check stop event if queue is empty
                             if self._stop_event.is_set():
                                 break
-                            # Check stop event if queue is empty
-                            if self._stop_event.is_set():
-                                break
+                            # No need for double check
                             continue  # Continue waiting for data
 
                         # DEBUG: Log that we got data and are sending it
@@ -359,10 +357,11 @@ class AudioManager:
         if drained_count > 0:
             logger.info(f"Drained {drained_count} items from audio queue.")
 
-        logger.info(f"STT processing task (Dashscope {engine_type}) fully stopped.")
-        self._update_status("STT Task Stopped.")
+        logger.info(f"STT processing loop (Dashscope {engine_type}) fully stopped.") # Use loop instead of task
+        self._update_status("STT Thread Stopped.") # Use Thread instead of Task
 
-        # --- Audio Stream Handling (Now methods within AudioManager) ---
+
+        # --- Audio Stream Handling --- # Adjusted comment
 
         # This method belongs inside the AudioManager class based on the refactoring
 
