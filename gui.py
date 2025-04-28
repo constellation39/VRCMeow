@@ -333,12 +333,159 @@ def main(page: ft.Page):
             # 使用 run_thread 执行一个简单的 lambda 来更新 UI
             current_value = output_text.value if output_text.value is not None else ""
             page.run_thread(
-                lambda: setattr(output_text, 'value', current_value + text + "\n") or page.update() # type: ignore
+                lambda: setattr(output_text, 'value', current_value + text + "\n") or page.update()  # type: ignore
             )
 
-    # --- 启动/停止逻辑 ---
+    def show_snackbar(message: str, error: bool = False):
+        """显示一个 SnackBar 通知"""
+        if page:
+            page.show_snack_bar(
+                ft.SnackBar(
+                    ft.Text(message),
+                    bgcolor=ft.colors.ERROR if error else ft.colors.GREEN_700,
+                    open=True
+                )
+            )
+
+    # --- 配置保存/重载逻辑 ---
+    async def save_config_handler(e: ft.ControlEvent):
+        """保存按钮点击事件处理程序 (配置选项卡)"""
+        logger.info("Save configuration button clicked.")
+        new_config_data = copy.deepcopy(config.data) # Start with current config as base
+
+        try:
+            # Helper to safely get and convert values from controls
+            def get_control_value(key: str, control_type: type = str, default: Any = None):
+                control = config_controls.get(key)
+                if control is None:
+                    logger.warning(f"Control for config key '{key}' not found in GUI.")
+                    return default
+
+                value = getattr(control, 'value', default)
+
+                # Handle specific control types
+                if isinstance(control, ft.Switch):
+                    return bool(value)
+                if isinstance(control, ft.Dropdown):
+                    return value # Dropdown value is usually correct type
+
+                # Handle text fields (TextField)
+                if value is None or value == "":
+                    if key in ["stt.translation_target_language", "audio.sample_rate", "llm.base_url"]:
+                         # These can be None in the config
+                        return None
+                    elif default is not None:
+                        return default
+                    else: # Should not happen if default config has values
+                        return ""
+
+                # Type conversion for text fields
+                try:
+                    if control_type == int:
+                        return int(value)
+                    if control_type == float:
+                        return float(value)
+                    return str(value) # Default to string
+                except ValueError:
+                    logger.error(f"Invalid value '{value}' for {key}. Expected type {control_type}. Keeping original value.")
+                    # Retrieve original value to avoid saving invalid data
+                    original_value = config.get(key, default)
+                    return original_value
+
+
+            # Recursively update the new_config_data dictionary
+            def update_nested_dict(data_dict: Dict, key: str, value: Any):
+                keys = key.split('.')
+                d = data_dict
+                for k in keys[:-1]:
+                    d = d.setdefault(k, {}) # Create nested dicts if they don't exist
+                d[keys[-1]] = value
+
+            # Update dictionary from controls
+            update_nested_dict(new_config_data, "dashscope_api_key", get_control_value("dashscope_api_key"))
+            update_nested_dict(new_config_data, "stt.model", get_control_value("stt.model"))
+            update_nested_dict(new_config_data, "stt.translation_target_language", get_control_value("stt.translation_target_language"))
+            update_nested_dict(new_config_data, "stt.intermediate_result_behavior", get_control_value("stt.intermediate_result_behavior"))
+            update_nested_dict(new_config_data, "audio.sample_rate", get_control_value("audio.sample_rate", int, None))
+            update_nested_dict(new_config_data, "audio.channels", get_control_value("audio.channels", int, 1))
+            update_nested_dict(new_config_data, "audio.dtype", get_control_value("audio.dtype", str, "int16"))
+            update_nested_dict(new_config_data, "audio.debug_echo_mode", get_control_value("audio.debug_echo_mode", bool, False))
+            update_nested_dict(new_config_data, "llm.enabled", get_control_value("llm.enabled", bool, False))
+            update_nested_dict(new_config_data, "llm.api_key", get_control_value("llm.api_key"))
+            update_nested_dict(new_config_data, "llm.base_url", get_control_value("llm.base_url", str, None))
+            update_nested_dict(new_config_data, "llm.model", get_control_value("llm.model"))
+            update_nested_dict(new_config_data, "llm.system_prompt", get_control_value("llm.system_prompt"))
+            update_nested_dict(new_config_data, "llm.temperature", get_control_value("llm.temperature", float, 0.7))
+            update_nested_dict(new_config_data, "llm.max_tokens", get_control_value("llm.max_tokens", int, 150))
+            update_nested_dict(new_config_data, "outputs.vrc_osc.enabled", get_control_value("outputs.vrc_osc.enabled", bool, True))
+            update_nested_dict(new_config_data, "outputs.vrc_osc.address", get_control_value("outputs.vrc_osc.address"))
+            update_nested_dict(new_config_data, "outputs.vrc_osc.port", get_control_value("outputs.vrc_osc.port", int, 9000))
+            update_nested_dict(new_config_data, "outputs.vrc_osc.message_interval", get_control_value("outputs.vrc_osc.message_interval", float, 1.333))
+            update_nested_dict(new_config_data, "outputs.console.enabled", get_control_value("outputs.console.enabled", bool, True))
+            update_nested_dict(new_config_data, "outputs.console.prefix", get_control_value("outputs.console.prefix"))
+            update_nested_dict(new_config_data, "outputs.file.enabled", get_control_value("outputs.file.enabled", bool, False))
+            update_nested_dict(new_config_data, "outputs.file.path", get_control_value("outputs.file.path"))
+            update_nested_dict(new_config_data, "outputs.file.format", get_control_value("outputs.file.format"))
+            update_nested_dict(new_config_data, "logging.level", get_control_value("logging.level"))
+
+            # Directly update the singleton's internal data BEFORE saving
+            config._config_data = new_config_data
+            # Recalculate derived values like logging level int after update
+            log_level_str = new_config_data.get("logging", {}).get("level", "INFO").upper()
+            log_level = getattr(logging, log_level_str, logging.INFO)
+            config._config_data["logging"]["level_int"] = log_level
+
+            # Call the save method on the config instance
+            await asyncio.to_thread(config.save) # Run synchronous save in thread
+            show_snackbar("配置已成功保存到 config.yaml")
+
+        except Exception as ex:
+            error_msg = f"保存配置时出错: {ex}"
+            logger.critical(error_msg, exc_info=True)
+            show_snackbar(error_msg, error=True)
+
+    def reload_config_controls():
+        """Updates the GUI controls with values from the reloaded config."""
+        logger.info("Reloading config values into GUI controls.")
+        for key, control in config_controls.items():
+            value = config.get(key)
+            try:
+                if isinstance(control, ft.Switch):
+                    control.value = bool(value) if value is not None else False
+                elif isinstance(control, ft.Dropdown):
+                    # Ensure the value exists in options, otherwise might clear selection
+                    if any(opt.key == value for opt in control.options):
+                         control.value = value
+                    else:
+                         logger.warning(f"Value '{value}' for dropdown '{key}' not in options. Keeping previous selection.")
+                         # Optionally set to a default or leave as is. Let's leave it.
+                elif isinstance(control, ft.TextField):
+                    if key in ["stt.translation_target_language", "audio.sample_rate", "llm.base_url"] and value is None:
+                         control.value = "" # Use empty string for None in text fields
+                    else:
+                         control.value = str(value) if value is not None else ""
+                # Add other control types if necessary
+            except Exception as ex:
+                 logger.error(f"Error reloading control for key '{key}' with value '{value}': {ex}")
+        page.update()
+
+
+    async def reload_config_handler(e: ft.ControlEvent):
+        """Reloads configuration from file and updates the GUI."""
+        logger.info("Reload configuration button clicked.")
+        try:
+            await asyncio.to_thread(config.reload) # Run synchronous reload in thread
+            reload_config_controls() # Update GUI fields with new values
+            show_snackbar("配置已从 config.yaml 重新加载")
+        except Exception as ex:
+             error_msg = f"重新加载配置时出错: {ex}"
+             logger.error(error_msg, exc_info=True)
+             show_snackbar(error_msg, error=True)
+
+
+    # --- 启动/停止逻辑 (Dashboard Tab) ---
     async def start_recording(e: ft.ControlEvent):
-        """启动按钮点击事件处理程序"""
+        """启动按钮点击事件处理程序 (Dashboard Tab)"""
         if app_state.is_running:
             return
 
@@ -484,21 +631,67 @@ def main(page: ft.Page):
                  logger.info("窗口关闭时正在停止后台进程...")
                  await stop_recording(None) # 调用停止逻辑
 
+    # --- Bind event handlers ---
+    start_button.on_click = start_recording
+    stop_button.on_click = stop_recording
+    save_config_button.on_click = save_config_handler
+    reload_config_button.on_click = reload_config_handler
     page.on_window_event = on_window_event
 
-    # --- 布局 ---
+    # --- Layout using Tabs ---
+    dashboard_tab_content = ft.Column(
+        [
+            ft.Row([start_button, stop_button], alignment=ft.MainAxisAlignment.CENTER),
+            status_text,
+            ft.Container(output_text, expand=True), # Make output text area fill available space
+        ],
+        expand=True, # Make column fill tab height
+        alignment=ft.MainAxisAlignment.START,
+        spacing=10, # Add spacing between elements
+    )
+
+    config_tab_content = ft.Column(
+        [
+            ft.Row( # Buttons Row
+                [save_config_button, reload_config_button],
+                alignment=ft.MainAxisAlignment.END # Align buttons to the right
+            ),
+            ft.Divider(height=10),
+            # Sections
+            api_keys_section,
+            stt_section,
+            audio_section,
+            llm_section,
+            vrc_osc_output_section,
+            console_output_section,
+            file_output_section,
+            logging_section,
+        ],
+        expand=True,
+        scroll=ft.ScrollMode.ADAPTIVE, # Make config tab scrollable if needed
+        spacing=15, # Space between config sections/elements
+    )
+
+
     page.add(
-        ft.Column(
+        ft.Tabs(
             [
-                ft.Row([start_button, stop_button], alignment=ft.MainAxisAlignment.CENTER),
-                status_text,
-                ft.Container(output_text, expand=True), # 使文本区域填充剩余空间
+                ft.Tab(
+                    text="仪表盘",
+                    icon=ft.icons.DASHBOARD,
+                    content=dashboard_tab_content
+                ),
+                ft.Tab(
+                    text="配置",
+                    icon=ft.icons.SETTINGS,
+                    content=config_tab_content
+                ),
             ],
-            expand=True # 使列扩展以填充页面
+            expand=True, # Make tabs fill the page width
         )
     )
 
-    # 初始页面更新
+    # Initial page update
     page.update()
 
 # 注意：此文件不再包含 if __name__ == "__main__": ft.app(...)
