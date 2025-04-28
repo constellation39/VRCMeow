@@ -75,348 +75,80 @@ def main(page: ft.Page):
     app_state = AppState()  # 创建状态实例
 
     # --- UI 元素 ---
+    # UI elements are now largely defined in gui_dashboard.py and gui_config.py
+    # We still need to create the actual controls for the config tab here
 
-    # == Dashboard Tab Elements (Minimalist Design) ==
-    # Default state: Red status, Green button
-    status_icon = ft.Icon(name=ft.icons.CIRCLE_OUTLINED, color=ft.colors.RED_ACCENT_700) # Default RED
-    status_label = ft.Text("未启动", selectable=True, color=ft.colors.RED_ACCENT_700) # Default RED
-    status_row = ft.Row(
-        [status_icon, status_label],
-        alignment=ft.MainAxisAlignment.CENTER,
-        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=5, # Add spacing between icon and text
-    )
+    # We use a central dictionary to hold all config controls for easy access in handlers
+    all_config_controls: Dict[str, ft.Control] = {}
 
-    output_text = ft.TextField(
-        # Removed label for minimalism
-        hint_text="最终输出将显示在这里...", # Add hint text
-        multiline=True,
-        read_only=True,
-        expand=True,
-        min_lines=5,
-        border_radius=ft.border_radius.all(8), # Add slight rounding
-        border_color=ft.colors.with_opacity(0.5, ft.colors.OUTLINE), # Subtle border
-        filled=True, # Use a filled background
-        bgcolor=ft.colors.with_opacity(0.02, ft.colors.ON_SURFACE), # Very subtle background
-        content_padding=15, # Add padding inside the text field
-    )
-
-    start_button = ft.IconButton(
-        icon=ft.icons.PLAY_ARROW_ROUNDED,
-        tooltip="启动",
-        on_click=None,
-        disabled=False,
-        icon_size=30, # Make icon slightly larger
-        style=ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700), # Default GREEN button
-    )
-    # Removed stop_button definition
-
-    # Progress indicator (optional, can be shown during start/stop)
-    # Ensure progress indicator is defined before being used in the status update function
-    progress_indicator = ft.ProgressRing(width=20, height=20, stroke_width=2, visible=False)
-
-    # Rename start_button to toggle_button for clarity
-    toggle_button = start_button # Assign the created button to the new name
-    del start_button # Remove the old name
+    # Get initial config data safely
+    initial_config_data = {}
+    try:
+        if config:
+             initial_config_data = config.data
+        else:
+             logger.error("Config object not available during GUI initialization.")
+             # Potentially show an error message to the user here?
+    except Exception as e:
+        logger.error(f"Error accessing config data during GUI initialization: {e}", exc_info=True)
 
 
-    # == Configuration Tab Elements ==
-    # We will store references to input controls to easily read their values later
-    config_controls: Dict[str, ft.Control] = {}
-
-    def create_config_section(title: str, controls: list[ft.Control]) -> ft.Card:
-        """Helper to create a bordered section for config options."""
-        return ft.Card(
-            ft.Container(
-                ft.Column(
-                    [
-                        ft.Text(title, style=ft.TextThemeStyle.TITLE_MEDIUM),
-                        ft.Divider(height=1),
-                        *controls,
-                    ]
-                ),
-                padding=10,
-            ),
-            # elevation=2, # Optional: Add shadow
-        )
-
-    # -- Audio Settings Definitions (Moved here, before Dashscope section) --
-    config_controls["audio.sample_rate"] = ft.TextField(
-        label="采样率 (Hz)",
-        value=str(config.get("audio.sample_rate") or ""),  # Use empty string if None
-        hint_text="留空则使用设备默认值 (例如 16000)",
-        keyboard_type=ft.KeyboardType.NUMBER,
-        tooltip="音频输入采样率。需要与所选 STT 模型兼容",
-    )
-    config_controls["audio.channels"] = ft.TextField(
-        label="声道数",
-        value=str(config.get("audio.channels", 1)),
-        keyboard_type=ft.KeyboardType.NUMBER,
-        tooltip="音频输入声道数 (通常为 1)",
-    )
-    config_controls["audio.dtype"] = ft.TextField(
-        label="数据类型",
-        value=config.get("audio.dtype", "int16"),
-        tooltip="音频数据类型 (例如 int16)",
-    )
-    config_controls["audio.debug_echo_mode"] = ft.Switch(
-        label="调试回声模式",
-        value=config.get("audio.debug_echo_mode", False),
-        tooltip="将输入音频直接路由到输出以进行测试",
-    )
-    # Note: audio_section definition itself is removed, only controls are defined here
-
-    # -- Dashscope Settings --
-    config_controls["dashscope.api_key"] = ft.TextField(
-        label="API Key",  # Label can be simpler now it's under Dashscope section
-        value=config.get("dashscope.api_key", ""),
-        password=True,
-        can_reveal_password=True,
-        hint_text="从环境变量 DASHSCOPE_API_KEY 覆盖",
-        tooltip="阿里云 Dashscope 服务所需的 API Key",
-    )
-    # Add STT settings under Dashscope
-    config_controls["dashscope.stt.model"] = ft.Dropdown(
-        label="STT 模型",
-        value=config.get("dashscope.stt.model", "gummy-realtime-v1"),  # New key
-        options=[
-            ft.dropdown.Option("gummy-realtime-v1", "Gummy (支持翻译)"),
-            ft.dropdown.Option("paraformer-realtime-v2", "Paraformer V2 (仅识别)"),
-            ft.dropdown.Option("paraformer-realtime-v1", "Paraformer V1 (仅识别)"),
-        ],
-        tooltip="选择 Dashscope 提供的语音识别模型",
-    )
-    config_controls["dashscope.stt.translation_target_language"] = ft.TextField(
-        label="翻译目标语言 (Gummy)",
-        value=config.get("dashscope.stt.translation_target_language")
-        or "",  # New key, Use empty string if None
-        hint_text="留空则禁用翻译 (例如: en, ja, ko)",
-        tooltip="如果使用 Gummy 并希望翻译，在此处输入目标语言代码",
-    )
-    config_controls["dashscope.stt.intermediate_result_behavior"] = ft.Dropdown(
-        label="中间结果处理 (VRC OSC)",
-        value=config.get(
-            "dashscope.stt.intermediate_result_behavior", "ignore"
-        ),  # New key
-        options=[
-            ft.dropdown.Option("ignore", "忽略"),
-            ft.dropdown.Option("show_typing", "显示 'Typing...'"),
-            ft.dropdown.Option("show_partial", "显示部分文本"),
-        ],
-        tooltip="如何处理非最终的语音识别结果 (仅影响 VRChat 输出)",
-    )
-    dashscope_section = create_config_section(
-        "Dashscope 设置",
-        [  # Changed title
-            config_controls["dashscope.api_key"],
-            ft.Divider(height=5),  # Add a small divider
-            # ft.Text("语音识别 (STT)", style=ft.TextThemeStyle.TITLE_SMALL), # REMOVED Sub-header
-            config_controls["dashscope.stt.model"],
-            config_controls["dashscope.stt.translation_target_language"],
-            config_controls["dashscope.stt.intermediate_result_behavior"],
-            ft.Divider(height=5),  # Add another divider
-            ft.Text(
-                "音频输入", style=ft.TextThemeStyle.TITLE_SMALL
-            ),  # Sub-header for Audio
-            config_controls["audio.sample_rate"],  # Added Audio controls
-            config_controls["audio.channels"],
-            config_controls["audio.dtype"],
-            config_controls["audio.debug_echo_mode"],
-        ],
+    # Import control creation functions from gui_config
+    from gui_config import (
+        create_dashscope_controls, create_audio_controls, create_llm_controls,
+        create_vrc_osc_controls, create_console_output_controls,
+        create_file_output_controls, create_logging_controls,
+        config_controls as config_controls_dict # Import the shared dict
     )
 
-    # -- LLM API Key definition (moved here temporarily before adding to LLM section) --
-    config_controls["llm.api_key"] = ft.TextField(
-        label="API Key",  # Label can be simpler now
-        value=config.get("llm.api_key", ""),
-        password=True,
-        can_reveal_password=True,
-        hint_text="从环境变量 OPENAI_API_KEY 覆盖",
-        tooltip="用于 LLM 处理的 OpenAI 兼容 API Key (如果启用)",
-    )
-    # api_keys_section = create_config_section("API Keys", [...]) # REMOVED
+    # Create controls for each section using helper functions and initial config
+    dash_controls = create_dashscope_controls(initial_config_data)
+    all_config_controls.update(dash_controls)
 
-    # -- STT Settings --  # REMOVED - These controls are now part of dashscope_section
-    # config_controls["stt.model"] = ...
-    # config_controls["stt.translation_target_language"] = ...
-    # config_controls["stt.intermediate_result_behavior"] = ...
-    # stt_section = create_config_section("语音识别 (STT)", [...]) # REMOVED
+    audio_controls = create_audio_controls(initial_config_data)
+    all_config_controls.update(audio_controls)
 
-    # -- Audio Settings Definitions will be moved before Dashscope section creation --
-    # (This block is being deleted from here)
+    llm_controls = create_llm_controls(initial_config_data)
+    all_config_controls.update(llm_controls)
+    # Extract actual few-shot UI elements (created in create_llm_controls)
+    # Use .get() for safety in case of issues during creation
+    few_shot_examples_column = all_config_controls.get("llm.few_shot_examples_column", ft.Column())
+    add_example_button = all_config_controls.get("llm.add_example_button", ft.TextButton())
 
-    # -- LLM Settings --
-    config_controls["llm.enabled"] = ft.Switch(
-        label="启用 LLM 处理",
-        value=config.get("llm.enabled", False),
-        tooltip="是否将识别/翻译后的文本发送给 LLM 进行处理",
-    )
-    config_controls["llm.base_url"] = ft.TextField(
-        label="LLM API Base URL",
-        value=config.get("llm.base_url") or "",
-        hint_text="留空则使用 OpenAI 默认 URL",
-        tooltip="用于本地 LLM 或代理 (例如 http://localhost:11434/v1)",
-    )
-    config_controls["llm.model"] = ft.TextField(
-        label="LLM 模型",
-        value=config.get("llm.model", "gpt-3.5-turbo"),
-        tooltip="要使用的 OpenAI 兼容模型名称",
-    )
-    config_controls["llm.system_prompt"] = ft.TextField(
-        label="LLM 系统提示",
-        value=config.get("llm.system_prompt", "You are a helpful assistant."),
-        multiline=True,
-        min_lines=3,
-        max_lines=5,
-        tooltip="指导 LLM 行为的系统消息",
-    )
-    config_controls["llm.temperature"] = ft.TextField(
-        label="LLM Temperature",
-        value=str(config.get("llm.temperature", 0.7)),
-        keyboard_type=ft.KeyboardType.NUMBER,
-        tooltip="控制 LLM 输出的随机性 (0.0-2.0)",
-    )
-    config_controls["llm.max_tokens"] = ft.TextField(
-        label="LLM Max Tokens",
-        value=str(config.get("llm.max_tokens", 150)),
-        keyboard_type=ft.KeyboardType.NUMBER,
-        tooltip="LLM 响应的最大长度",
-    )
 
-    # --- Few-Shot Examples UI Elements ---
-    # Column to hold the dynamic example rows
-    few_shot_examples_column = ft.Column(controls=[], spacing=5)
-    config_controls["llm.few_shot_examples_column"] = (
-        few_shot_examples_column  # Store ref
-    )
+    vrc_osc_controls = create_vrc_osc_controls(initial_config_data)
+    all_config_controls.update(vrc_osc_controls)
 
-    add_example_button = ft.TextButton(
-        "添加 Few-Shot 示例",
-        icon=ft.icons.ADD,
-        on_click=None,  # Handler will be defined later
-        tooltip="添加一个用户输入/助手响应示例对",
-    )
-    # --- End Few-Shot Examples UI ---
+    console_controls = create_console_output_controls(initial_config_data)
+    all_config_controls.update(console_controls)
 
-    llm_section = create_config_section(
-        "语言模型 (LLM)",
-        [
-            config_controls["llm.enabled"],
-            config_controls["llm.api_key"],  # ADDED: API Key moved into the LLM section
-            config_controls["llm.base_url"],
-            config_controls["llm.model"],
-            config_controls["llm.system_prompt"],
-            config_controls["llm.temperature"],
-            config_controls["llm.max_tokens"],
-            ft.Divider(height=5),
-            ft.Text("Few-Shot 示例", style=ft.TextThemeStyle.TITLE_SMALL),
-            ft.Text("这些示例指导 LLM 如何响应特定输入。", size=11, italic=True),
-            few_shot_examples_column,  # Add the column here
-            add_example_button,  # Add the button here
-        ],
-    )
+    file_controls = create_file_output_controls(initial_config_data)
+    all_config_controls.update(file_controls)
 
-    # -- Output Settings --
-    # VRC OSC
-    config_controls["outputs.vrc_osc.enabled"] = ft.Switch(
-        label="启用 VRChat OSC 输出",
-        value=config.get("outputs.vrc_osc.enabled", True),
-    )
-    config_controls["outputs.vrc_osc.address"] = ft.TextField(
-        label="VRC OSC 地址",
-        value=config.get("outputs.vrc_osc.address", "127.0.0.1"),
-    )
-    config_controls["outputs.vrc_osc.port"] = ft.TextField(
-        label="VRC OSC 端口",
-        value=str(config.get("outputs.vrc_osc.port", 9000)),
-        keyboard_type=ft.KeyboardType.NUMBER,
-    )
-    config_controls["outputs.vrc_osc.message_interval"] = ft.TextField(
-        label="VRC OSC 消息间隔 (秒)",
-        value=str(config.get("outputs.vrc_osc.message_interval", 1.333)),
-        keyboard_type=ft.KeyboardType.NUMBER,
-        tooltip="发送到 VRChat 的最小时间间隔",
-    )
-    vrc_osc_output_section = create_config_section(
-        "输出: VRChat OSC",
-        [
-            config_controls["outputs.vrc_osc.enabled"],
-            config_controls["outputs.vrc_osc.address"],
-            config_controls["outputs.vrc_osc.port"],
-            config_controls["outputs.vrc_osc.message_interval"],
-        ],
-    )
-    # Console
-    config_controls["outputs.console.enabled"] = ft.Switch(
-        label="启用控制台输出",
-        value=config.get("outputs.console.enabled", True),
-    )
-    config_controls["outputs.console.prefix"] = ft.TextField(
-        label="控制台输出前缀",
-        value=config.get("outputs.console.prefix", "[Final Text]"),
-    )
-    console_output_section = create_config_section(
-        "输出: 控制台",
-        [
-            config_controls["outputs.console.enabled"],
-            config_controls["outputs.console.prefix"],
-        ],
-    )
-    # File
-    config_controls["outputs.file.enabled"] = ft.Switch(
-        label="启用文件输出",
-        value=config.get("outputs.file.enabled", False),
-    )
-    config_controls["outputs.file.path"] = ft.TextField(
-        label="文件输出路径",
-        value=config.get("outputs.file.path", "output_log.txt"),
-    )
-    config_controls["outputs.file.format"] = ft.TextField(
-        label="文件输出格式",
-        value=config.get("outputs.file.format", "{timestamp} - {text}"),
-        tooltip="可用占位符: {timestamp}, {text}",
-    )
-    file_output_section = create_config_section(
-        "输出: 文件",
-        [
-            config_controls["outputs.file.enabled"],
-            config_controls["outputs.file.path"],
-            config_controls["outputs.file.format"],
-        ],
-    )
+    logging_controls = create_logging_controls(initial_config_data)
+    all_config_controls.update(logging_controls)
 
-    # -- Logging Settings --
-    config_controls["logging.level"] = ft.Dropdown(
-        label="日志级别",
-        value=config.get("logging.level", "INFO"),
-        options=[
-            ft.dropdown.Option("DEBUG"),
-            ft.dropdown.Option("INFO"),
-            ft.dropdown.Option("WARNING"),
-            ft.dropdown.Option("ERROR"),
-            ft.dropdown.Option("CRITICAL"),
-        ],
-        tooltip="控制应用程序记录信息的详细程度",
-    )
-    logging_section = create_config_section(
-        "日志记录",
-        [
-            config_controls["logging.level"],
-        ],
-    )
+    # Update the shared dictionary reference imported from gui_config
+    config_controls_dict.clear() # Clear any previous state
+    config_controls_dict.update(all_config_controls)
 
+    # Create Config Save/Reload buttons
     save_config_button = ft.ElevatedButton(
         "保存配置",
-        on_click=None,
+        on_click=None, # Handlers assigned later
         icon=ft.icons.SAVE,
         tooltip="将当前设置写入 config.yaml",
     )
     reload_config_button = ft.ElevatedButton(
         "从文件重载",
-        on_click=None,
+        on_click=None, # Handlers assigned later
         icon=ft.icons.REFRESH,
         tooltip="放弃当前更改并从 config.yaml 重新加载",
     )
+
+    # Dashboard elements are imported directly from gui_dashboard:
+    # status_icon, status_label, status_row, output_text,
+    # toggle_button, progress_indicator are already instantiated.
 
     # --- 回调函数 (用于更新 UI 和处理事件) ---
     def update_status_display(message: str, is_running: Optional[bool] = None, is_processing: bool = False):
@@ -493,11 +225,26 @@ def main(page: ft.Page):
 
     # --- (Removed show_snackbar function) ---
 
-    # --- Helper function to get control value safely (defined within main) ---
-    def get_control_value(
-        key: str, control_type: type = str, default: Any = None
-    ):
-        """Safely gets and converts value from the control dictionary."""
+    # --- Helper function get_control_value is now defined below, just before save_config_handler ---
+
+    # --- 配置保存/重载逻辑 ---
+    async def save_config_handler(e: ft.ControlEvent):
+        """保存按钮点击事件处理程序 (配置选项卡)"""
+        logger.info("Save configuration button clicked.")
+        # Start with a deep copy of the *current live* config data
+        if not config:
+            logger.error("Cannot save config, config object not available.")
+            # Show error banner?
+            return
+        new_config_data = copy.deepcopy(config.data)
+
+        # Define Helper function inside save_config_handler's scope or keep it in main's scope?
+        # Let's keep it in main's scope as defined previously. This block just removes the duplicate/old definition.
+
+        # Ensure get_control_value is defined *before* this handler if needed outside.
+        # It seems the provided code already has it defined correctly in main's scope.
+        # So, this SEARCH block needs to match the definition in main's scope and remove it.
+
         control = all_config_controls.get(key) # Use the local aggregated dict
         if control is None:
             logger.warning(f"Control for config key '{key}' not found in GUI.")
@@ -738,22 +485,27 @@ def main(page: ft.Page):
 
             # Update few-shot examples from the dynamic rows
             examples_list = []
-            for row in few_shot_examples_column.controls:
-                if isinstance(row, ft.Row) and len(row.controls) >= 2:
-                    # Assume first two controls are the TextFields
-                    user_tf = row.controls[0]
-                    assistant_tf = row.controls[1]
-                    if isinstance(user_tf, ft.TextField) and isinstance(
-                        assistant_tf, ft.TextField
-                    ):
-                        user_text = user_tf.value or ""
-                        assistant_text = assistant_tf.value or ""
-                        if (
-                            user_text or assistant_text
-                        ):  # Only save if at least one field has text
-                            examples_list.append(
-                                {"user": user_text, "assistant": assistant_text}
-                            )
+            # Use the correct column variable reference if available
+            active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column", few_shot_examples_column) # Use local if possible
+            if active_few_shot_column and isinstance(active_few_shot_column, ft.Column):
+                 for row in active_few_shot_column.controls:
+                    if isinstance(row, ft.Row) and len(row.controls) >= 3: # Check for 3 controls (user, assistant, remove)
+                        # Check control types more robustly before accessing value
+                        user_tf = row.controls[0] if isinstance(row.controls[0], ft.TextField) else None
+                        assistant_tf = row.controls[1] if isinstance(row.controls[1], ft.TextField) else None
+
+                        if user_tf and assistant_tf:
+                            user_text = user_tf.value or ""
+                            assistant_text = assistant_tf.value or ""
+                            # Only save if at least one field has text
+                            if user_text or assistant_text:
+                                examples_list.append({"user": user_text, "assistant": assistant_text})
+                        else:
+                            logger.warning(f"Unexpected control types in few-shot row: {row.controls}")
+            else:
+                 logger.warning("Few-shot examples column control not found or invalid during save.")
+
+
             logger.debug(f"Saving {len(examples_list)} few-shot examples.")
             update_nested_dict(new_config_data, "llm.few_shot_examples", examples_list)
 
@@ -813,40 +565,61 @@ def main(page: ft.Page):
     def reload_config_controls():
         """Updates the GUI controls with values from the reloaded config."""
         logger.info("Reloading config values into GUI controls.")
-        for key, control in config_controls.items():
-            value = config.get(key)
+        reloaded_config_data = config.data if config else {} # Get reloaded data safely
+
+        # Use the aggregated dictionary of controls
+        for key, control in all_config_controls.items():
+            # Skip special controls that don't map directly to config keys
+            if key in ["llm.few_shot_examples_column", "llm.add_example_button"]:
+                 continue
+
+            # Get value from the *reloaded* data using nested access if needed
+            keys = key.split('.')
+            current_value = reloaded_config_data
+            for k in keys:
+                try:
+                    current_value = current_value[k]
+                except (KeyError, TypeError, IndexError):
+                    logger.warning(f"Key '{key}' path invalid at '{k}' in reloaded config data. Skipping control update.")
+                    current_value = None # Mark value as not found
+                    break # Stop traversing this key
+
+            # Assign the final retrieved value (or None if path was invalid)
+            value = current_value
+
             try:
+                if control is None: # Should not happen if loop continues, but check anyway
+                     continue
+
                 if isinstance(control, ft.Switch):
                     control.value = bool(value) if value is not None else False
                 elif isinstance(control, ft.Dropdown):
-                    # Ensure the value exists in options, otherwise might clear selection
-                    if any(opt.key == value for opt in control.options):
+                    # Ensure the value exists in options before setting
+                    if value is not None and hasattr(control, 'options') and isinstance(control.options, list) and any(opt.key == value for opt in control.options):
                         control.value = value
                     else:
-                        logger.warning(
-                            f"Value '{value}' for dropdown '{key}' not in options. Keeping previous selection."
-                        )
-                        # Optionally set to a default or leave as is. Let's leave it.
+                        # Log warning but don't change value if invalid or not found
+                        if value is not None: # Log only if there was a value expected
+                             logger.warning(
+                                 f"Value '{value}' for dropdown '{key}' not in options or invalid. Keeping previous selection."
+                             )
                 elif isinstance(control, ft.TextField):
-                    if (
-                        key
-                        in [
-                            "stt.translation_target_language",
+                     # Check specific keys that allow None/empty representation
+                    if key in [
+                            "dashscope.stt.translation_target_language", # Updated key
                             "audio.sample_rate",
                             "llm.base_url",
-                        ]
-                        and value is None
-                    ):
-                        control.value = ""  # Use empty string for None in text fields
+                        ] and value is None:
+                         control.value = "" # Use empty string for None
                     else:
-                        control.value = str(value) if value is not None else ""
+                         control.value = str(value) if value is not None else ""
                 # Add other control types if necessary
             except Exception as ex:
                 logger.error(
                     f"Error reloading control for key '{key}' with value '{value}': {ex}"
                 )
 
-        # Reload few-shot examples
+        # Reload few-shot examples (ensure column control exists)
         few_shot_examples_column.controls.clear()  # Remove existing rows
         loaded_examples = config.get("llm.few_shot_examples", [])
         if isinstance(loaded_examples, list):
@@ -1153,60 +926,31 @@ def main(page: ft.Page):
 
 
     # --- Bind event handlers ---
-    # start_button.on_click = start_recording # Removed
-    # stop_button.on_click = stop_recording # Removed
-    toggle_button.on_click = toggle_recording # Bind the toggle handler
-    save_config_button.on_click = save_config_handler
-    reload_config_button.on_click = reload_config_handler
-    page.on_window_event = on_window_event
+    toggle_button.on_click = toggle_recording      # Dashboard button
+    save_config_button.on_click = save_config_handler    # Config button
+    reload_config_button.on_click = reload_config_handler # Config button
+    add_example_button.on_click = add_example_handler    # Config button (already assigned above, but good to be explicit)
+    page.on_window_event = on_window_event               # Page event
 
-    # --- Layout using Tabs (Dashboard Redesigned) ---
-    dashboard_tab_content = ft.Column(
-        [
-            # Status display at the top
-            ft.Container(status_row, padding=ft.padding.only(top=15, bottom=5)), # Reduced bottom padding
 
-            # Combined Start/Stop button below status, centered
-            ft.Row(
-                [toggle_button, progress_indicator], # Only toggle button and indicator
-                alignment=ft.MainAxisAlignment.CENTER,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=15, # Adjust spacing if needed
-            ),
+    # --- Layout using Tabs ---
+    # Import layout functions from the new modules
+    from gui_dashboard import create_dashboard_tab_content
+    from gui_config import create_config_tab_content
 
-            # Output text area taking remaining space
-            ft.Container(
-                output_text,
-                expand=True, # Make container expand
-                padding=ft.padding.only(top=15, bottom=10, left=10, right=10) # Padding around text area
-            ),
-        ],
-        expand=True,
-        alignment=ft.MainAxisAlignment.START, # Align items to the top
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Center items horizontally
-        spacing=10, # Overall spacing for the column
+    # Create tab content by calling functions from imported modules
+    dashboard_tab_layout = create_dashboard_tab_content(
+        # Pass the elements defined/imported above
+        status_row_control=status_row,
+        toggle_button_control=toggle_button,
+        progress_indicator_control=progress_indicator,
+        output_text_control=output_text
     )
 
-    config_tab_content = ft.Column(
-        [
-            ft.Row(  # Buttons Row
-                [save_config_button, reload_config_button],
-                alignment=ft.MainAxisAlignment.END,  # Align buttons to the right
-            ),
-            ft.Divider(height=10),
-            # Sections - Removed stt_section and audio_section
-            dashscope_section,  # Now contains STT and Audio settings
-            # stt_section, # REMOVED
-            # audio_section, # REMOVED
-            llm_section,
-            vrc_osc_output_section,
-            console_output_section,
-            file_output_section,
-            logging_section,
-        ],
-        expand=True,
-        scroll=ft.ScrollMode.ADAPTIVE,  # Make config tab scrollable if needed
-        spacing=15,  # Space between config sections/elements
+    config_tab_layout = create_config_tab_content(
+        save_button=save_config_button,
+        reload_button=reload_config_button,
+        all_controls=all_config_controls # Pass the aggregated dictionary
     )
 
     page.add(
@@ -1225,12 +969,19 @@ def main(page: ft.Page):
 
     # Initial population of few-shot examples on first load
     logger.debug("Initial population of few-shot examples UI.")
-    initial_examples = config.get('llm.few_shot_examples', [])
-    if isinstance(initial_examples, list):
+    # Use safe access to initial config data
+    initial_config_data = config.data if config else {}
+    initial_examples = initial_config_data.get('llm', {}).get('few_shot_examples', [])
+    # Use the correct column variable reference
+    active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column", few_shot_examples_column)
+    if isinstance(initial_examples, list) and active_few_shot_column and isinstance(active_few_shot_column, ft.Column):
         for example in initial_examples:
             if isinstance(example, dict) and 'user' in example and 'assistant' in example:
-                initial_row = create_example_row(example.get('user', ''), example.get('assistant', ''))
-                few_shot_examples_column.controls.append(initial_row)
+                # Use the internal function defined within main()
+                initial_row = _create_example_row_internal(
+                    example.get('user', ''), example.get('assistant', '')
+                )
+                active_few_shot_column.controls.append(initial_row)
             else:
                 logger.warning(f"Skipping invalid few-shot example during initial load: {example}")
     else:
