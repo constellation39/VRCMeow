@@ -139,8 +139,26 @@ class Config:
                 else: # File is empty
                     logger.info(f"Config file {config_path} is empty. Using default configuration.")
         except FileNotFoundError:
-            logger.warning(f"Config file {config_path} not found. Using default configuration.")
-            logger.info(f"Consider copying config.example.yaml to {config_path}.")
+            logger.warning(f"Config file '{config_path}' not found.")
+            example_config_path = config_path.replace(".yaml", ".example.yaml")
+            try:
+                if os.path.exists(example_config_path):
+                    import shutil
+                    shutil.copy2(example_config_path, config_path) # copy2 preserves metadata
+                    logger.info(f"Copied '{example_config_path}' to '{config_path}'.")
+                    # Now attempt to load the newly created file
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                         file_config = yaml.safe_load(f)
+                         if file_config and isinstance(file_config, dict):
+                             config = _recursive_update(config, file_config)
+                             logger.info(f"Successfully loaded configuration from newly created '{config_path}'.")
+                         else:
+                             logger.warning(f"Newly created '{config_path}' is empty or invalid. Using defaults.")
+                else:
+                    logger.warning(f"Example config file '{example_config_path}' not found. Using default configuration.")
+            except Exception as copy_err:
+                logger.error(f"Failed to copy '{example_config_path}' to '{config_path}': {copy_err}. Using default configuration.", exc_info=True)
+
         except yaml.YAMLError as e:
             logger.error(f"Error parsing config file {config_path}: {e}. Using default config.", exc_info=True)
         except Exception as e:
