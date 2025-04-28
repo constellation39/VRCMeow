@@ -6,6 +6,7 @@ from typing import Any # Added Union
 from pythonosc import udp_client as pythonosc_udp_client # Rename to avoid conflict
 from pythonosc.osc_message_builder import ArgValue
 
+from config import config  # Import the config instance
 from logger_config import get_logger  # 导入日志获取器
 
 # 获取该模块的 logger 实例
@@ -36,6 +37,7 @@ class VRCClient:
         # 使用传入的参数初始化客户端
         self._osc_client = pythonosc_udp_client.SimpleUDPClient(address, port)
         self.interval = interval
+        self.format_string = config.get("outputs.vrc_osc.format", "{text}") # Load format string
         self._address = address  # 可以存储起来用于日志记录
         self._port = port  # 可以存储起来用于日志记录
 
@@ -107,14 +109,17 @@ class VRCClient:
     async def _send_message(self, content: ArgValue) -> None:
         """通过 OSC 发送消息。"""
         try:
+            # Apply the format string
+            formatted_content = self.format_string.format(text=content)
+
             # 首先发送 typing=False 清除输入状态
             self._osc_client.send_message("/chatbox/typing", False)
-            # 然后发送消息内容，send_now=True 表示立即发送
+            # 然后发送 *格式化后* 的消息内容，send_now=True 表示立即发送
             self._osc_client.send_message(
-                "/chatbox/input", [content, True]
+                "/chatbox/input", [formatted_content, True]
             )  # VRC 需要列表 [message, send_now=True]
             self._last_send_time = time.time()  # 更新上次发送时间
-            logger.info(f"OSC 消息已发送: {content}")  # 使用 logger.info
+            logger.info(f"OSC 消息已发送: {formatted_content}") # Log the formatted content
         except Exception as e:
             logger.error(
                 f"发送 OSC 消息时出错: {e}", exc_info=True
