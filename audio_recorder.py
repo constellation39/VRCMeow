@@ -403,24 +403,22 @@ class AudioManager:
         # This method belongs inside the AudioManager class based on the refactoring
 
     def _audio_callback(  # Correct indentation for method
-        self,  # Add self for instance method
+        self,
         indata: np.ndarray,
-        outdata: np.ndarray,
         frames: int,
-        time: Any,  # Use Any for time if type isn't strictly defined
+        time: Any,
         status: sd.CallbackFlags,
     ):
-        """Synchronous callback for sounddevice stream."""
+        """Synchronous callback for sounddevice input stream."""
         if status:
             logger.warning(f"Audio callback status: {status}")
             # Potentially update status for critical flags?
             # self._update_status(f"Audio Status: {status}")
 
-        # Echo mode (using instance variable)
-        if self.debug_echo_mode:
-            outdata[:] = indata
-        else:
-            outdata.fill(0)  # Output silence in normal mode
+        # Output buffer (outdata) is not available in InputStream callback.
+        # Debug echo mode is therefore not functional here. If echo is needed,
+        # a different stream type (sd.Stream or sd.OutputStream) would be required
+        # in conjunction with this input stream, or use sd.Stream directly.
 
         # Put audio data into the thread-safe queue
         # This callback runs in the sounddevice thread.
