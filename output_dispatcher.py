@@ -5,6 +5,10 @@ import aiofiles  # Use aiofiles for async file operations
 
 # Directly import the config instance
 from config import config
+from typing import Optional, Callable, Awaitable # 导入 Callable 和 Awaitable
+
+# Directly import the config instance
+from config import config
 from logger_config import get_logger
 
 # Import VRCClient for type hinting, handle potential ImportError if needed
@@ -16,8 +20,13 @@ logger = get_logger(__name__)
 class OutputDispatcher:
     """Handles dispatching final text results to configured outputs."""
 
-    def __init__(self, vrc_client_instance: Optional[VRCClient] = None) -> None:
+    def __init__(
+        self,
+        vrc_client_instance: Optional[VRCClient] = None,
+        gui_output_callback: Optional[Callable[[str], None]] = None # 添加 GUI 回调参数
+    ) -> None:
         self.vrc_client = vrc_client_instance
+        self.gui_output_callback = gui_output_callback # 存储回调
         self.outputs_config = config.get("outputs", {})
         self.loop = asyncio.get_running_loop()
 
@@ -111,7 +120,17 @@ class OutputDispatcher:
                 asyncio.create_task(self.vrc_client.send_chatbox(formatted_vrc_text))
             )
 
-        # Wait for async tasks like file writing or OSC sending to complete
+        # 4. GUI Output (Direct Call - Callback handles thread safety)
+        if self.gui_output_callback:
+            try:
+                # 直接调用回调，假设回调是线程安全的 (例如，使用 page.run_thread_safe)
+                self.gui_output_callback(text)
+                logger.debug("Dispatched text to GUI.")
+            except Exception as gui_err:
+                 logger.error(f"OutputDispatcher: Error calling GUI output callback: {gui_err}", exc_info=True)
+                 # 不将此添加到 dispatch_tasks，因为回调应快速返回
+
+        # Wait for background async tasks like file writing or OSC sending to complete
         if dispatch_tasks:
             try:
                 # Gather results, logging any exceptions that occurred in tasks
