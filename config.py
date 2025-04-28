@@ -287,17 +287,27 @@ except Exception as e:
     class FallbackConfig:
         _data = {k: v.copy() if isinstance(v, dict) else v for k, v in _DEFAULT_CONFIG.items()}
         # Ensure minimal structure exists
-        if "logging" not in _data: _data["logging"] = {}
+        if "logging" not in _data:
+            _data["logging"] = {}
         _data["logging"]["level"] = _DEFAULT_CONFIG.get("logging", {}).get("level", "INFO")
         _data["logging"]["level_int"] = getattr(logging, _data["logging"]["level"], logging.INFO)
+        # Ensure llm section exists (even in fallback, though keys won't be overridden)
+        if "llm" not in _data:
+            _data["llm"] = {}
 
         @property
-        def data(self): return self._data
+        def data(self):
+            return self._data
         def __getitem__(self, key): # Basic non-nested access
-             try: return self._data[key]
-             except KeyError: raise KeyError(f"Fallback config missing key '{key}'")
-        def get(self, key, default=None): return self._data.get(key, default) # Basic non-nested get
+            try:
+                return self._data[key]
+            except KeyError:
+                raise KeyError(f"Fallback config missing key '{key}'")
+        def get(self, key, default=None): # Basic non-nested get
+            return self._data.get(key, default)
     config = FallbackConfig()
+    # The warning is logged when the instance is created, not part of the class definition itself
+    logger.warning("Using fallback configuration due to critical error during load.")
 
 
 # Optional: Provide a function alias for compatibility or preference

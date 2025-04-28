@@ -7,8 +7,9 @@ from typing import Dict, Any
 
 # Attempt to import from the new config module
 try:
-    # Import the singleton instance 'config' and the data access function
-    from config import config, get_config_data as _get_config_data
+    # Import the data access function
+    # We no longer import 'config' here as it's unused in this compatibility layer
+    from config import get_config_data as _get_config_data
     # Optionally, configure a logger for this compatibility layer if needed
     logger = logging.getLogger(__name__)
     # logger.info("config_loader.py: Successfully imported from the new 'config' module.")
