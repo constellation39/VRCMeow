@@ -1,16 +1,13 @@
 import asyncio
 import datetime
-from typing import Optional
+# Directly import the config instance
+from typing import Optional, Callable  # 导入 Callable 和 Awaitable
+
 import aiofiles  # Use aiofiles for async file operations
 
 # Directly import the config instance
 from config import config
-from typing import Optional, Callable, Awaitable # 导入 Callable 和 Awaitable
-
-# Directly import the config instance
-from config import config
 from logger_config import get_logger
-
 # Import VRCClient for type hinting, handle potential ImportError if needed
 from osc_client import VRCClient
 
