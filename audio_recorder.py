@@ -279,7 +279,7 @@ class AudioManager:
                         # 发送音频帧 - 可能在此处发生连接错误
                         recognizer.send_audio_frame(audio_data.tobytes())
 
-                        audio_queue.task_done()
+                        self._audio_queue.task_done() # Use self._audio_queue
                     except asyncio.TimeoutError:
                         # 队列为空，继续检查停止信号
                         continue
