@@ -210,6 +210,8 @@ class GummyCallback(TranslationRecognizerCallback):
                     self.logger.info(
                         f"STT_GUMMY: POST-SCHEDULE LLM processing & dispatch (Future: {future})"
                     )
+                    # Add the done callback to check the future's result/exception
+                    future.add_done_callback(self._log_dispatch_result)
                 elif self.output_dispatcher:
                     # LLM disabled, schedule dispatch directly
                     # <-- Add check before scheduling -->
@@ -227,6 +229,8 @@ class GummyCallback(TranslationRecognizerCallback):
                         self.logger.info(
                             f"STT_GUMMY: POST-SCHEDULE direct dispatch (Future: {future})"
                         )
+                        # Add the done callback to check the future's result/exception
+                        future.add_done_callback(self._log_dispatch_result)
                     else:
                         self.logger.error(
                             "STT_GUMMY: self.output_dispatcher became None unexpectedly before scheduling dispatch!"
