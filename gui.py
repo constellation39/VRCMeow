@@ -1,9 +1,11 @@
 import asyncio
 import flet as ft
-from typing import Optional
+from typing import Optional, Dict, Any
 import os
 import pathlib
 import sys
+import yaml # Needed for saving config
+import copy # Needed for handling config data
 
 # --- 设置正确的工作目录 ---
 # 确定脚本文件所在的目录
@@ -62,23 +64,261 @@ def main(page: ft.Page):
     # 设置初始窗口大小 (可选)
     page.window_width = 600
     page.window_height = 450
-    page.window_resizable = True # 允许调整大小
+    page.window_resizable = True  # 允许调整大小
+    page.padding = 10 # Add some padding around the page content
 
     app_state = AppState() # 创建状态实例
 
     # --- UI 元素 ---
+
+    # == Dashboard Tab Elements ==
     status_text = ft.Text("状态: 未启动", selectable=True)
     output_text = ft.TextField(
         label="最终输出",
         multiline=True,
         read_only=True,
-        expand=True, # 允许文本区域扩展填充空间
-        min_lines=5,
+        expand=True,  # 允许文本区域扩展填充空间
+        min_lines=5, # Keep min_lines for the output text
     )
-    start_button = ft.ElevatedButton("启动", on_click=None, disabled=False)
-    stop_button = ft.ElevatedButton("停止", on_click=None, disabled=True)
+    start_button = ft.ElevatedButton("启动", on_click=None, disabled=False, tooltip="启动音频处理和连接")
+    stop_button = ft.ElevatedButton("停止", on_click=None, disabled=True, tooltip="停止所有后台进程")
 
-    # --- 回调函数 (用于更新 UI) ---
+    # == Configuration Tab Elements ==
+    # We will store references to input controls to easily read their values later
+    config_controls: Dict[str, ft.Control] = {}
+
+    def create_config_section(title: str, controls: list[ft.Control]) -> ft.Card:
+        """Helper to create a bordered section for config options."""
+        return ft.Card(
+            ft.Container(
+                ft.Column([
+                    ft.Text(title, style=ft.TextThemeStyle.TITLE_MEDIUM),
+                    ft.Divider(height=1),
+                    *controls,
+                ]),
+                padding=10,
+            ),
+            # elevation=2, # Optional: Add shadow
+        )
+
+    # -- API Keys --
+    config_controls["dashscope_api_key"] = ft.TextField(
+        label="Dashscope API Key",
+        value=config.get('dashscope_api_key', ''),
+        password=True,
+        can_reveal_password=True,
+        hint_text="从环境变量 DASHSCOPE_API_KEY 覆盖",
+        tooltip="阿里云 Dashscope API Key"
+    )
+    config_controls["llm.api_key"] = ft.TextField(
+        label="LLM API Key (OpenAI兼容)",
+        value=config.get('llm.api_key', ''),
+        password=True,
+        can_reveal_password=True,
+        hint_text="从环境变量 OPENAI_API_KEY 覆盖",
+        tooltip="用于 LLM 处理的 API Key (如果启用)"
+    )
+    api_keys_section = create_config_section("API Keys", [
+        config_controls["dashscope_api_key"],
+        config_controls["llm.api_key"],
+    ])
+
+    # -- STT Settings --
+    config_controls["stt.model"] = ft.Dropdown(
+        label="STT 模型",
+        value=config.get('stt.model', 'gummy-realtime-v1'),
+        options=[
+            ft.dropdown.Option("gummy-realtime-v1", "Gummy (支持翻译)"),
+            ft.dropdown.Option("paraformer-realtime-v2", "Paraformer V2 (仅识别)"),
+            ft.dropdown.Option("paraformer-realtime-v1", "Paraformer V1 (仅识别)"),
+        ],
+        tooltip="选择语音识别模型"
+    )
+    config_controls["stt.translation_target_language"] = ft.TextField(
+        label="翻译目标语言 (Gummy)",
+        value=config.get('stt.translation_target_language') or "", # Use empty string if None
+        hint_text="留空则禁用翻译 (例如: en, ja, ko)",
+        tooltip="如果使用 Gummy 并希望翻译，在此处输入目标语言代码"
+    )
+    config_controls["stt.intermediate_result_behavior"] = ft.Dropdown(
+        label="中间结果处理 (VRC OSC)",
+        value=config.get('stt.intermediate_result_behavior', 'ignore'),
+        options=[
+            ft.dropdown.Option("ignore", "忽略"),
+            ft.dropdown.Option("show_typing", "显示 'Typing...'"),
+            ft.dropdown.Option("show_partial", "显示部分文本"),
+        ],
+        tooltip="如何处理非最终的语音识别结果 (仅影响 VRChat 输出)"
+    )
+    stt_section = create_config_section("语音识别 (STT)", [
+        config_controls["stt.model"],
+        config_controls["stt.translation_target_language"],
+        config_controls["stt.intermediate_result_behavior"],
+    ])
+
+    # -- Audio Settings --
+    config_controls["audio.sample_rate"] = ft.TextField(
+        label="采样率 (Hz)",
+        value=str(config.get('audio.sample_rate') or ""), # Use empty string if None
+        hint_text="留空则使用设备默认值 (例如 16000)",
+        keyboard_type=ft.KeyboardType.NUMBER,
+        tooltip="音频输入采样率。需要与所选 STT 模型兼容"
+    )
+    # Note: Channels and dtype are often fixed by the STT model, maybe don't make them configurable?
+    # Let's keep them for now but add a note.
+    config_controls["audio.channels"] = ft.TextField(
+        label="声道数",
+        value=str(config.get('audio.channels', 1)),
+        keyboard_type=ft.KeyboardType.NUMBER,
+        tooltip="音频输入声道数 (通常为 1)"
+    )
+    config_controls["audio.dtype"] = ft.TextField(
+        label="数据类型",
+        value=config.get('audio.dtype', 'int16'),
+        tooltip="音频数据类型 (例如 int16)"
+    )
+    config_controls["audio.debug_echo_mode"] = ft.Switch(
+        label="调试回声模式",
+        value=config.get('audio.debug_echo_mode', False),
+        tooltip="将输入音频直接路由到输出以进行测试"
+    )
+    audio_section = create_config_section("音频输入", [
+        config_controls["audio.sample_rate"],
+        config_controls["audio.channels"],
+        config_controls["audio.dtype"],
+        config_controls["audio.debug_echo_mode"],
+    ])
+
+
+    # -- LLM Settings --
+    config_controls["llm.enabled"] = ft.Switch(
+        label="启用 LLM 处理",
+        value=config.get('llm.enabled', False),
+        tooltip="是否将识别/翻译后的文本发送给 LLM 进行处理"
+    )
+    config_controls["llm.base_url"] = ft.TextField(
+        label="LLM API Base URL",
+        value=config.get('llm.base_url') or "",
+        hint_text="留空则使用 OpenAI 默认 URL",
+        tooltip="用于本地 LLM 或代理 (例如 http://localhost:11434/v1)"
+    )
+    config_controls["llm.model"] = ft.TextField(
+        label="LLM 模型",
+        value=config.get('llm.model', 'gpt-3.5-turbo'),
+        tooltip="要使用的 OpenAI 兼容模型名称"
+    )
+    config_controls["llm.system_prompt"] = ft.TextField(
+        label="LLM 系统提示",
+        value=config.get('llm.system_prompt', 'You are a helpful assistant.'),
+        multiline=True,
+        min_lines=3,
+        max_lines=5,
+        tooltip="指导 LLM 行为的系统消息"
+    )
+    config_controls["llm.temperature"] = ft.TextField(
+        label="LLM Temperature",
+        value=str(config.get('llm.temperature', 0.7)),
+        keyboard_type=ft.KeyboardType.NUMBER,
+        tooltip="控制 LLM 输出的随机性 (0.0-2.0)"
+    )
+    config_controls["llm.max_tokens"] = ft.TextField(
+        label="LLM Max Tokens",
+        value=str(config.get('llm.max_tokens', 150)),
+        keyboard_type=ft.KeyboardType.NUMBER,
+        tooltip="LLM 响应的最大长度"
+    )
+    # Few-shot examples are complex for a simple GUI, skip for now.
+    llm_section = create_config_section("语言模型 (LLM)", [
+        config_controls["llm.enabled"],
+        config_controls["llm.api_key"], # Reuse the key field from API section
+        config_controls["llm.base_url"],
+        config_controls["llm.model"],
+        config_controls["llm.system_prompt"],
+        config_controls["llm.temperature"],
+        config_controls["llm.max_tokens"],
+    ])
+
+    # -- Output Settings --
+    # VRC OSC
+    config_controls["outputs.vrc_osc.enabled"] = ft.Switch(
+        label="启用 VRChat OSC 输出",
+        value=config.get('outputs.vrc_osc.enabled', True),
+    )
+    config_controls["outputs.vrc_osc.address"] = ft.TextField(
+        label="VRC OSC 地址",
+        value=config.get('outputs.vrc_osc.address', '127.0.0.1'),
+    )
+    config_controls["outputs.vrc_osc.port"] = ft.TextField(
+        label="VRC OSC 端口",
+        value=str(config.get('outputs.vrc_osc.port', 9000)),
+        keyboard_type=ft.KeyboardType.NUMBER,
+    )
+    config_controls["outputs.vrc_osc.message_interval"] = ft.TextField(
+        label="VRC OSC 消息间隔 (秒)",
+        value=str(config.get('outputs.vrc_osc.message_interval', 1.333)),
+        keyboard_type=ft.KeyboardType.NUMBER,
+        tooltip="发送到 VRChat 的最小时间间隔"
+    )
+    vrc_osc_output_section = create_config_section("输出: VRChat OSC", [
+         config_controls["outputs.vrc_osc.enabled"],
+         config_controls["outputs.vrc_osc.address"],
+         config_controls["outputs.vrc_osc.port"],
+         config_controls["outputs.vrc_osc.message_interval"],
+    ])
+    # Console
+    config_controls["outputs.console.enabled"] = ft.Switch(
+        label="启用控制台输出",
+        value=config.get('outputs.console.enabled', True),
+    )
+    config_controls["outputs.console.prefix"] = ft.TextField(
+        label="控制台输出前缀",
+        value=config.get('outputs.console.prefix', '[Final Text]'),
+    )
+    console_output_section = create_config_section("输出: 控制台", [
+        config_controls["outputs.console.enabled"],
+        config_controls["outputs.console.prefix"],
+    ])
+    # File
+    config_controls["outputs.file.enabled"] = ft.Switch(
+        label="启用文件输出",
+        value=config.get('outputs.file.enabled', False),
+    )
+    config_controls["outputs.file.path"] = ft.TextField(
+        label="文件输出路径",
+        value=config.get('outputs.file.path', 'output_log.txt'),
+    )
+    config_controls["outputs.file.format"] = ft.TextField(
+        label="文件输出格式",
+        value=config.get('outputs.file.format', '{timestamp} - {text}'),
+        tooltip="可用占位符: {timestamp}, {text}"
+    )
+    file_output_section = create_config_section("输出: 文件", [
+        config_controls["outputs.file.enabled"],
+        config_controls["outputs.file.path"],
+        config_controls["outputs.file.format"],
+    ])
+
+    # -- Logging Settings --
+    config_controls["logging.level"] = ft.Dropdown(
+        label="日志级别",
+        value=config.get('logging.level', 'INFO'),
+        options=[
+            ft.dropdown.Option("DEBUG"),
+            ft.dropdown.Option("INFO"),
+            ft.dropdown.Option("WARNING"),
+            ft.dropdown.Option("ERROR"),
+            ft.dropdown.Option("CRITICAL"),
+        ],
+        tooltip="控制应用程序记录信息的详细程度"
+    )
+    logging_section = create_config_section("日志记录", [
+        config_controls["logging.level"],
+    ])
+
+    save_config_button = ft.ElevatedButton("保存配置", on_click=None, icon=ft.icons.SAVE, tooltip="将当前设置写入 config.yaml")
+    reload_config_button = ft.ElevatedButton("从文件重载", on_click=None, icon=ft.icons.REFRESH, tooltip="放弃当前更改并从 config.yaml 重新加载")
+
+    # --- 回调函数 (用于更新 UI 和处理事件) ---
     def update_status_display(message: str):
         """线程安全地更新状态文本"""
         if page: # 确保页面仍然存在

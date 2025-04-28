@@ -2,6 +2,7 @@ import yaml
 import os
 import logging
 from typing import Dict, Any, Optional
+import copy # Import copy for deep copying config data
 
 # Use standard logging; configuration (level etc.) is handled by logger_config later
 logger = logging.getLogger(__name__)
@@ -272,6 +273,33 @@ class Config:
         """Reloads the configuration."""
         logger.info("Reloading configuration...")
         self._load_config()
+
+    def save(self, config_path: str = DEFAULT_CONFIG_PATH) -> None:
+        """Saves the current configuration back to the YAML file."""
+        logger.info(f"Attempting to save configuration to {config_path}...")
+        # Create a deep copy to avoid modifying the live config dict directly during preparation
+        config_to_save = copy.deepcopy(self._config_data)
+
+        # Remove runtime/derived values that shouldn't be saved
+        if isinstance(config_to_save.get("logging"), dict):
+            config_to_save["logging"].pop("level_int", None)
+
+        # Decide how to handle secrets potentially loaded from env vars.
+        # Option 1: Save the current values (might expose secrets if they came from env)
+        # Option 2: Check if the current value matches the env var and save "" if it does. (More complex)
+        # Option 3: Never save certain keys (e.g., api_key) - User must use env vars.
+        # Let's go with Option 1 for now, assuming the user manages the config file appropriately.
+        # If DASHSCOPE_API_KEY was used, config_to_save['dashscope_api_key'] will hold its value.
+        # If OPENAI_API_KEY was used, config_to_save['llm']['api_key'] will hold its value.
+
+        try:
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config_to_save, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
+            logger.info(f"Configuration successfully saved to {config_path}.")
+        except Exception as e:
+            logger.error(f"Failed to save configuration to {config_path}: {e}", exc_info=True)
+            # Re-raise or handle as appropriate for the application context (e.g., show error in GUI)
+            raise
 
 
 # Create the singleton instance upon module import
