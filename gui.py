@@ -620,24 +620,31 @@ def main(page: ft.Page):
                 )
 
         # Reload few-shot examples (ensure column control exists)
-        few_shot_examples_column.controls.clear()  # Remove existing rows
-        loaded_examples = config.get("llm.few_shot_examples", [])
-        if isinstance(loaded_examples, list):
-            logger.info(f"Reloading {len(loaded_examples)} few-shot examples into GUI.")
-            for example in loaded_examples:
-                if (
-                    isinstance(example, dict)
-                    and "user" in example
-                    and "assistant" in example
-                ):
-                    new_row = create_example_row(
-                        example.get("user", ""), example.get("assistant", "")
-                    )
-                    few_shot_examples_column.controls.append(new_row)
-                else:
-                    logger.warning(
-                        f"Skipping invalid few-shot example during reload: {example}"
-                    )
+        # Use the correct column variable reference if available
+        active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column", few_shot_examples_column) # Use local if possible
+        reloaded_config_data = config.data if config else {} # Get reloaded data again safely
+
+        if active_few_shot_column and isinstance(active_few_shot_column, ft.Column):
+            active_few_shot_column.controls.clear()  # Remove existing rows
+            # Safely get examples from reloaded data
+            loaded_examples = reloaded_config_data.get("llm", {}).get("few_shot_examples", [])
+            if isinstance(loaded_examples, list):
+                logger.info(f"Reloading {len(loaded_examples)} few-shot examples into GUI.")
+                for example in loaded_examples:
+                    if (
+                        isinstance(example, dict)
+                        and "user" in example
+                        and "assistant" in example
+                    ):
+                        # Call the internal row creation function (defined below in main)
+                        new_row = _create_example_row_internal(
+                            example.get("user", ""), example.get("assistant", "")
+                        )
+                        active_few_shot_column.controls.append(new_row)
+                    else:
+                        logger.warning(
+                            f"Skipping invalid few-shot example during reload: {example}"
+                        )
         else:
             logger.warning(
                 "'llm.few_shot_examples' in config is not a list. Cannot reload examples."
