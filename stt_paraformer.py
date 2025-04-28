@@ -108,16 +108,16 @@ class ParaformerCallback(RecognitionCallback):
             if self.loop.is_running():
                 if self.llm_client and self.llm_client.enabled:
                     # Schedule the helper function that handles LLM and dispatch
-                    self.logger.debug(f"STT_PARA: Scheduling LLM processing & dispatch for: '{text_to_process[:50]}...'")
-                    asyncio.run_coroutine_threadsafe(
-                        self._process_with_llm_and_dispatch(text_to_process), self.loop
-                    )
+                    target_coro = self._process_with_llm_and_dispatch(text_to_process)
+                    self.logger.info(f"STT_PARA: PRE-SCHEDULE LLM processing & dispatch for: '{text_to_process[:50]}...'")
+                    future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
+                    self.logger.info(f"STT_PARA: POST-SCHEDULE LLM processing & dispatch (Future: {future})")
                 elif self.output_dispatcher:
                     # LLM disabled, schedule dispatch directly
-                    self.logger.debug(f"STT_PARA: Scheduling direct dispatch (LLM disabled) for: '{text_to_process[:50]}...'")
-                    asyncio.run_coroutine_threadsafe(
-                        self.output_dispatcher.dispatch(text_to_process), self.loop
-                    )
+                    target_coro = self.output_dispatcher.dispatch(text_to_process)
+                    self.logger.info(f"STT_PARA: PRE-SCHEDULE direct dispatch for: '{text_to_process[:50]}...'")
+                    future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
+                    self.logger.info(f"STT_PARA: POST-SCHEDULE direct dispatch (Future: {future})")
                 else:
                     self.logger.error("STT_PARA: Cannot dispatch final text - OutputDispatcher missing.")
 

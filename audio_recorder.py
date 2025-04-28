@@ -500,9 +500,16 @@ class AudioManager:
             logger.error(error_msg, exc_info=True)
             self._update_status(f"Error: {error_msg}")
         finally:
+            logger.info(">>> STT processor thread entering FINALLY block.") # Log entry
             logger.info("STT processor thread finishing.")
             if self._stt_loop and self._stt_loop.is_running():
-                self._stt_loop.stop()  # Stop the loop if it's still running
+                 logger.info("... STT loop is running, attempting to stop.")
+                 self._stt_loop.stop()  # Stop the loop if it's still running
+            elif self._stt_loop:
+                 logger.info("... STT loop is NOT running when finally block reached.")
+            else:
+                 logger.info("... STT loop is None when finally block reached.")
+
             if self._stt_loop:
                 # Cancel any remaining tasks in the loop before closing
                 for task in asyncio.all_tasks(self._stt_loop):
@@ -540,6 +547,7 @@ class AudioManager:
             # Ensure stop event is set if this thread exits unexpectedly
             self._stop_event.set()
             # Status update upon stopping is handled in the stop() method
+            logger.info("<<< STT processor thread exiting FINALLY block.") # Log exit
 
     def start(self):
         """Starts the audio stream and STT processing in background threads."""

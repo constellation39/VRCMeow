@@ -201,16 +201,16 @@ class GummyCallback(TranslationRecognizerCallback):
             if self.loop.is_running():
                 if self.llm_client and self.llm_client.enabled:
                      # Schedule the helper function that handles LLM and dispatch
-                     self.logger.debug(f"STT_GUMMY: Scheduling LLM processing & dispatch for: '{text_to_send[:50]}...'")
-                     asyncio.run_coroutine_threadsafe(
-                         self._process_with_llm_and_dispatch(text_to_send), self.loop
-                     )
+                     target_coro = self._process_with_llm_and_dispatch(text_to_send)
+                     self.logger.info(f"STT_GUMMY: PRE-SCHEDULE LLM processing & dispatch for: '{text_to_send[:50]}...'")
+                     future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
+                     self.logger.info(f"STT_GUMMY: POST-SCHEDULE LLM processing & dispatch (Future: {future})")
                 elif self.output_dispatcher:
                      # LLM disabled, schedule dispatch directly
-                     self.logger.debug(f"STT_GUMMY: Scheduling direct dispatch (LLM disabled) for: '{text_to_send[:50]}...'")
-                     asyncio.run_coroutine_threadsafe(
-                         self.output_dispatcher.dispatch(text_to_send), self.loop
-                     )
+                     target_coro = self.output_dispatcher.dispatch(text_to_send)
+                     self.logger.info(f"STT_GUMMY: PRE-SCHEDULE direct dispatch for: '{text_to_send[:50]}...'")
+                     future = asyncio.run_coroutine_threadsafe(target_coro, self.loop)
+                     self.logger.info(f"STT_GUMMY: POST-SCHEDULE direct dispatch (Future: {future})")
                 else:
                      self.logger.error("STT_GUMMY: Cannot dispatch final text - OutputDispatcher missing.")
 
