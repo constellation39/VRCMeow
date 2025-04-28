@@ -695,7 +695,7 @@ def main(page: ft.Page):
             else:
                 logger.warning("Attempted to remove a row not found in the column or column control not found/invalid.")
 
-        remove_button = ft.IconButton(
+         remove_button = ft.IconButton(
             icon=ft.icons.DELETE_OUTLINE,
             tooltip="删除此示例",
             on_click=remove_this_row,
