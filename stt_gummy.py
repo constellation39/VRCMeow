@@ -354,11 +354,17 @@ def create_gummy_recognizer(
     logger.debug("使用 Gummy API (支持翻译)")  # Changed to DEBUG
 
     # --- Directly access config for elements NOT passed as arguments ---
-    api_key = config["dashscope_api_key"]
-    model = config["stt.model"]
+    # Use nested keys with .get() for safety
+    api_key = config.get("dashscope.api_key")
+    if not api_key:
+        # Log a critical error or raise if API key is essential
+        logger.error("Dashscope API Key not found in configuration (dashscope.api_key). Cannot create recognizer.")
+        raise ValueError("Missing Dashscope API Key in configuration.")
+
+    model = config.get("dashscope.stt.model", "gummy-realtime-v1") # Use nested key and provide default
     # sample_rate is now passed as an argument
-    channels = config["audio.channels"]
-    target_language = config.get("stt.translation_target_language")
+    channels = config.get("audio.channels", 1) # Use get() for robustness
+    target_language = config.get("dashscope.stt.translation_target_language") # Use nested key
     enable_translation = bool(target_language)
 
     # Create the callback instance, passing all necessary clients/dispatchers
