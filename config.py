@@ -124,6 +124,7 @@ class Config:
         """Loads configuration from file and environment variables."""
         # config_path is now expected to be an absolute path
         config_path_obj = pathlib.Path(config_path) # Work with Path object
+        self._loaded_config_path = f"Attempting: {config_path_obj}" # Initialize status
 
         # Start with a deep copy of defaults to avoid modifying the original
         # Use recursive copy for nested dicts
@@ -141,12 +142,16 @@ class Config:
                 if file_config and isinstance(file_config, dict):
                     config = _recursive_update(config, file_config)
                     logger.info(f"Loaded configuration from {config_path_obj}.")
+                    self._loaded_config_path = str(config_path_obj) # Set path on successful load
                 elif file_config: # Loaded something, but not a dict
                      logger.warning(f"Config file {config_path_obj} does not contain a valid YAML dictionary. Using defaults.")
+                     self._loaded_config_path = f"Invalid YAML in {config_path_obj}, using defaults" # Update status
                 else: # File is empty
                     logger.info(f"Config file {config_path_obj} is empty. Using default configuration.")
+                    self._loaded_config_path = f"Empty file: {config_path_obj}, using defaults" # Update status
         except FileNotFoundError:
             logger.warning(f"Config file '{config_path_obj}' not found in CWD.")
+            self._loaded_config_path = f"Not found: {config_path_obj}" # Update status: file not found initially
             # Look for example config in CWD
             example_config_path_obj = DEFAULT_EXAMPLE_CONFIG_PATH
             try:
@@ -160,8 +165,10 @@ class Config:
                          if file_config and isinstance(file_config, dict):
                              config = _recursive_update(config, file_config)
                              logger.info(f"Successfully loaded configuration from newly created '{config_path_obj}'.")
+                             self._loaded_config_path = f"Copied from example: {config_path_obj}" # Update status: successfully copied and loaded example
                          else:
                              logger.warning(f"Newly created '{config_path_obj}' is empty or invalid. Using defaults.")
+                             self._loaded_config_path = f"Copied example '{config_path_obj}' is invalid, using defaults" # Update status: copied example is bad
                 else:
                     logger.warning(f"Example config file '{example_config_path_obj}' not found in CWD. Using default configuration.")
             except Exception as copy_err:
