@@ -1,13 +1,22 @@
 import flet as ft
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable, TYPE_CHECKING
 import logging
+import asyncio
+import copy
+import gui_utils  # Import for close_banner
+
 
 # Use standard logging; setup happens elsewhere
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from config import Config  # Type hint only
+    # Avoid circular import for Config singleton instance, pass it as arg
+
 # --- Configuration UI Element Definitions & Helpers ---
 
 # The central dictionary `all_config_controls` is defined and managed in gui.py.
+
 
 def create_config_section(title: str, controls: list[ft.Control]) -> ft.Card:
     """Helper to create a bordered section for config options."""
@@ -24,7 +33,9 @@ def create_config_section(title: str, controls: list[ft.Control]) -> ft.Card:
         ),
     )
 
+
 # --- Control Creation Functions (called from gui.py) ---
+
 
 def create_dashscope_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
     """Creates controls for the Dashscope section."""
@@ -52,7 +63,7 @@ def create_dashscope_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Co
     )
     controls["dashscope.stt.translation_target_language"] = ft.TextField(
         label="翻译目标语言 (Gummy)",
-        value=stt_conf.get("translation_target_language") or "", # Handle None
+        value=stt_conf.get("translation_target_language") or "",  # Handle None
         hint_text="留空则禁用翻译 (例如: en, ja, ko)",
         tooltip="如果使用 Gummy 并希望翻译，在此处输入目标语言代码",
     )
@@ -67,6 +78,7 @@ def create_dashscope_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Co
         tooltip="如何处理非最终的语音识别结果 (仅影响 VRChat 输出)",
     )
     return controls
+
 
 def create_audio_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
     """Creates controls for the Audio Input section."""
@@ -96,6 +108,7 @@ def create_audio_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Contro
         tooltip="将输入音频直接路由到输出以进行测试",
     )
     return controls
+
 
 def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
     """Creates controls for the LLM section."""
@@ -148,8 +161,11 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
     # Few-shot examples UI elements (created in main, passed to layout function)
     # Define placeholders here; actual controls created in gui.py
     controls["llm.few_shot_examples_column"] = ft.Column(controls=[], spacing=5)
-    controls["llm.add_example_button"] = ft.TextButton("添加 Few-Shot 示例", icon=ft.icons.ADD)
+    controls["llm.add_example_button"] = ft.TextButton(
+        "添加 Few-Shot 示例", icon=ft.icons.ADD
+    )
     return controls
+
 
 def create_vrc_osc_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
     """Creates controls for the VRC OSC Output section."""
@@ -177,7 +193,10 @@ def create_vrc_osc_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
     )
     return controls
 
-def create_console_output_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
+
+def create_console_output_controls(
+    initial_config: Dict[str, Any],
+) -> Dict[str, ft.Control]:
     """Creates controls for the Console Output section."""
     controls = {}
     output_conf = initial_config.get("outputs", {})
@@ -192,7 +211,10 @@ def create_console_output_controls(initial_config: Dict[str, Any]) -> Dict[str, 
     )
     return controls
 
-def create_file_output_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
+
+def create_file_output_controls(
+    initial_config: Dict[str, Any],
+) -> Dict[str, ft.Control]:
     """Creates controls for the File Output section."""
     controls = {}
     output_conf = initial_config.get("outputs", {})
@@ -211,6 +233,7 @@ def create_file_output_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.
         tooltip="可用占位符: {timestamp}, {text}",
     )
     return controls
+
 
 def create_logging_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
     """Creates controls for the Logging section."""
@@ -234,10 +257,11 @@ def create_logging_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
 # --- Configuration Layout Function ---
 # Takes created controls and buttons as arguments
 
+
 def create_config_tab_content(
     save_button: ft.ElevatedButton,
     reload_button: ft.ElevatedButton,
-    all_controls: Dict[str, ft.Control] # Pass the complete dictionary
+    all_controls: Dict[str, ft.Control],  # Pass the complete dictionary
 ) -> ft.Column:
     """Creates the layout Column for the Configuration tab."""
 
@@ -245,12 +269,14 @@ def create_config_tab_content(
     def get_ctrl(key: str) -> Optional[ft.Control]:
         ctrl = all_controls.get(key)
         if ctrl is None:
-             logger.warning(f"Control '{key}' not found for config layout.")
+            logger.warning(f"Control '{key}' not found for config layout.")
         return ctrl
 
     # Extract few-shot elements (created in gui.py, passed via all_controls)
-    few_shot_column = get_ctrl("llm.few_shot_examples_column") or ft.Column() # Fallback
-    add_example_btn = get_ctrl("llm.add_example_button") or ft.TextButton() # Fallback
+    few_shot_column = (
+        get_ctrl("llm.few_shot_examples_column") or ft.Column()
+    )  # Fallback
+    add_example_btn = get_ctrl("llm.add_example_button") or ft.TextButton()  # Fallback
 
     dashscope_section = create_config_section(
         "Dashscope 设置",
@@ -323,7 +349,8 @@ def create_config_tab_content(
 
     # Filter out None controls before adding to layout
     layout_controls = [
-        ctrl for ctrl in [
+        ctrl
+        for ctrl in [
             ft.Row(
                 [save_button, reload_button],
                 alignment=ft.MainAxisAlignment.END,
@@ -335,13 +362,648 @@ def create_config_tab_content(
             console_output_section,
             file_output_section,
             logging_section,
-        ] if ctrl is not None
+        ]
+        if ctrl is not None
     ]
 
+    # Ensure controls are valid before adding
+    valid_layout_controls = [c for c in layout_controls if c is not None]
+    if len(valid_layout_controls) != len(layout_controls):
+        logger.warning("Some config layout controls were None and excluded.")
 
     return ft.Column(
-        controls=layout_controls,
+        controls=valid_layout_controls,
         expand=True,
         scroll=ft.ScrollMode.ADAPTIVE,
         spacing=15,
     )
+
+
+# --- Configuration Helper Functions & Handlers ---
+
+
+# --- Helper function to get value from a control ---
+def get_control_value(
+    all_config_controls: Dict[str, ft.Control],  # Pass controls dict
+    key: str,
+    control_type: type = str,
+    default: Any = None,
+) -> Any:
+    """Safely retrieves and converts the value from a GUI control."""
+    control = all_config_controls.get(key)
+    if control is None:
+        # Don't log warning here, let caller decide if missing is an error
+        # logger.warning(f"Control for config key '{key}' not found in GUI. Returning default: {default}")
+        return default
+
+    value = getattr(control, "value", default)
+
+    # Handle specific control types first
+    if isinstance(control, ft.Switch):
+        # Ensure bool conversion, default to False if default is None
+        return (
+            bool(value)
+            if value is not None
+            else (bool(default) if default is not None else False)
+        )
+    if isinstance(control, ft.Dropdown):
+        # Return the selected value directly, handle None case
+        return value if value is not None else default
+
+    # Handle text fields (TextField)
+    # Treat None or empty string carefully
+    if value is None or value == "":
+        # Check specific keys that explicitly allow None or empty string maps to None
+        if key in [
+            "dashscope.stt.translation_target_language",  # Empty string means None
+            "audio.sample_rate",  # Empty string means None (auto-detect)
+            "llm.base_url",  # Empty string means None
+            "llm.api_key",  # Empty string is valid (but might cause issues later)
+            "dashscope.api_key",  # Empty string is valid
+        ]:
+            # Return None if empty string, otherwise return default
+            return None if value == "" else default
+
+        # If a default value is provided, return it for other empty fields
+        if default is not None:
+            return default
+        # Otherwise, return None for numeric types or empty string for strings
+        elif control_type in [int, float]:
+            logger.debug(f"Empty value for numeric field '{key}', returning None.")
+            return None  # Cannot convert empty string to number
+        else:
+            return ""  # Default empty string for text
+
+    # Attempt type conversion for non-empty values from text-based inputs
+    try:
+        if control_type == int:
+            return int(value)
+        if control_type == float:
+            # Handle potential locale issues if needed, assuming standard decimal format
+            return float(value)
+        if control_type == bool:  # Should be handled by Switch, but as fallback
+            return str(value).lower() in ["true", "1", "yes", "on"]
+        # Default to string if no other type matches (or if control_type is str)
+        return str(value)
+    except (ValueError, TypeError) as convert_err:
+        logger.error(
+            f"Invalid value '{value}' for '{key}'. Expected type {control_type}. Error: {convert_err}. Returning default value: {default}"
+        )
+        # Show banner? Requires page ref. For now, just return default.
+        return default  # Return default on conversion error
+
+
+# --- Configuration Save/Reload Logic ---
+async def save_config_handler(
+    page: ft.Page,  # Need page for banner
+    all_config_controls: Dict[str, ft.Control],  # Need controls dict
+    config_instance: "Config",  # Need config instance
+):
+    """保存按钮点击事件处理程序 (配置选项卡)"""
+    logger.info("Save configuration button clicked.")
+    if not config_instance:
+        logger.error("Cannot save config, config object not available.")
+        # Show error banner
+        gui_utils.show_error_banner(page, "无法保存配置：配置对象不可用。")
+        return
+    # Start with a deep copy of the *current live* config data
+    new_config_data = copy.deepcopy(config_instance.data)
+
+    try:
+        # Helper to update nested dictionary safely
+        def update_nested_dict(data_dict: Dict, key: str, value: Any):
+            keys = key.split(".")
+            temp_dict = data_dict
+            for i, k in enumerate(keys[:-1]):
+                # Ensure intermediate level is a dictionary, create if not
+                if not isinstance(temp_dict.get(k), dict):
+                    logger.debug(
+                        f"Creating intermediate dict for key '{k}' during save."
+                    )
+                    temp_dict[k] = {}
+                temp_dict = temp_dict[k]
+            # Set the final value
+            temp_dict[keys[-1]] = value
+
+        # --- Update dictionary from controls using get_control_value ---
+        # Define expected type and default for each control value retrieval
+        update_nested_dict(
+            new_config_data,
+            "dashscope.api_key",
+            get_control_value(all_config_controls, "dashscope.api_key", str, ""),
+        )
+        update_nested_dict(
+            new_config_data,
+            "dashscope.stt.model",
+            get_control_value(
+                all_config_controls, "dashscope.stt.model", str, "gummy-realtime-v1"
+            ),
+        )
+        update_nested_dict(
+            new_config_data,
+            "dashscope.stt.translation_target_language",
+            get_control_value(
+                all_config_controls,
+                "dashscope.stt.translation_target_language",
+                str,
+                None,
+            ),
+        )
+        update_nested_dict(
+            new_config_data,
+            "dashscope.stt.intermediate_result_behavior",
+            get_control_value(
+                all_config_controls,
+                "dashscope.stt.intermediate_result_behavior",
+                str,
+                "ignore",
+            ),
+        )
+
+        update_nested_dict(
+            new_config_data,
+            "audio.sample_rate",
+            get_control_value(all_config_controls, "audio.sample_rate", int, None),
+        )
+        update_nested_dict(
+            new_config_data,
+            "audio.channels",
+            get_control_value(all_config_controls, "audio.channels", int, 1),
+        )
+        update_nested_dict(
+            new_config_data,
+            "audio.dtype",
+            get_control_value(all_config_controls, "audio.dtype", str, "int16"),
+        )
+        update_nested_dict(
+            new_config_data,
+            "audio.debug_echo_mode",
+            get_control_value(
+                all_config_controls, "audio.debug_echo_mode", bool, False
+            ),
+        )
+
+        update_nested_dict(
+            new_config_data,
+            "llm.enabled",
+            get_control_value(all_config_controls, "llm.enabled", bool, False),
+        )
+        update_nested_dict(
+            new_config_data,
+            "llm.api_key",
+            get_control_value(all_config_controls, "llm.api_key", str, ""),
+        )
+        update_nested_dict(
+            new_config_data,
+            "llm.base_url",
+            get_control_value(all_config_controls, "llm.base_url", str, None),
+        )
+        update_nested_dict(
+            new_config_data,
+            "llm.model",
+            get_control_value(all_config_controls, "llm.model", str, "gpt-3.5-turbo"),
+        )  # Provide default
+        update_nested_dict(
+            new_config_data,
+            "llm.system_prompt",
+            get_control_value(
+                all_config_controls,
+                "llm.system_prompt",
+                str,
+                "You are a helpful assistant.",
+            ),
+        )  # Provide default
+        update_nested_dict(
+            new_config_data,
+            "llm.temperature",
+            get_control_value(all_config_controls, "llm.temperature", float, 0.7),
+        )
+        update_nested_dict(
+            new_config_data,
+            "llm.max_tokens",
+            get_control_value(all_config_controls, "llm.max_tokens", int, 150),
+        )
+
+        update_nested_dict(
+            new_config_data,
+            "outputs.vrc_osc.enabled",
+            get_control_value(
+                all_config_controls, "outputs.vrc_osc.enabled", bool, True
+            ),
+        )
+        update_nested_dict(
+            new_config_data,
+            "outputs.vrc_osc.address",
+            get_control_value(
+                all_config_controls, "outputs.vrc_osc.address", str, "127.0.0.1"
+            ),
+        )
+        update_nested_dict(
+            new_config_data,
+            "outputs.vrc_osc.port",
+            get_control_value(all_config_controls, "outputs.vrc_osc.port", int, 9000),
+        )
+        update_nested_dict(
+            new_config_data,
+            "outputs.vrc_osc.message_interval",
+            get_control_value(
+                all_config_controls, "outputs.vrc_osc.message_interval", float, 1.333
+            ),
+        )
+
+        update_nested_dict(
+            new_config_data,
+            "outputs.console.enabled",
+            get_control_value(
+                all_config_controls, "outputs.console.enabled", bool, True
+            ),
+        )
+        update_nested_dict(
+            new_config_data,
+            "outputs.console.prefix",
+            get_control_value(
+                all_config_controls, "outputs.console.prefix", str, "[Final Text]"
+            ),
+        )  # Match default
+
+        update_nested_dict(
+            new_config_data,
+            "outputs.file.enabled",
+            get_control_value(all_config_controls, "outputs.file.enabled", bool, False),
+        )
+        update_nested_dict(
+            new_config_data,
+            "outputs.file.path",
+            get_control_value(
+                all_config_controls, "outputs.file.path", str, "output_log.txt"
+            ),
+        )  # Match default
+        update_nested_dict(
+            new_config_data,
+            "outputs.file.format",
+            get_control_value(
+                all_config_controls, "outputs.file.format", str, "{timestamp} - {text}"
+            ),
+        )  # Match default
+
+        update_nested_dict(
+            new_config_data,
+            "logging.level",
+            get_control_value(all_config_controls, "logging.level", str, "INFO"),
+        )
+        # --- End updating from controls ---
+
+        # Update few-shot examples
+        examples_list = []
+        few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
+        if few_shot_column and isinstance(few_shot_column, ft.Column):
+            for row in few_shot_column.controls:
+                if (
+                    isinstance(row, ft.Row) and len(row.controls) >= 3
+                ):  # user, assistant, remove_button
+                    user_tf = (
+                        row.controls[0]
+                        if isinstance(row.controls[0], ft.TextField)
+                        else None
+                    )
+                    assistant_tf = (
+                        row.controls[1]
+                        if isinstance(row.controls[1], ft.TextField)
+                        else None
+                    )
+                    if user_tf and assistant_tf:
+                        user_text = user_tf.value or ""
+                        assistant_text = assistant_tf.value or ""
+                        # Only save if at least one field has text
+                        if user_text or assistant_text:
+                            examples_list.append(
+                                {"user": user_text, "assistant": assistant_text}
+                            )
+                        else:
+                            logger.debug(
+                                "Skipping empty few-shot example row during save."
+                            )
+                    else:
+                        logger.warning(
+                            f"Unexpected control types in few-shot row during save: {row.controls}"
+                        )
+        else:
+            logger.warning(
+                "Few-shot examples column control not found or invalid during save."
+            )
+
+        logger.debug(f"Saving {len(examples_list)} few-shot examples.")
+        # Ensure llm key exists before adding examples
+        if "llm" not in new_config_data or not isinstance(
+            new_config_data.get("llm"), dict
+        ):
+            new_config_data["llm"] = {}
+        update_nested_dict(new_config_data, "llm.few_shot_examples", examples_list)
+
+        # Directly update the singleton's internal data BEFORE saving
+        # This makes the changes live immediately, even before file write
+        config_instance._config_data = new_config_data
+        # Recalculate derived values like logging level int after update
+        log_level_str = new_config_data.get("logging", {}).get("level", "INFO").upper()
+        log_level = getattr(logging, log_level_str, logging.INFO)
+        # Ensure logging dict exists before setting level_int
+        if "logging" not in config_instance._config_data:
+            config_instance._config_data["logging"] = {}
+        config_instance._config_data["logging"]["level_int"] = log_level
+        logger.debug(
+            f"Updated live config data in memory: {config_instance._config_data}"
+        )
+
+        # Call the save method on the config instance (runs in thread)
+        await asyncio.to_thread(config_instance.save)
+
+        # Show success banner
+        gui_utils.show_success_banner(page, "配置已成功保存到 config.yaml")
+
+    except Exception as ex:
+        error_msg = f"保存配置时出错: {ex}"
+        logger.critical(error_msg, exc_info=True)
+        # Show error banner
+        gui_utils.show_error_banner(page, error_msg)
+
+
+def reload_config_controls(
+    page: ft.Page,  # Need page for update
+    all_config_controls: Dict[str, ft.Control],  # Need controls dict
+    config_instance: "Config",  # Need config instance
+    # Need specific function ref for creating rows, including its remove handler logic
+    create_example_row_func: Callable[[str, str], ft.Row],
+):
+    """Updates the GUI controls with values from the reloaded config."""
+    logger.info("Reloading config values into GUI controls.")
+    if not config_instance:
+        logger.error("Cannot reload controls, config instance not available.")
+        gui_utils.show_error_banner(page, "无法重载控件：配置对象不可用。")
+        return
+    reloaded_config_data = config_instance.data  # Get reloaded data
+
+    # Use the aggregated dictionary of controls
+    for key, control in all_config_controls.items():
+        # Skip special controls that don't map directly to config keys
+        if key in ["llm.few_shot_examples_column", "llm.add_example_button"]:
+            continue
+
+        # Get value from the *reloaded* data using nested access if needed
+        keys = key.split(".")
+        current_value = reloaded_config_data
+        valid_path = True
+        for k in keys:
+            try:
+                # Check if current_value is a dictionary before indexing
+                if isinstance(current_value, dict):
+                    current_value = current_value[k]
+                else:
+                    logger.debug(
+                        f"Config path for '{key}' invalid at '{k}': parent is not a dictionary. Skipping reload for this control."
+                    )
+                    current_value = None  # Indicate value not found
+                    valid_path = False
+                    break
+            except (KeyError, TypeError, IndexError):
+                logger.debug(
+                    f"Key '{key}' path invalid or key missing at '{k}' in reloaded config data. Skipping reload for this control."
+                )
+                current_value = None  # Indicate value not found
+                valid_path = False
+                break
+
+        if not valid_path:
+            continue  # Skip update for this control if path was invalid
+
+        # Assign the final retrieved value (or None if path was invalid/key missing)
+        value = current_value
+
+        try:
+            if control is None:  # Should not happen if loop continues, but check anyway
+                logger.debug(
+                    f"Skipping reload for key '{key}' as control is None (already checked?)."
+                )
+                continue
+
+            # --- Update control based on type ---
+            if isinstance(control, ft.Switch):
+                control.value = bool(value) if value is not None else False
+            elif isinstance(control, ft.Dropdown):
+                # Ensure the value exists in options before setting
+                if (
+                    value is not None
+                    and hasattr(control, "options")
+                    and isinstance(control.options, list)
+                    and any(opt.key == value for opt in control.options)
+                ):
+                    control.value = value
+                else:
+                    # If value from config is invalid for dropdown, log and keep current value
+                    if value is not None:  # Log only if there was a value expected
+                        logger.warning(
+                            f"Value '{value}' for dropdown '{key}' not in options or invalid. Keeping previous selection: {control.value}"
+                        )
+                    # Optionally set to None or a default if value is invalid? For now, keep existing.
+                    # control.value = None # Or some default?
+            elif isinstance(control, ft.TextField):
+                # Handle keys where None should be represented as empty string
+                if (
+                    key
+                    in [
+                        "dashscope.stt.translation_target_language",
+                        "audio.sample_rate",
+                        "llm.base_url",
+                    ]
+                    and value is None
+                ):
+                    control.value = ""  # Use empty string for None
+                else:
+                    # Ensure value is converted to string for TextField
+                    control.value = str(value) if value is not None else ""
+            # Add other control types if necessary (e.g., Slider)
+            else:
+                logger.debug(
+                    f"Control for key '{key}' has unhandled type '{type(control)}' during reload."
+                )
+
+        except Exception as ex:
+            logger.error(
+                f"Error reloading control for key '{key}' with value '{value}': {ex}",
+                exc_info=True,
+            )
+
+    # --- Reload few-shot examples ---
+    few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
+    if few_shot_column and isinstance(few_shot_column, ft.Column):
+        few_shot_column.controls.clear()  # Remove existing rows first
+        # Safely get examples from reloaded data
+        loaded_examples = reloaded_config_data.get("llm", {}).get(
+            "few_shot_examples", []
+        )
+        if isinstance(loaded_examples, list):
+            logger.info(f"Reloading {len(loaded_examples)} few-shot examples into GUI.")
+            for example in loaded_examples:
+                if (
+                    isinstance(example, dict)
+                    and "user" in example
+                    and "assistant" in example
+                ):
+                    # Call the passed-in function to create the row.
+                    # This function must handle setting up the remove handler correctly.
+                    try:
+                        new_row = create_example_row_func(
+                            example.get("user", ""), example.get("assistant", "")
+                        )
+                        few_shot_column.controls.append(new_row)
+                    except Exception as row_ex:
+                        logger.error(
+                            f"Error creating few-shot row during reload for example {example}: {row_ex}",
+                            exc_info=True,
+                        )
+                else:
+                    logger.warning(
+                        f"Skipping invalid few-shot example during reload: {example}"
+                    )
+        else:
+            logger.warning(
+                "'llm.few_shot_examples' in reloaded config is not a list. Cannot reload examples."
+            )
+    elif few_shot_column:
+        logger.error("Few-shot column control is not a Column. Cannot reload examples.")
+    else:
+        logger.warning("Few-shot column control not found. Cannot reload examples.")
+
+    # Update the page to show changes
+    try:
+        if page and page.controls:
+            page.update()
+        elif page:
+            logger.warning(
+                "Page has no controls, skipping final update in reload_config_controls."
+            )
+    except Exception as e:
+        logger.error(
+            f"Error during final page.update in reload_config_controls: {e}",
+            exc_info=True,
+        )
+
+
+async def reload_config_handler(
+    page: ft.Page,  # Need page for banner & update
+    all_config_controls: Dict[str, ft.Control],  # Need controls dict
+    config_instance: "Config",  # Need config instance
+    create_example_row_func: Callable,  # Need row creation func
+):
+    """Reloads configuration from file and updates the GUI."""
+    logger.info("Reload configuration button clicked.")
+    if not config_instance:
+        logger.error("Cannot reload, config instance not available.")
+        gui_utils.show_error_banner(page, "无法重载配置：配置对象不可用。")
+        return
+    try:
+        # Run synchronous reload in thread
+        await asyncio.to_thread(config_instance.reload)
+        # Update GUI fields with new values from the reloaded config_instance.data
+        reload_config_controls(
+            page, all_config_controls, config_instance, create_example_row_func
+        )
+        # Show success banner
+        gui_utils.show_success_banner(page, "配置已从 config.yaml 重新加载")
+
+    except Exception as ex:
+        error_msg = f"重新加载配置时出错: {ex}"
+        logger.error(error_msg, exc_info=True)
+        # Show error banner
+        gui_utils.show_error_banner(page, error_msg)
+
+
+# --- Few-Shot Example Add/Remove Logic ---
+
+
+# This function now needs page and the column reference passed in.
+# It defines the remove handler internally, capturing the necessary scope.
+def create_config_example_row(
+    page: ft.Page,  # Need page for update
+    few_shot_column: ft.Column,  # Need column ref to remove from
+    user_text: str = "",
+    assistant_text: str = "",
+) -> ft.Row:
+    """Creates a Flet Row for a single few-shot example with its remove handler."""
+    # Create controls for the row
+    user_input = ft.TextField(
+        label="用户输入 (User)",
+        value=user_text,
+        multiline=True,
+        max_lines=3,
+        expand=True,
+    )
+    assistant_output = ft.TextField(
+        label="助手响应 (Assistant)",
+        value=assistant_text,
+        multiline=True,
+        max_lines=3,
+        expand=True,
+    )
+
+    # Define remove handler within this scope to capture page and column
+    async def remove_this_row(e_remove: ft.ControlEvent):
+        row_to_remove = e_remove.control.data  # Get the Row associated with the button
+        if few_shot_column and row_to_remove in few_shot_column.controls:
+            few_shot_column.controls.remove(row_to_remove)
+            logger.debug("Removed few-shot example row.")
+            try:
+                if page and page.controls:
+                    page.update()
+                elif page:
+                    logger.warning(
+                        "Page has no controls, skipping update after removing few-shot row."
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Error updating page after removing few-shot row: {e}",
+                    exc_info=True,
+                )
+        else:
+            logger.warning(
+                "Attempted to remove a row not found in the column or column is invalid."
+            )
+
+    remove_button = ft.IconButton(
+        icon=ft.icons.DELETE_OUTLINE,
+        tooltip="删除此示例",
+        on_click=remove_this_row,  # Use the handler defined above
+        icon_color=ft.colors.RED_ACCENT_400,
+    )
+
+    new_row = ft.Row(
+        controls=[user_input, assistant_output, remove_button],
+        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        vertical_alignment=ft.CrossAxisAlignment.START,
+    )
+    remove_button.data = new_row  # Associate the row with the button for removal
+    return new_row
+
+
+async def add_example_handler(
+    page: ft.Page,  # Need page for update and row creation
+    all_config_controls: Dict[str, ft.Control],  # Need controls dict to find column
+):
+    """Adds a new, empty example row to the column."""
+    few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
+    if few_shot_column and isinstance(few_shot_column, ft.Column):
+        # Pass page and column ref to the internal row creation function
+        try:
+            new_row = create_config_example_row(page, few_shot_column) # Create row with handler
+            few_shot_column.controls.append(new_row)
+            logger.debug("Added new few-shot example row.")
+            if page and page.controls:
+                page.update()
+            elif page:
+                 logger.warning("Page has no controls, skipping update after adding few-shot row.")
+        except Exception as e:
+             logger.error(f"Error adding or updating page for new few-shot row: {e}", exc_info=True)
+             gui_utils.show_error_banner(page, f"添加示例时出错: {e}")
+
+    else:
+        logger.error("Could not add few-shot example row: Column control not found or invalid.")
+        gui_utils.show_error_banner(page, "无法添加示例：UI 元素丢失。")
