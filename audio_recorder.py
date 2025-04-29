@@ -530,8 +530,11 @@ class AudioManager:
             # self._update_status(f"Audio Status: {status}")
 
         # Echo mode (using instance variable) - Restore functionality
+        # DEBUG: 在回调中记录 debug_echo_mode 的状态
+        # logger.debug(f"音频回调: debug_echo_mode = {self.debug_echo_mode}") # 取消注释以进行调试
         if self.debug_echo_mode:
             # Copy input directly to output for echo effect
+            # logger.debug(f"音频回调: 正在回显 {indata.shape} 到 {outdata.shape}") # 可选：记录形状
             outdata[:] = indata
         else:
             # Fill output buffer with silence when echo is off
