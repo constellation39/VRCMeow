@@ -392,15 +392,17 @@ def create_config_tab_content(
         ],
     )
 
-    # Filter out None controls before adding to layout
-    layout_controls = [
+    # --- Create the top button row ---
+    button_row = ft.Row(
+        [save_button, reload_button],
+        alignment=ft.MainAxisAlignment.END,
+    )
+
+    # --- Create the scrollable column for config sections ---
+    # Filter out None sections before adding to the scrollable column
+    scrollable_sections = [
         ctrl
         for ctrl in [
-            ft.Row(
-                [save_button, reload_button],
-                alignment=ft.MainAxisAlignment.END,
-            ),
-            ft.Divider(height=10),
             dashscope_section,
             llm_section,
             vrc_osc_output_section,
@@ -411,16 +413,27 @@ def create_config_tab_content(
         if ctrl is not None
     ]
 
-    # Ensure controls are valid before adding
-    valid_layout_controls = [c for c in layout_controls if c is not None]
-    if len(valid_layout_controls) != len(layout_controls):
-        logger.warning("Some config layout controls were None and excluded.")
+    # Ensure sections are valid before adding
+    valid_scrollable_sections = [c for c in scrollable_sections if c is not None]
+    if len(valid_scrollable_sections) != len(scrollable_sections):
+        logger.warning("Some config section controls were None and excluded.")
 
-    return ft.Column(
-        controls=valid_layout_controls,
-        expand=True,
+    scrollable_column = ft.Column(
+        controls=valid_scrollable_sections,
+        expand=True, # Make this column take available vertical space
         scroll=ft.ScrollMode.ADAPTIVE,
         spacing=15,
+    )
+
+    # --- Combine the fixed button row and the scrollable column ---
+    return ft.Column(
+        controls=[
+            button_row,
+            ft.Divider(height=10), # Separator between buttons and content
+            scrollable_column,
+        ],
+        expand=True, # Ensure the outer column also expands
+        spacing=0, # Adjust spacing if needed
     )
 
 
