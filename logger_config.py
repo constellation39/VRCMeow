@@ -72,11 +72,11 @@ def setup_logging(level: Optional[int] = None):
     # 将处理器添加到根记录器
     root_logger.addHandler(console_handler)
 
-    # --- 添加文件处理器 (如果已启用) ---
+    # --- 添加应用程序日志文件处理器 (如果已启用) ---
     try:
-        # 检查配置是否启用了文件日志
-        if app_config.get('outputs.file.enabled', False):
-            log_file_path = app_config.get('outputs.file.path', 'vrcmeow_app.log') # 使用配置中的路径，提供默认值
+        # 检查配置是否启用了应用程序文件日志
+        if app_config.get('logging.file.enabled', False): # <-- 使用 logging.file.enabled
+            log_file_path = app_config.get('logging.file.path', 'vrcmeow_app.log') # <-- 使用 logging.file.path，提供默认值
             # 确保目录存在 (如果路径包含目录)
             log_dir = os.path.dirname(log_file_path)
             if log_dir and not os.path.exists(log_dir):
@@ -97,13 +97,13 @@ def setup_logging(level: Optional[int] = None):
                 file_handler.setFormatter(formatter)
                 # 将文件处理器添加到根记录器
                 root_logger.addHandler(file_handler)
-                root_logger.info(f"File logging enabled. Logging to: {log_file_path}")
+                root_logger.info(f"Application file logging enabled. Logging to: {log_file_path}") # <-- 更新日志消息
         else:
-            root_logger.info("File logging is disabled in the configuration.")
+            root_logger.info("Application file logging is disabled in the configuration.") # <-- 更新日志消息
 
     except Exception as e:
         # 捕获创建或添加文件处理器时可能发生的任何错误
-        root_logger.error(f"Failed to configure file logging: {e}", exc_info=True)
+        root_logger.error(f"Failed to configure application file logging: {e}", exc_info=True) # <-- 更新日志消息
 
     # 返回配置好的根记录器 (虽然通常不需要直接使用它)
     return root_logger

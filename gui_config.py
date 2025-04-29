@@ -305,6 +305,18 @@ def create_logging_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
         ],
         tooltip="控制应用程序记录信息的详细程度",
     )
+    # Add controls for application log file
+    log_file_conf = log_conf.get("file", {}) # Get file sub-dict
+    controls["logging.file.enabled"] = ft.Switch(
+        label="启用应用程序日志文件",
+        value=log_file_conf.get("enabled", False),
+        tooltip="将应用程序的详细运行日志 (DEBUG, INFO, ERROR 等) 输出到文件",
+    )
+    controls["logging.file.path"] = ft.TextField(
+        label="应用程序日志文件路径",
+        value=log_file_conf.get("path", "vrcmeow_app.log"),
+        tooltip="指定保存应用程序运行日志的文件路径",
+    )
     return controls
 
 
@@ -400,6 +412,9 @@ def create_config_tab_content(
         "日志记录",
         [
             get_ctrl("logging.level"),
+            ft.Divider(height=5),
+            get_ctrl("logging.file.enabled"), # Add file logging enabled switch
+            get_ctrl("logging.file.path"),    # Add file logging path field
         ],
     )
 
@@ -737,6 +752,16 @@ async def save_config_handler(
             new_config_data,
             "logging.level",
             get_control_value(all_config_controls, "logging.level", str, "INFO"),
+        )
+        update_nested_dict(
+            new_config_data,
+            "logging.file.enabled", # Save app log file enabled state
+            get_control_value(all_config_controls, "logging.file.enabled", bool, False),
+        )
+        update_nested_dict(
+            new_config_data,
+            "logging.file.path", # Save app log file path
+            get_control_value(all_config_controls, "logging.file.path", str, "vrcmeow_app.log"),
         )
         # --- End updating from controls ---
 
