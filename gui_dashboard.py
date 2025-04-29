@@ -34,7 +34,7 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
         border_color=ft.colors.with_opacity(0.5, ft.colors.OUTLINE),
         filled=True,
         bgcolor=ft.colors.with_opacity(0.02, ft.colors.ON_SURFACE),
-        content_padding=15,
+        content_padding=ft.padding.only(top=15, bottom=10, left=10, right=10), # Apply padding directly here
     )
     elements["toggle_button"] = ft.IconButton(
         icon=ft.icons.PLAY_ARROW_ROUNDED,
@@ -71,16 +71,12 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
                 [elements["toggle_button"], elements["progress_indicator"]],
                 alignment=ft.MainAxisAlignment.CENTER,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=15,
-            ),
-            # Output text area taking remaining space
-            ft.Container(
-                elements["output_text"],
-                expand=True,
-                padding=ft.padding.only(top=15, bottom=10, left=10, right=10),
-            ),
-        ],
-        expand=True,
+               spacing=15,
+           ),
+           # Output text area taking remaining space
+           elements["output_text"], # Place TextField directly in the Column
+       ],
+       expand=True,
         alignment=ft.MainAxisAlignment.START,
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         spacing=10,
