@@ -1,6 +1,7 @@
 import logging
 import sys
 from typing import Optional
+import os # Ensure os module is imported
 
 # Directly import the config instance. If this fails, the application should exit.
 from config import config as app_config
