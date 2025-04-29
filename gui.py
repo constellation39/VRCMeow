@@ -1,121 +1,66 @@
+# --- Standard Library Imports ---
 import asyncio
-import flet as ft
-from typing import Optional, Dict  # Added Callable
+import functools
 import os
 import pathlib
 import sys
-import functools  # Added functools
+from typing import Optional, Dict, Callable # Added Callable here
 
-# --- Project Setup ---
-# Determine script directory and project root
+# --- Third-Party Imports ---
+import flet as ft
+
+# --- Project Setup & CWD Adjustment ---
+# This block MUST run before local imports to ensure modules are found,
+# especially when running as a packaged application.
 script_dir = pathlib.Path(__file__).parent.resolve()
 project_root = script_dir
 config_file_path = project_root / "config.yaml"
-
-# Change CWD if necessary (mainly for packaged apps)
 current_cwd = pathlib.Path.cwd()
+
 if not (current_cwd / "config.yaml").exists() and config_file_path.exists():
-    print(f"[INFO] Changing CWD from '{current_cwd}' to '{project_root}'")
+    print(f"[INFO] Initial CWD '{current_cwd}' seems incorrect (config.yaml not found).")
+    print(f"[INFO] Changing CWD to detected project root: '{project_root}'")
     os.chdir(project_root)
     print(f"[INFO] Current CWD after change: '{os.getcwd()}'")
+    # Add project root to sys.path if not already present
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
         print(f"[INFO] Added '{project_root}' to sys.path")
 else:
-    print(f"[INFO] Initial CWD '{current_cwd}' seems correct or config.yaml not found.")
+    print(f"[INFO] Initial CWD '{current_cwd}' seems correct or config.yaml not found at expected root.")
 # --- End Project Setup ---
 
-# --- Imports (after potential CWD change) ---
-from config import config  # Import singleton and class
-from logger_config import setup_logging, get_logger
+# --- Local Project Imports (after CWD setup) ---
 from audio_recorder import AudioManager
-from output_dispatcher import OutputDispatcher
-from llm_client import LLMClient
-from osc_client import VRCClient
+from config import config # Import singleton and class
 import gui_utils
-
-# Import GUI components after potential CWD change
+from gui_config import (
+    create_audio_controls,
+    create_config_example_row,
+    create_config_tab_content,
+    create_console_output_controls,
+    create_dashscope_controls,
+    create_file_output_controls,
+    create_llm_controls,
+    create_logging_controls,
+    create_vrc_osc_controls,
+    add_example_handler,
+    reload_config_handler,
+    save_config_handler,
+)
 from gui_dashboard import (
     create_dashboard_elements,
     create_dashboard_tab_content,
-    update_status_display,
     update_output_display,
+    update_status_display,
 )
-from gui_config import (
-    create_dashscope_controls,
-    create_audio_controls,
-    create_llm_controls,
-    create_vrc_osc_controls,
-    create_console_output_controls,
-    create_file_output_controls,
-    create_logging_controls,
-    create_config_tab_content,
-    save_config_handler,
-    reload_config_handler,
-    add_example_handler,
-    create_config_example_row,  # Use the renamed function
-)
+from llm_client import LLMClient
+from logger_config import get_logger, setup_logging
+from osc_client import VRCClient
+from output_dispatcher import OutputDispatcher
 
 
-# --- 设置正确的工作目录 ---
-# 确定脚本文件所在的目录
-script_dir = pathlib.Path(__file__).parent.resolve()
-# 假设项目根目录与脚本目录相同，并且 config.yaml 在那里
-project_root = script_dir
-config_file_path = project_root / "config.yaml"
-
-# 检查当前工作目录是否正确 (包含 config.yaml)
-# 如果不正确，并且我们能找到正确的 config.yaml 路径，则更改 CWD
-# 这主要用于修复 Flet 打包后 CWD 不正确的问题
-current_cwd = pathlib.Path.cwd()
-if not (current_cwd / "config.yaml").exists() and config_file_path.exists():
-    print(
-        f"[INFO] Initial CWD '{current_cwd}' seems incorrect (config.yaml not found)."
-    )
-    print(f"[INFO] Changing CWD to detected project root: '{project_root}'")
-    os.chdir(project_root)
-    print(f"[INFO] Current CWD after change: '{os.getcwd()}'")
-    # 如果需要，将项目根目录添加到 sys.path，以确保模块发现
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-        print(f"[INFO] Added '{project_root}' to sys.path")
-else:
-    print(
-        f"[INFO] Initial CWD '{current_cwd}' seems correct or config.yaml not found at expected root."
-    )
-# --- 工作目录设置结束 ---
-
-
-# 初始化日志记录 (在 Flet 应用启动前)
-# 确定脚本文件所在的目录
-script_dir = pathlib.Path(__file__).parent.resolve()
-# 假设项目根目录与脚本目录相同，并且 config.yaml 在那里
-project_root = script_dir
-config_file_path = project_root / "config.yaml"
-
-# 检查当前工作目录是否正确 (包含 config.yaml)
-# 如果不正确，并且我们能找到正确的 config.yaml 路径，则更改 CWD
-# 这主要用于修复 Flet 打包后 CWD 不正确的问题
-current_cwd = pathlib.Path.cwd()
-if not (current_cwd / "config.yaml").exists() and config_file_path.exists():
-    print(
-        f"[INFO] Initial CWD '{current_cwd}' seems incorrect (config.yaml not found)."
-    )
-    print(f"[INFO] Changing CWD to detected project root: '{project_root}'")
-    os.chdir(project_root)
-    print(f"[INFO] Current CWD after change: '{os.getcwd()}'")
-    # 如果需要，将项目根目录添加到 sys.path，以确保模块发现
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-        print(f"[INFO] Added '{project_root}' to sys.path")
-else:
-    print(
-        f"[INFO] Initial CWD '{current_cwd}' seems correct or config.yaml not found at expected root."
-    )
-# --- 工作目录设置结束 ---
-
-
-# 初始化日志记录 (在 Flet 应用启动前)
+# --- Initialize Logging (after imports and CWD setup) ---
 setup_logging()
 logger = get_logger("VRCMeowGUI")
 
