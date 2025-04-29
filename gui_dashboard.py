@@ -1,6 +1,7 @@
 import flet as ft
 from typing import Optional, Dict
 import logging
+from datetime import datetime # Import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
         multiline=True,
         read_only=True,
         expand=True,
-        min_lines=5,
+        # min_lines=5, # Remove min_lines, let expand handle height
         border_radius=ft.border_radius.all(8),
         border_color=ft.colors.with_opacity(0.5, ft.colors.OUTLINE),
         filled=True,
@@ -197,12 +198,21 @@ def update_output_display(page: ft.Page, output_text_control: ft.TextField, text
         current_value = (
             output_text_control.value if output_text_control.value is not None else ""
         )
+        # Get current time and format it
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        formatted_text = f"[{timestamp}] {text}"
+
         # Limit the amount of text to prevent performance issues
         max_len = 10000  # Example limit, adjust as needed
-        new_value = current_value + text + "\n"
+        new_value = current_value + formatted_text + "\n" # Add formatted text
         if len(new_value) > max_len:
             # Keep the last max_len characters
-            new_value = new_value[-max_len:]
+            # Find the first newline after the part to be truncated to avoid partial lines
+            cutoff_point = new_value.find('\n', len(new_value) - max_len)
+            if cutoff_point != -1:
+                new_value = "[... log truncated ...]\n" + new_value[cutoff_point + 1:]
+            else: # If no newline found (very long single line), just truncate
+                new_value = "[... log truncated ...]\n" + new_value[-max_len:]
             # Optional: Add a marker indicating truncation
             # new_value = "[...]\n" + new_value
 
