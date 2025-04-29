@@ -89,6 +89,7 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
                 elements["status_row"], padding=ft.padding.only(top=15, bottom=5)
             ),
             # Combined Start/Stop button below status, centered
+            ft.Row( # Add ft.Row() here
                 [elements["toggle_button"], elements["progress_indicator"]],
                 alignment=ft.MainAxisAlignment.CENTER,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
