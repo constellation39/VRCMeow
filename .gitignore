@@ -17,3 +17,4 @@ logs/
 config.yaml
 # !config.example.yaml # Keep the example file (optional, usually not needed unless explicitly ignored elsewhere)
 .idea
+*.log
