@@ -826,7 +826,8 @@ async def save_config_handler(
             try:
                 # Ensure the callback uses the *latest* config data
                 # The partial in gui.py should handle this if it accesses config.data directly
-                await dashboard_update_callback()
+                # Remove await: update_dashboard_info_display uses page.run_thread internally
+                dashboard_update_callback()
             except Exception as cb_ex:
                 logger.error(f"Error executing dashboard update callback after save: {cb_ex}", exc_info=True)
         else:
@@ -1046,7 +1047,8 @@ async def reload_config_handler(
             logger.info("Calling dashboard update callback after reload.")
             try:
                  # Ensure the callback uses the *latest* config data
-                await dashboard_update_callback()
+                 # Remove await: update_dashboard_info_display uses page.run_thread internally
+                dashboard_update_callback()
             except Exception as cb_ex:
                 logger.error(f"Error executing dashboard update callback after reload: {cb_ex}", exc_info=True)
         else:
