@@ -28,8 +28,9 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
         hint_text="最终输出将显示在这里...",
         multiline=True,
         read_only=True,
-        expand=True,
-        # min_lines=5, # Remove min_lines, let expand handle height
+        # expand=True, # Remove expand
+        height=200, # Set a fixed height
+        # min_lines=5, # Remove min_lines
         border_radius=ft.border_radius.all(8),
         border_color=ft.colors.with_opacity(0.5, ft.colors.OUTLINE),
         filled=True,
@@ -73,14 +74,14 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                spacing=15,
            ),
-           # Output text area taking remaining space
+           # Output text area with fixed height
            elements["output_text"], # Place TextField directly in the Column
        ],
-       expand=True,
+       # expand=True, # Remove expand from column
        alignment=ft.MainAxisAlignment.START,
        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
        spacing=10,
-       scroll=ft.ScrollMode.ADAPTIVE, # Add scrolling to the main column
+       # scroll=ft.ScrollMode.ADAPTIVE, # Remove scroll from column, TextField handles its own
    )
 
 
