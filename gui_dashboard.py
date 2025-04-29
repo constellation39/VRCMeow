@@ -40,9 +40,9 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
         hint_text="最终输出将显示在这里...",
         multiline=True,
         read_only=True,
-        # expand=True, # Remove expand
-        height=200, # Set a fixed height
-        # min_lines=5, # Remove min_lines
+        # Remove fixed height, use min/max lines like LLM prompt
+        min_lines=5,  # Set minimum lines visible
+        max_lines=8,  # Set maximum lines before scrolling activates
         border_radius=ft.border_radius.all(8),
         border_color=ft.colors.with_opacity(0.5, ft.colors.OUTLINE),
         filled=True,
