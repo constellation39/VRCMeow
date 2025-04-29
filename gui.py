@@ -279,8 +279,8 @@ def main(page: ft.Page):
     async def _start_recording_internal():
         """Internal logic for starting the process."""
         # Status update now handles button state during processing
-        update_status_display("正在启动...", is_running=None, is_processing=True)
-        # page.update() # update_status_display calls page.update()
+        update_status_callback("正在启动...", is_running=None, is_processing=True) # Use the callback
+        # page.update() # update_status_callback calls page.update()
 
         try:
             # --- Initialize Components ---
@@ -292,9 +292,9 @@ def main(page: ft.Page):
             if not dashscope_api_key:
                 error_msg = "错误：Dashscope API Key 未设置。"
                 logger.error(error_msg)
-                update_status_display(
+                update_status_callback( # Use the callback
                     error_msg, is_running=False, is_processing=False
-                )  # Use the partial callback
+                )
                 # Show banner as well
                 gui_utils.show_error_banner(page, error_msg)
                 return
