@@ -71,15 +71,38 @@ def setup_logging(level: Optional[int] = None):
     # 将处理器添加到根记录器
     root_logger.addHandler(console_handler)
 
-    # 可以选择添加文件处理器
-    # try:
-    #     file_handler = logging.FileHandler("app.log")
-    #     file_handler.setLevel(level) # Set file handler level
-    # file_handler.setFormatter(formatter)
-    #     file_handler.setFormatter(formatter)
-    #     root_logger.addHandler(file_handler)
-    # except Exception as e:
-    #     root_logger.error(f"Failed to configure file logging: {e}", exc_info=True)
+    # --- 添加文件处理器 (如果已启用) ---
+    try:
+        # 检查配置是否启用了文件日志
+        if app_config.get('outputs.file.enabled', False):
+            log_file_path = app_config.get('outputs.file.path', 'vrcmeow_app.log') # 使用配置中的路径，提供默认值
+            # 确保目录存在 (如果路径包含目录)
+            log_dir = os.path.dirname(log_file_path)
+            if log_dir and not os.path.exists(log_dir):
+                try:
+                    os.makedirs(log_dir)
+                    root_logger.info(f"Created log directory: {log_dir}")
+                except OSError as e:
+                    root_logger.error(f"Failed to create log directory {log_dir}: {e}. File logging disabled.", exc_info=True)
+                    # 如果无法创建目录，则不添加文件处理器
+                    log_file_path = None # 阻止 FileHandler 创建
+
+            if log_file_path: # 仅在路径有效时尝试创建处理器
+                # 创建文件处理器，使用 'a' 模式追加日志
+                file_handler = logging.FileHandler(log_file_path, mode='a', encoding='utf-8')
+                # 设置文件处理器的级别 (与根记录器相同)
+                file_handler.setLevel(level)
+                # 设置文件处理器的格式化器 (与控制台相同)
+                file_handler.setFormatter(formatter)
+                # 将文件处理器添加到根记录器
+                root_logger.addHandler(file_handler)
+                root_logger.info(f"File logging enabled. Logging to: {log_file_path}")
+        else:
+            root_logger.info("File logging is disabled in the configuration.")
+
+    except Exception as e:
+        # 捕获创建或添加文件处理器时可能发生的任何错误
+        root_logger.error(f"Failed to configure file logging: {e}", exc_info=True)
 
     # 返回配置好的根记录器 (虽然通常不需要直接使用它)
     return root_logger
