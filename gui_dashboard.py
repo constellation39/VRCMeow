@@ -125,10 +125,15 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
 # --- Dashboard Callback Functions ---
 
 # Function to update the static info display
+# Forward reference Config for type hinting
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from config import Config # Import Config class for type hinting
+
 def update_dashboard_info_display(
     page: ft.Page,
     elements: Dict[str, ft.Control],
-    config_data: Dict, # Pass the config data dictionary
+    config_instance: "Config", # Pass the config instance
 ):
     """线程安全地更新仪表盘上的静态配置信息显示"""
     if not page:
@@ -137,9 +142,20 @@ def update_dashboard_info_display(
     if not elements:
         logger.warning("update_dashboard_info_display called without elements.")
         return
-    if not config_data:
-        logger.warning("update_dashboard_info_display called without config_data.")
+    if not config_instance:
+        logger.warning("update_dashboard_info_display called without config_instance.")
         return
+
+    # Get the latest config data from the instance
+    try:
+        config_data = config_instance.data
+        if not config_data:
+             logger.warning("Config instance provided but its data is empty.")
+             return # Or handle appropriately
+    except Exception as e:
+        logger.error(f"Error accessing config_instance.data: {e}", exc_info=True)
+        return
+
 
     # Extract info from config_data (use .get() for safety)
     audio_conf = config_data.get("audio", {})

@@ -460,14 +460,15 @@ def main(page: ft.Page):
 
     # --- Create Dashboard Info Update Callback ---
     # This partial binds the necessary arguments for updating the dashboard info display
+    # --- Create Dashboard Info Update Callback ---
+    # This partial binds the necessary arguments for updating the dashboard info display
+    # Pass the config *instance* so the callback can access the latest .data
     update_dashboard_info_partial = functools.partial(
         update_dashboard_info_display,
         page,
         dashboard_elements, # Pass the dashboard elements dict
-        config.data, # Pass the initial config data (will be updated on reload)
-        # Note: config.data passed here is a reference. When config reloads,
-        # calling this partial *should* get the updated data if config.data points
-        # to the new dictionary. Let's verify this behavior.
+        config, # Pass the config instance itself
+        # Now, inside update_dashboard_info_display, it will access config.data
         # If not, we might need to pass the config object itself and access .data inside the callback.
         # For now, let's try passing the data dictionary directly.
     )
@@ -569,20 +570,25 @@ def main(page: ft.Page):
     logger.debug("Initial population of dashboard info display.")
     # Call the partial function created earlier
     # Run it in the background as it might involve UI updates
-    async def initial_dashboard_update():
-        try:
-            # Pass the *current* config data when calling
-            await update_dashboard_info_display(page, dashboard_elements, config.data)
-        except Exception as e:
-            logger.error(f"Error during initial dashboard info update: {e}", exc_info=True)
+    # --- Initial Dashboard Info Population ---
+    logger.debug("Initial population of dashboard info display.")
+    # Call the partial function created earlier which now takes the config instance
+    # Run it in the background as it might involve UI updates
+    # async def initial_dashboard_update(): # No longer needed as partial handles it
+    #     try:
+    #         # Pass the config instance
+    #         await update_dashboard_info_display(page, dashboard_elements, config)
+    #     except Exception as e:
+    #         logger.error(f"Error during initial dashboard info update: {e}", exc_info=True)
 
-    # Schedule the initial update to run after the main layout is built
+    # Schedule the initial update using the partial
     # Using asyncio.create_task might be better if running within an async context already
     # but page.run_thread is safer if unsure about the context Flet runs main() in.
     # Let's try calling the partial directly first, as it uses run_thread internally.
     try:
         # Directly call the partial which uses page.run_thread internally
-         update_dashboard_info_partial() # This now uses the initial config.data
+        # The partial now correctly holds the config instance.
+        update_dashboard_info_partial()
     except Exception as e:
         logger.error(f"Error scheduling initial dashboard update: {e}", exc_info=True)
 
