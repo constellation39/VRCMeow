@@ -37,10 +37,10 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
         spacing=5,
     )
     elements["output_text"] = ft.TextField(
-        hint_text="最终输出将显示在这里...",
+        label="最终输出", # Changed from hint_text to label
         multiline=True,
         read_only=True,
-        # Remove fixed height, use min/max lines like LLM prompt
+        # Keep min/max lines for fixed size and scrolling
         min_lines=5,  # Set minimum lines visible
         max_lines=8,  # Set maximum lines before scrolling activates
         border_radius=ft.border_radius.all(8),
