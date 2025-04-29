@@ -1,5 +1,5 @@
 import asyncio
-import threading # Import threading
+import threading  # Import threading
 from typing import Optional
 from dashscope.audio.asr import RecognitionCallback, Recognition, RecognitionResult
 import time  # Import time for LLM timeout and typing status
@@ -51,59 +51,92 @@ class ParaformerCallback(RecognitionCallback):
         Uses asyncio.run() to manage async operations within the thread.
         """
         thread_id = threading.current_thread().ident
-        self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: Starting background dispatch for text: '{text[:50]}...'")
+        self.logger.info(
+            f"[Thread-{thread_id}] STT_PARA_BG: Starting background dispatch for text: '{text[:50]}...'"
+        )
         final_text_to_dispatch = text
 
         # --- LLM Processing (if enabled) ---
         if self.llm_client and self.llm_client.enabled:
-            self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: Sending to LLM for processing: '{text[:50]}...'")
+            self.logger.info(
+                f"[Thread-{thread_id}] STT_PARA_BG: Sending to LLM for processing: '{text[:50]}...'"
+            )
             try:
                 processed_text = asyncio.run(
                     asyncio.wait_for(
                         self.llm_client.process_text(text),
-                        timeout=config.get("llm.request_timeout", 10.0)
+                        timeout=config.get("llm.request_timeout", 10.0),
                     )
                 )
                 if processed_text:
                     final_text_to_dispatch = processed_text
-                    self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: LLM processing successful: '{final_text_to_dispatch[:50]}...'")
+                    self.logger.info(
+                        f"[Thread-{thread_id}] STT_PARA_BG: LLM processing successful: '{final_text_to_dispatch[:50]}...'"
+                    )
                 else:
-                    self.logger.warning(f"[Thread-{thread_id}] STT_PARA_BG: LLM returned empty result, dispatching original.")
+                    self.logger.warning(
+                        f"[Thread-{thread_id}] STT_PARA_BG: LLM returned empty result, dispatching original."
+                    )
             except asyncio.TimeoutError:
-                self.logger.error(f"[Thread-{thread_id}] STT_PARA_BG: LLM processing timed out, dispatching original.")
+                self.logger.error(
+                    f"[Thread-{thread_id}] STT_PARA_BG: LLM processing timed out, dispatching original."
+                )
             except Exception as e:
-                self.logger.error(f"[Thread-{thread_id}] STT_PARA_BG: LLM processing error: {e}", exc_info=True)
+                self.logger.error(
+                    f"[Thread-{thread_id}] STT_PARA_BG: LLM processing error: {e}",
+                    exc_info=True,
+                )
         else:
-             self.logger.debug(f"[Thread-{thread_id}] STT_PARA_BG: LLM processing disabled.")
+            self.logger.debug(
+                f"[Thread-{thread_id}] STT_PARA_BG: LLM processing disabled."
+            )
 
         # --- Final Dispatch ---
         if self.output_dispatcher:
-            self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: Calling dispatcher for: '{final_text_to_dispatch[:50]}...'")
+            self.logger.info(
+                f"[Thread-{thread_id}] STT_PARA_BG: Calling dispatcher for: '{final_text_to_dispatch[:50]}...'"
+            )
             try:
                 asyncio.run(self.output_dispatcher.dispatch(final_text_to_dispatch))
-                self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: Dispatch finished successfully.")
+                self.logger.info(
+                    f"[Thread-{thread_id}] STT_PARA_BG: Dispatch finished successfully."
+                )
             except Exception as e:
-                self.logger.error(f"[Thread-{thread_id}] STT_PARA_BG: Error during dispatch: {e}", exc_info=True)
+                self.logger.error(
+                    f"[Thread-{thread_id}] STT_PARA_BG: Error during dispatch: {e}",
+                    exc_info=True,
+                )
         else:
-            self.logger.error(f"[Thread-{thread_id}] STT_PARA_BG: OutputDispatcher missing, cannot dispatch.")
+            self.logger.error(
+                f"[Thread-{thread_id}] STT_PARA_BG: OutputDispatcher missing, cannot dispatch."
+            )
 
-        self.logger.info(f"[Thread-{thread_id}] STT_PARA_BG: Background dispatch thread finished.")
-
+        self.logger.info(
+            f"[Thread-{thread_id}] STT_PARA_BG: Background dispatch thread finished."
+        )
 
     def _dispatch_intermediate_in_background(self, text: str):
         """Dispatches intermediate messages ('Typing...' or partial) using asyncio.run in a thread."""
         thread_id = threading.current_thread().ident
         if self.output_dispatcher:
-            self.logger.debug(f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Dispatching intermediate: {text}")
+            self.logger.debug(
+                f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Dispatching intermediate: {text}"
+            )
             try:
                 # Dispatch intermediate messages through the full dispatcher
                 asyncio.run(self.output_dispatcher.dispatch(text))
-                self.logger.debug(f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Intermediate dispatch successful.")
+                self.logger.debug(
+                    f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Intermediate dispatch successful."
+                )
             except Exception as e:
-                self.logger.error(f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Error dispatching intermediate: {e}", exc_info=True)
+                self.logger.error(
+                    f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Error dispatching intermediate: {e}",
+                    exc_info=True,
+                )
         else:
-             self.logger.error(f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: OutputDispatcher missing for intermediate dispatch.")
-
+            self.logger.error(
+                f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: OutputDispatcher missing for intermediate dispatch."
+            )
 
     def on_open(self) -> None:
         self.logger.info("Dashscope Paraformer 连接已打开。")  # Keep as INFO
@@ -135,7 +168,9 @@ class ParaformerCallback(RecognitionCallback):
         request_id = result.get_request_id()
         usage = result.get_usage(sentence_data)  # Get usage info
         # Log the thread ID where the callback is executed
-        self.logger.debug(f"ParaformerCallback.on_event executing in Thread ID: {threading.current_thread().ident}")
+        self.logger.debug(
+            f"ParaformerCallback.on_event executing in Thread ID: {threading.current_thread().ident}"
+        )
         self.logger.debug(
             f"Dashscope Paraformer 事件: ID={request_id}, Usage={usage}, Sentence={sentence_data}"
         )
@@ -168,15 +203,19 @@ class ParaformerCallback(RecognitionCallback):
             self.logger.info(f"STT_PARA: Final text received: '{text_to_process}'")
 
             # --- Start Background Thread for LLM/Dispatch ---
-            self.logger.info(f"STT_PARA: Preparing background thread for final dispatch of '{text_to_process[:50]}...'")
+            self.logger.info(
+                f"STT_PARA: Preparing background thread for final dispatch of '{text_to_process[:50]}...'"
+            )
             dispatch_thread = threading.Thread(
                 target=self._dispatch_in_background,
                 args=(text_to_process,),
                 name=f"ParaformerDispatchThread-{text_to_process[:10]}",
-                daemon=True
+                daemon=True,
             )
             dispatch_thread.start()
-            self.logger.info(f"STT_PARA: Started background dispatch thread: {dispatch_thread.name}")
+            self.logger.info(
+                f"STT_PARA: Started background dispatch thread: {dispatch_thread.name}"
+            )
 
         # --- Handle Intermediate Result ---
         else:  # Not final (Intermediate result from Paraformer)
@@ -186,12 +225,14 @@ class ParaformerCallback(RecognitionCallback):
                 if current_time - self._last_typing_send_time >= self._typing_interval:
                     log_prefix = "中间状态 (Typing...)"
                     # Dispatch "Typing..." in background thread
-                    self.logger.debug(f"STT_PARA: Preparing background thread for intermediate dispatch: '{log_prefix}'")
+                    self.logger.debug(
+                        f"STT_PARA: Preparing background thread for intermediate dispatch: '{log_prefix}'"
+                    )
                     intermediate_thread = threading.Thread(
                         target=self._dispatch_intermediate_in_background,
-                        args=("Typing...",), # Send fixed message
+                        args=("Typing...",),  # Send fixed message
                         name="ParaformerIntermediateThread-Typing",
-                        daemon=True
+                        daemon=True,
                     )
                     intermediate_thread.start()
                     self._last_typing_send_time = current_time  # Update last send time
@@ -206,18 +247,19 @@ class ParaformerCallback(RecognitionCallback):
                 log_prefix = "中间结果 (部分)"
                 self.logger.debug(f"STT_PARA: {log_prefix}: {text_to_process}")
                 # Dispatch the partial text in background thread
-                self.logger.debug(f"STT_PARA: Preparing background thread for intermediate dispatch: '{log_prefix}'")
+                self.logger.debug(
+                    f"STT_PARA: Preparing background thread for intermediate dispatch: '{log_prefix}'"
+                )
                 intermediate_thread = threading.Thread(
                     target=self._dispatch_intermediate_in_background,
-                    args=(text_to_process,), # Send actual partial text
+                    args=(text_to_process,),  # Send actual partial text
                     name="ParaformerIntermediateThread-Partial",
-                    daemon=True
+                    daemon=True,
                 )
                 intermediate_thread.start()
                 # Note: We don't use _last_typing_send_time here as we dispatch every partial result.
 
             # If behavior is "ignore", do nothing for intermediate results.
-
 
     # Remove _process_with_llm_and_dispatch method
 
@@ -253,7 +295,8 @@ def create_paraformer_recognizer(
     # Create the callback instance, passing dispatcher and llm client
     callback = ParaformerCallback(
         # Remove loop argument
-        llm_client=llm_client, output_dispatcher=output_dispatcher
+        llm_client=llm_client,
+        output_dispatcher=output_dispatcher,
     )
 
     # Prepare parameters for the recognizer

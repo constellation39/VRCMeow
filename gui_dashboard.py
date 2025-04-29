@@ -6,12 +6,17 @@ logger = logging.getLogger(__name__)
 
 # --- Dashboard UI Element Creation and Layout ---
 
+
 def create_dashboard_elements() -> Dict[str, ft.Control]:
     """Creates the core UI elements for the dashboard tab."""
     elements = {}
     # Default state: Red status, Green button
-    elements["status_icon"] = ft.Icon(name=ft.icons.CIRCLE_OUTLINED, color=ft.colors.RED_ACCENT_700)
-    elements["status_label"] = ft.Text("未启动", selectable=True, color=ft.colors.RED_ACCENT_700)
+    elements["status_icon"] = ft.Icon(
+        name=ft.icons.CIRCLE_OUTLINED, color=ft.colors.RED_ACCENT_700
+    )
+    elements["status_label"] = ft.Text(
+        "未启动", selectable=True, color=ft.colors.RED_ACCENT_700
+    )
     elements["status_row"] = ft.Row(
         [elements["status_icon"], elements["status_label"]],
         alignment=ft.MainAxisAlignment.CENTER,
@@ -44,21 +49,22 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
     return elements
 
 
-def create_dashboard_tab_content(
-    elements: Dict[str, ft.Control]
-) -> ft.Column:
+def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
     """Creates the layout Column for the Dashboard tab using pre-created elements."""
     # Validate required elements exist
     required_keys = ["status_row", "toggle_button", "progress_indicator", "output_text"]
     if not all(key in elements for key in required_keys):
         logger.error("Missing required elements for dashboard layout.")
-        return ft.Column([ft.Text("Error: Dashboard layout failed.", color=ft.colors.RED)])
+        return ft.Column(
+            [ft.Text("Error: Dashboard layout failed.", color=ft.colors.RED)]
+        )
 
     return ft.Column(
         [
             # Status display at the top
-            ft.Container(elements["status_row"], padding=ft.padding.only(top=15, bottom=5)),
-
+            ft.Container(
+                elements["status_row"], padding=ft.padding.only(top=15, bottom=5)
+            ),
             # Combined Start/Stop button below status, centered
             ft.Row(
                 [elements["toggle_button"], elements["progress_indicator"]],
@@ -66,12 +72,11 @@ def create_dashboard_tab_content(
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=15,
             ),
-
             # Output text area taking remaining space
             ft.Container(
                 elements["output_text"],
                 expand=True,
-                padding=ft.padding.only(top=15, bottom=10, left=10, right=10)
+                padding=ft.padding.only(top=15, bottom=10, left=10, right=10),
             ),
         ],
         expand=True,
@@ -83,6 +88,7 @@ def create_dashboard_tab_content(
 
 # --- Dashboard Callback Functions ---
 
+
 def update_status_display(
     page: ft.Page,
     status_icon: ft.Icon,
@@ -91,7 +97,7 @@ def update_status_display(
     progress_indicator: ft.ProgressRing,
     message: str,
     is_running: Optional[bool] = None,
-    is_processing: bool = False
+    is_processing: bool = False,
 ):
     """线程安全地更新状态文本和图标 (需要传入 UI 元素)"""
     if not page:
@@ -146,26 +152,34 @@ def update_status_display(
         try:
             # Check if page and controls are still valid before updating
             if page and page.controls:
-                 page.update()
+                page.update()
             elif page:
-                 logger.warning("Page has no controls, skipping update in update_status_display.")
+                logger.warning(
+                    "Page has no controls, skipping update in update_status_display."
+                )
             # No need for else, page check already handled
         except Exception as e:
             # Catch errors during update (e.g., page closed unexpectedly)
-            logger.error(f"Error during page.update in update_status_display: {e}", exc_info=True)
-
+            logger.error(
+                f"Error during page.update in update_status_display: {e}", exc_info=True
+            )
 
     # Run UI updates on the Flet thread
     try:
         # Check if page is still valid before running thread
         if page and page.controls is not None:
-             page.run_thread(update_ui) # type: ignore
+            page.run_thread(update_ui)  # type: ignore
         elif page:
-             logger.warning("Page object seems invalid (no controls), skipping run_thread in update_status_display.")
+            logger.warning(
+                "Page object seems invalid (no controls), skipping run_thread in update_status_display."
+            )
         # No need for else, page check already handled
     except Exception as e:
         # Catch potential errors if page becomes invalid between check and run_thread
-        logger.error(f"Error calling page.run_thread in update_status_display: {e}", exc_info=True)
+        logger.error(
+            f"Error calling page.run_thread in update_status_display: {e}",
+            exc_info=True,
+        )
 
 
 def update_output_display(page: ft.Page, output_text_control: ft.TextField, text: str):
@@ -174,38 +188,48 @@ def update_output_display(page: ft.Page, output_text_control: ft.TextField, text
         logger.warning("update_output_display called without a valid page object.")
         return
     if not output_text_control:
-        logger.warning("update_output_display called without a valid output_text_control.")
+        logger.warning(
+            "update_output_display called without a valid output_text_control."
+        )
         return
 
     def append_text():
-        current_value = output_text_control.value if output_text_control.value is not None else ""
+        current_value = (
+            output_text_control.value if output_text_control.value is not None else ""
+        )
         # Limit the amount of text to prevent performance issues
-        max_len = 10000 # Example limit, adjust as needed
+        max_len = 10000  # Example limit, adjust as needed
         new_value = current_value + text + "\n"
         if len(new_value) > max_len:
-             # Keep the last max_len characters
-             new_value = new_value[-max_len:]
-             # Optional: Add a marker indicating truncation
-             # new_value = "[...]\n" + new_value
+            # Keep the last max_len characters
+            new_value = new_value[-max_len:]
+            # Optional: Add a marker indicating truncation
+            # new_value = "[...]\n" + new_value
 
         output_text_control.value = new_value
         try:
             # Check if page and controls are still valid before updating
             if page and page.controls:
-                 page.update(output_text_control) # Update only the specific control
+                page.update(output_text_control)  # Update only the specific control
             elif page:
-                 logger.warning("Page has no controls, skipping update in update_output_display.")
+                logger.warning(
+                    "Page has no controls, skipping update in update_output_display."
+                )
             # No need for else, page check already handled
         except Exception as e:
             # Catch errors during update
-            logger.error(f"Error during page.update in update_output_display: {e}", exc_info=True)
+            logger.error(
+                f"Error during page.update in update_output_display: {e}", exc_info=True
+            )
 
     try:
         # Check if page is still valid before running thread
         if page and page.controls is not None:
-             page.run_thread(append_text) # type: ignore
+            page.run_thread(append_text)  # type: ignore
         elif page:
-             logger.warning("Page object seems invalid (no controls), skipping run_thread in update_output_display.")
+            logger.warning(
+                "Page object seems invalid (no controls), skipping run_thread in update_output_display."
+            )
         # No need for else, page check already handled
     except Exception as e:
         # Catch potential errors if page becomes invalid

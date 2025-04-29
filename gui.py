@@ -4,7 +4,7 @@ import functools
 import os
 import pathlib
 import sys
-from typing import Optional, Dict, Callable # Added Callable here
+from typing import Optional, Dict  # Added Callable here
 
 # --- Third-Party Imports ---
 import flet as ft
@@ -18,7 +18,9 @@ config_file_path = project_root / "config.yaml"
 current_cwd = pathlib.Path.cwd()
 
 if not (current_cwd / "config.yaml").exists() and config_file_path.exists():
-    print(f"[INFO] Initial CWD '{current_cwd}' seems incorrect (config.yaml not found).")
+    print(
+        f"[INFO] Initial CWD '{current_cwd}' seems incorrect (config.yaml not found)."
+    )
     print(f"[INFO] Changing CWD to detected project root: '{project_root}'")
     os.chdir(project_root)
     print(f"[INFO] Current CWD after change: '{os.getcwd()}'")
@@ -27,12 +29,14 @@ if not (current_cwd / "config.yaml").exists() and config_file_path.exists():
         sys.path.insert(0, str(project_root))
         print(f"[INFO] Added '{project_root}' to sys.path")
 else:
-    print(f"[INFO] Initial CWD '{current_cwd}' seems correct or config.yaml not found at expected root.")
+    print(
+        f"[INFO] Initial CWD '{current_cwd}' seems correct or config.yaml not found at expected root."
+    )
 # --- End Project Setup ---
 
 # --- Local Project Imports (after CWD setup) ---
 from audio_recorder import AudioManager
-from config import config # Import singleton and class
+from config import config  # Import singleton and class
 import gui_utils
 from gui_config import (
     create_audio_controls,
@@ -224,7 +228,9 @@ def main(page: ft.Page):
     async def _start_recording_internal():
         """Internal logic for starting the process."""
         # Status update now handles button state during processing
-        update_status_callback("正在启动...", is_running=None, is_processing=True) # Use the callback
+        update_status_callback(
+            "正在启动...", is_running=None, is_processing=True
+        )  # Use the callback
         # page.update() # update_status_callback calls page.update()
 
         try:
@@ -237,7 +243,7 @@ def main(page: ft.Page):
             if not dashscope_api_key:
                 error_msg = "错误：Dashscope API Key 未设置。"
                 logger.error(error_msg)
-                update_status_callback( # Use the callback
+                update_status_callback(  # Use the callback
                     error_msg, is_running=False, is_processing=False
                 )
                 # Show banner as well

@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+
 # Directly import the config instance
 from typing import Optional, Callable  # 导入 Callable 和 Awaitable
 
@@ -8,6 +9,7 @@ import aiofiles  # Use aiofiles for async file operations
 # Directly import the config instance
 from config import config
 from logger_config import get_logger
+
 # Import VRCClient for type hinting, handle potential ImportError if needed
 from osc_client import VRCClient
 
@@ -20,11 +22,13 @@ class OutputDispatcher:
     def __init__(
         self,
         vrc_client_instance: Optional[VRCClient] = None,
-        gui_output_callback: Optional[Callable[[str], None]] = None # 添加 GUI 回调参数
+        gui_output_callback: Optional[
+            Callable[[str], None]
+        ] = None,  # 添加 GUI 回调参数
     ) -> None:
-        logger.info("OutputDispatcher initializing...") # <-- Add initialization log
+        logger.info("OutputDispatcher initializing...")  # <-- Add initialization log
         self.vrc_client = vrc_client_instance
-        self.gui_output_callback = gui_output_callback # 存储回调
+        self.gui_output_callback = gui_output_callback  # 存储回调
         self.outputs_config = config.get("outputs", {})
         # self.loop is no longer needed
 
@@ -100,11 +104,12 @@ class OutputDispatcher:
             enabled_outputs.append("GUI")
 
         if enabled_outputs:
-            logger.info(f"OUTPUT_DISP: Enabled outputs for this dispatch: {', '.join(enabled_outputs)}")
+            logger.info(
+                f"OUTPUT_DISP: Enabled outputs for this dispatch: {', '.join(enabled_outputs)}"
+            )
         else:
             logger.warning("OUTPUT_DISP: No outputs enabled for dispatch.")
-            return # Exit early if nothing to do
-
+            return  # Exit early if nothing to do
 
         # 1. Console Output (Synchronous)
         if self.console_output_enabled:
@@ -121,16 +126,15 @@ class OutputDispatcher:
                 # DEBUG: Log after successful file write
                 logger.debug("OUTPUT_DISP: Finished awaiting _write_to_file")
             except Exception as file_err:
-                 # Log error directly here, no need to gather exceptions later
-                 logger.error(
-                     f"OutputDispatcher: Error during file write task: {file_err}",
-                     exc_info=file_err
-                 )
-
+                # Log error directly here, no need to gather exceptions later
+                logger.error(
+                    f"OutputDispatcher: Error during file write task: {file_err}",
+                    exc_info=file_err,
+                )
 
         # 3. VRC OSC Output (Async - Await directly)
         if self.vrc_osc_enabled and self.vrc_client:
-            formatted_vrc_text = text # Default to raw text
+            formatted_vrc_text = text  # Default to raw text
             try:
                 formatted_vrc_text = self.vrc_osc_format.format(text=text)
             except KeyError as e:
@@ -147,16 +151,18 @@ class OutputDispatcher:
 
             try:
                 # INFO: Log before calling VRCClient.send_chatbox
-                logger.info(f"OUTPUT_DISP: Awaiting VRCClient.send_chatbox with: '{formatted_vrc_text}'")
+                logger.info(
+                    f"OUTPUT_DISP: Awaiting VRCClient.send_chatbox with: '{formatted_vrc_text}'"
+                )
                 await self.vrc_client.send_chatbox(formatted_vrc_text)
                 # DEBUG: Log after successful send
                 logger.debug("OUTPUT_DISP: Finished awaiting VRCClient.send_chatbox")
             except Exception as osc_err:
-                 # Log error directly here
-                 logger.error(
-                     f"OutputDispatcher: Error during VRC OSC send task: {osc_err}",
-                     exc_info=osc_err
-                 )
+                # Log error directly here
+                logger.error(
+                    f"OutputDispatcher: Error during VRC OSC send task: {osc_err}",
+                    exc_info=osc_err,
+                )
 
         # 4. GUI Output (Synchronous Call - Callback handles thread safety)
         if self.gui_output_callback:
@@ -165,8 +171,11 @@ class OutputDispatcher:
                 self.gui_output_callback(text)
                 logger.debug("Dispatched text to GUI.")
             except Exception as gui_err:
-                 logger.error(f"OutputDispatcher: Error calling GUI output callback: {gui_err}", exc_info=True)
-                 # Assuming callback is synchronous or handles its own threading/async calls safely
+                logger.error(
+                    f"OutputDispatcher: Error calling GUI output callback: {gui_err}",
+                    exc_info=True,
+                )
+                # Assuming callback is synchronous or handles its own threading/async calls safely
 
         # No more asyncio.gather needed as operations are awaited directly above.
         logger.info(f"OUTPUT_DISP: Exiting dispatch method for text: '{text}'")

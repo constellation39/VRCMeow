@@ -1,9 +1,9 @@
 import asyncio
 import time
-from typing import Any # Added Union
+from typing import Any  # Added Union
 
 # Direct import, program will exit if this fails
-from pythonosc import udp_client as pythonosc_udp_client # Rename to avoid conflict
+from pythonosc import udp_client as pythonosc_udp_client  # Rename to avoid conflict
 from pythonosc.osc_message_builder import ArgValue
 
 from config import config  # Import the config instance
@@ -37,7 +37,9 @@ class VRCClient:
         # 使用传入的参数初始化客户端
         self._osc_client = pythonosc_udp_client.SimpleUDPClient(address, port)
         self.interval = interval
-        self.format_string = config.get("outputs.vrc_osc.format", "{text}") # Load format string
+        self.format_string = config.get(
+            "outputs.vrc_osc.format", "{text}"
+        )  # Load format string
         self._address = address  # 可以存储起来用于日志记录
         self._port = port  # 可以存储起来用于日志记录
 
@@ -126,7 +128,7 @@ class VRCClient:
                 "/chatbox/input", [content, True]
             )  # VRC 需要列表 [message, send_now=True]
             self._last_send_time = time.time()  # 更新上次发送时间
-            logger.info(f"OSC 消息已发送: {content}") # Log the content as received
+            logger.info(f"OSC 消息已发送: {content}")  # Log the content as received
         except Exception as e:
             logger.error(
                 f"发送 OSC 消息时出错: {e}", exc_info=True
