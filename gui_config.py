@@ -521,12 +521,12 @@ async def save_config_handler(
     page: ft.Page,  # Need page for banner
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
-    stop_func: Callable[[], Awaitable[None]], # Function to stop background processes
+    create_example_row_func: Callable, # Function to create few-shot rows for reload
     e: Optional[ft.ControlEvent] = None, # Add optional event argument
 ):
     """
     保存按钮点击事件处理程序 (配置选项卡)。
-    保存成功后将停止后台进程并重启应用。
+    保存成功后将重新加载配置并更新 UI，而不是重启应用。
     """
     logger.info("Save configuration button clicked.")
     if not config_instance:
@@ -789,36 +789,26 @@ async def save_config_handler(
 
         # Call the save method on the config instance (runs in thread)
         await asyncio.to_thread(config_instance.save)
+        logger.info("Configuration saved to file.")
 
-        # Show success banner indicating restart
-        gui_utils.show_success_banner(page, "配置已保存，正在准备重启...")
-        page.update() # Ensure banner is shown
+        # Reload the configuration from the file into the config object
+        logger.info("Reloading configuration from file after saving...")
+        await asyncio.to_thread(config_instance.reload)
+        logger.info("Configuration reloaded into memory.")
 
-        # Stop background processes gracefully
-        logger.info("Stopping background processes before restart...")
-        await stop_func() # Call the passed stop function
-        logger.info("Background processes stopped.")
+        # Update the GUI controls with the newly saved and reloaded values
+        logger.info("Updating GUI controls with reloaded configuration...")
+        reload_config_controls(
+            page, all_config_controls, config_instance, create_example_row_func
+        )
+        logger.info("GUI controls updated.")
 
-        # Show final message and restart
-        gui_utils.show_banner(page, "正在重启...", icon=ft.icons.RESTART_ALT, icon_color=ft.colors.BLUE)
-        page.update()
-        await asyncio.sleep(1.5) # Give time for user to see message
-
-        logger.info("Executing application restart...")
-        try:
-            # Ensure sys.executable and sys.argv are valid
-            if not sys.executable or not sys.argv:
-                 raise RuntimeError("sys.executable or sys.argv is not available for restart.")
-            # Use os.execv to replace the current process
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-        except Exception as restart_ex:
-            error_msg = f"重启应用程序时出错: {restart_ex}"
-            logger.critical(error_msg, exc_info=True)
-            gui_utils.show_error_banner(page, error_msg)
-            # If restart fails, the app continues running in the old state.
+        # Show success banner indicating save and reload
+        gui_utils.show_success_banner(page, "配置已保存并重新加载到当前应用")
+        page.update() # Ensure banner and updated controls are shown
 
     except Exception as ex:
-        error_msg = f"保存配置或准备重启时出错: {ex}"
+        error_msg = f"保存或重载配置时出错: {ex}"
         logger.critical(error_msg, exc_info=True)
         # Show error banner
         gui_utils.show_error_banner(page, error_msg)

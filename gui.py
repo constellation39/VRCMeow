@@ -441,12 +441,21 @@ def main(page: ft.Page):
     toggle_button.on_click = toggle_recording  # Dashboard button (local handler)
     page.on_window_event = on_window_event  # Page event (local handler)
 
-    # --- Define Stop Wrapper for Save Handler ---
-    # This wrapper provides a simple async function reference to _stop_recording_internal
-    # without needing to pass the 'is_error' argument from the save handler.
-    async def stop_wrapper():
-        logger.debug("stop_wrapper called, invoking _stop_recording_internal.")
-        await _stop_recording_internal()
+    # --- Define a wrapper for create_config_example_row needed by reload/save handlers ---
+    # This wrapper matches the signature expected by reload_config_controls
+    def create_row_wrapper_for_reload(user_text: str, assistant_text: str) -> ft.Row:
+        # Call the actual row creation function from gui_config, passing page and column
+        # Ensure few_shot_examples_column is valid before calling
+        if few_shot_examples_column and isinstance(few_shot_examples_column, ft.Column):
+            return create_config_example_row(
+                page, few_shot_examples_column, user_text, assistant_text
+            )
+        else:
+            logger.error(
+                "Cannot create example row for reload/save: few_shot_examples_column is invalid."
+            )
+            # Return a dummy row or raise an error? Returning dummy for now.
+            return ft.Row([ft.Text("Error creating row", color=ft.colors.RED)])
 
     # Config tab buttons - Use functools.partial to bind arguments to async handlers
     # Flet will automatically run the async handler in its event loop.
@@ -455,9 +464,20 @@ def main(page: ft.Page):
         page,
         all_config_controls,
         config,
-        stop_wrapper, # Pass the stop function wrapper
+        create_row_wrapper_for_reload, # Pass the row creation function
     )
     save_config_button.on_click = save_handler_partial
+
+    reload_handler_partial = functools.partial(
+        reload_config_handler,
+        page,
+        all_config_controls,
+        config,
+        create_row_wrapper_for_reload, # Pass the same row creation function
+    )
+    reload_config_button.on_click = reload_handler_partial
+
+    # Ensure add_example_button is valid before assigning handler
 
 
     # Define a wrapper for create_config_example_row needed by reload_config_handler
