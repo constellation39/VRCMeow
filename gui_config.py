@@ -1,9 +1,11 @@
 import flet as ft
-from typing import Dict, Any, Optional, Callable, TYPE_CHECKING
+from typing import Dict, Any, Optional, Callable, TYPE_CHECKING, List
 import logging
 import asyncio
+import sounddevice as sd # Import sounddevice
 import copy
 import gui_utils  # Import for close_banner
+from audio_recorder import get_input_devices # Import device getter
 
 
 # Use standard logging; setup happens elsewhere
@@ -84,9 +86,51 @@ def create_audio_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Contro
     """Creates controls for the Audio Input section."""
     controls = {}
     audio_conf = initial_config.get("audio", {})
+
+    # --- Microphone Selection Dropdown ---
+    device_options = []
+    selected_device_value = audio_conf.get("device", "Default") # Get configured value
+    try:
+        available_devices = get_input_devices()
+        # Add "Default" option first
+        device_options.append(ft.dropdown.Option(key="Default", text="Default Input Device"))
+        # Add other devices
+        for device in available_devices:
+            if device.get("name") == "Error querying devices": # Handle error case from get_input_devices
+                 device_options.append(ft.dropdown.Option(key="error", text="Error querying devices", disabled=True))
+                 continue
+            # Use the user-friendly name for display and also as the key to store in config
+            device_name = device.get("name", "Unknown Device")
+            option_text = f"{device_name}"
+            if device.get("is_default"):
+                option_text += " (System Default)" # Indicate which one is the system default
+
+            device_options.append(ft.dropdown.Option(key=device_name, text=option_text))
+
+        # Ensure the configured value is actually in the options list
+        if selected_device_value != "Default" and not any(opt.key == selected_device_value for opt in device_options):
+            logger.warning(f"Configured audio device '{selected_device_value}' not found in available devices. Falling back to Default.")
+            # Add a temporary option for the missing device? Or just fallback? Fallback is safer.
+            # device_options.append(ft.dropdown.Option(key=selected_device_value, text=f"{selected_device_value} (Not Found)", disabled=True))
+            selected_device_value = "Default" # Reset to default if not found
+
+    except Exception as e:
+        logger.error(f"Failed to populate microphone list: {e}", exc_info=True)
+        device_options.append(ft.dropdown.Option(key="error", text="Error loading devices", disabled=True))
+        selected_device_value = "Default" # Fallback
+
+    controls["audio.device"] = ft.Dropdown(
+        label="麦克风 (输入设备)",
+        value=selected_device_value,
+        options=device_options,
+        tooltip="选择要使用的音频输入设备",
+        # Add on_change handler? Maybe later for dynamic sample rate update.
+    )
+    # --- End Microphone Selection ---
+
     controls["audio.sample_rate"] = ft.TextField(
         label="采样率 (Hz)",
-        value=str(audio_conf.get("sample_rate") or ""),
+        value=str(audio_conf.get("sample_rate") or ""), # Keep existing logic
         hint_text="留空则使用设备默认值 (例如 16000)",
         keyboard_type=ft.KeyboardType.NUMBER,
         tooltip="音频输入采样率。需要与所选 STT 模型兼容",
@@ -288,6 +332,7 @@ def create_config_tab_content(
             get_ctrl("dashscope.stt.intermediate_result_behavior"),
             ft.Divider(height=5),
             ft.Text("音频输入", style=ft.TextThemeStyle.TITLE_SMALL),
+            get_ctrl("audio.device"), # Add device dropdown here
             get_ctrl("audio.sample_rate"),
             get_ctrl("audio.channels"),
             get_ctrl("audio.dtype"),
@@ -520,6 +565,11 @@ async def save_config_handler(
             ),
         )
 
+        update_nested_dict(
+            new_config_data,
+            "audio.device", # Save selected device
+            get_control_value(all_config_controls, "audio.device", str, "Default"),
+        )
         update_nested_dict(
             new_config_data,
             "audio.sample_rate",

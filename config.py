@@ -41,6 +41,7 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
     # "stt": { ... } # REMOVED old top-level stt block
     # --- (Removed duplicate audio block that contained model and intermediate_result_behavior) ---
     "audio": {
+        "device": "Default",  # Name of the input device, or "Default"
         "sample_rate": None,  # None means use device default (e.g., 16000 for Gummy)
         "channels": 1,        # (e.g., 1 for Gummy)
         "dtype": "int16",     # (e.g., "int16" for Gummy)

@@ -1,6 +1,7 @@
 import threading
+import threading
 import queue  # Use standard queue for thread-safe communication
-from typing import Optional, TYPE_CHECKING, Union, Callable, Any
+from typing import Optional, TYPE_CHECKING, Union, Callable, Any, List, Dict
 
 import numpy as np
 import sounddevice as sd
@@ -20,6 +21,41 @@ from stt_paraformer import create_paraformer_recognizer
 
 
 logger = get_logger(__name__)
+
+
+# --- Audio Device Helper ---
+def get_input_devices() -> List[Dict[str, Any]]:
+    """Returns a list of available audio input devices."""
+    devices = []
+    try:
+        device_list = sd.query_devices()
+        hostapis = sd.query_hostapis()
+        default_input_idx = sd.default.device[0] # Get default input device index
+
+        for i, device in enumerate(device_list):
+            # Check if it's an input device (has input channels)
+            if device.get("max_input_channels", 0) > 0:
+                # Try to get a more descriptive name using host API info
+                try:
+                    hostapi_info = hostapis[device.get('hostapi', 0)]
+                    hostapi_name = hostapi_info.get('name', 'Unknown API')
+                    device_name = f"{device.get('name', 'Unknown Device')} ({hostapi_name})"
+                except IndexError:
+                    device_name = device.get('name', 'Unknown Device')
+
+                is_default = (i == default_input_idx)
+                devices.append({
+                    "id": i, # Store index for potential use with sounddevice
+                    "name": device_name, # User-friendly name
+                    "is_default": is_default,
+                    "raw_name": device.get('name') # Store original name for matching if needed
+                })
+        logger.debug(f"Found input devices: {devices}")
+    except Exception as e:
+        logger.error(f"Error querying audio devices: {e}", exc_info=True)
+        # Return a fallback device entry if query fails
+        devices.append({"id": -1, "name": "Error querying devices", "is_default": False, "raw_name": None})
+    return devices
 
 
 # --- Component Imports for Type Hinting (Keep these) ---
@@ -83,22 +119,32 @@ class AudioManager:
         self.debug_echo_mode = config.get("audio.debug_echo_mode", False)
         # Use new nested key for STT model
         self.stt_model = config.get("dashscope.stt.model", "gummy-realtime-v1")
+        self.device = config.get("audio.device", "Default") # Load selected device
 
         # Dynamically determine sample rate if not configured
         if self.sample_rate is None:
-            self.sample_rate = self._determine_sample_rate()
+            self.sample_rate = self._determine_sample_rate() # Now considers selected device
 
     def _determine_sample_rate(self) -> int:
-        """Queries device info to determine sample rate if not set in config."""
+        """Queries device info to determine sample rate if not set in config, considering the selected device."""
+        device_to_query = None
+        log_prefix = "default input"
         try:
-            device_info = sd.query_devices(kind="input")
+            # Try to query the specific selected device if it's not "Default"
+            if self.device and self.device != "Default":
+                 # sounddevice can accept device names or indices
+                 device_to_query = self.device
+                 log_prefix = f"selected device '{self.device}'"
+
+            device_info = sd.query_devices(device=device_to_query, kind="input")
+
             if device_info and "default_samplerate" in device_info:
                 rate = int(device_info["default_samplerate"])
-                logger.info(f"Using default input device sample rate: {rate} Hz")
+                logger.info(f"Using {log_prefix} device sample rate: {rate} Hz")
                 return rate
             else:
                 logger.warning(
-                    "Could not determine default sample rate, falling back to 16000 Hz."
+                    f"Could not determine sample rate for {log_prefix} device, falling back to 16000 Hz."
                 )
                 return 16000
         except Exception as e:
@@ -499,27 +545,41 @@ class AudioManager:
     def _run_audio_stream(self):
         """Target function for the audio processing thread."""
         try:
+            # --- Determine Device to Use ---
+            stream_device = None # None uses default
+            if self.device and self.device != "Default":
+                # Attempt to use the configured device name/index directly
+                stream_device = self.device
+                logger.info(f"Attempting to use configured audio input device: {stream_device}")
+                # Add a check to see if the device actually exists?
+                try:
+                    sd.check_input_settings(device=stream_device)
+                    logger.info(f"Device '{stream_device}' seems valid.")
+                except (ValueError, sd.PortAudioError) as e:
+                    logger.warning(f"Configured audio device '{stream_device}' not found or invalid: {e}. Falling back to default.")
+                    stream_device = None # Fallback to default
+            else:
+                logger.info("Using default audio input device.")
+
+
             # --- Log Device Info ---
             try:
-                default_input = sd.query_devices(kind="input")
-                default_output = sd.query_devices(kind="output")
-                input_name = (
-                    default_input.get("name", "Not Found")
-                    if default_input
-                    else "Not Found"
-                )
-                output_name = (
-                    default_output.get("name", "Not Found")
-                    if default_output
-                    else "Not Found"
-                )
-                logger.info(f"Default Input Device: {input_name}")
-                logger.info(f"Default Output Device: {output_name}")
+                # Query the device that will actually be used (or default if stream_device is None)
+                actual_input_device_info = sd.query_devices(device=stream_device, kind='input')
+                input_name = actual_input_device_info.get('name', 'Unknown') if actual_input_device_info else 'Unknown (Default)'
+                logger.info(f"Using Input Device: {input_name}")
+
+                # Log default output device for echo mode reference
+                default_output_info = sd.query_devices(kind="output")
+                output_name = default_output_info.get('name', 'Unknown') if default_output_info else 'Unknown (Default)'
+                logger.info(f"Default Output Device (for echo): {output_name}")
+
             except Exception as dev_err:
-                logger.warning(f"Could not query audio devices: {dev_err}")
+                logger.warning(f"Could not query specific audio devices: {dev_err}")
 
             # --- Log Configuration ---
             logger.info("Audio Stream Thread Configuration:")
+            logger.info(f"  Device: {stream_device or 'Default'}") # Log the device being used
             logger.info(f"  Sample Rate: {self.sample_rate} Hz")
             logger.info(f"  Channels: {self.channels}")
             logger.info(f"  Dtype: {self.dtype}")
@@ -528,18 +588,15 @@ class AudioManager:
             if self.status_callback:
                 self._update_status("音频流启动中...", is_processing=True)
 
-            # Use sounddevice Stream context manager to handle both input and output (for echo)
-            with (
-                sd.Stream(
-                    samplerate=self.sample_rate,
-                    channels=self.channels,  # Use same number of channels for input and output
-                    dtype=self.dtype,
-                    callback=self._audio_callback,  # Use the instance method
-                    blocksize=int(
-                        self.sample_rate * 0.1
-                    ),  # Optional: Process in 100ms chunks
-                ) as stream
-            ):
+            # Use sounddevice Stream context manager
+            with sd.Stream(
+                device=(stream_device, None), # Specify input device, default output
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                dtype=self.dtype,
+                callback=self._audio_callback,
+                blocksize=int(self.sample_rate * 0.1), # Optional: Process in 100ms chunks
+            ) as stream:
                 actual_rate = getattr(
                     stream, "samplerate", "N/A"
                 )  # Get actual rate if available
