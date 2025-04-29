@@ -102,13 +102,13 @@ class AudioManager:
         self,
         llm_client: Optional["LLMClient"],
         output_dispatcher: "OutputDispatcher",
-        status_callback: Optional[  # Type hint for the *original* callback from GUI
-            Callable[[str, Optional[bool], bool], None]  # Corrected type hint
-        ] = None,
+        status_callback: Optional[Callable[[str, Optional[bool], bool], None]] = None,
+        audio_level_callback: Optional[Callable[[float], None]] = None, # Add audio level callback
     ):
         self.llm_client = llm_client
         self.output_dispatcher = output_dispatcher
-        # Store the raw callback
+        self.audio_level_callback = audio_level_callback # Store audio level callback
+        # Store the raw status callback
         self._raw_status_callback = status_callback
         # Wrapper for the callback to include state (initialized later if needed)
         self.status_callback: Optional[Callable[[str, Optional[bool], bool], None]] = (
@@ -552,6 +552,29 @@ class AudioManager:
                 indata = indata.astype(self.dtype)
             # Put a copy into the queue
             self._audio_queue.put_nowait(indata.copy())
+
+            # --- Calculate and send audio level ---
+            if self.audio_level_callback:
+                try:
+                    # Calculate RMS (Root Mean Square) - requires float conversion
+                    # Ensure indata is float32 for calculation
+                    float_data = indata.astype(np.float32)
+                    rms = np.sqrt(np.mean(float_data**2))
+
+                    # Normalize RMS to 0.0 - 1.0 range
+                    # This requires tuning based on expected input levels and dtype.
+                    # For int16, max amplitude is 32767. A value around 3000-5000 might represent loud speech.
+                    # Let's use a simple scaling factor, clamping at 1.0.
+                    # Adjust the divisor (e.g., 5000) based on testing. Lower value = more sensitive meter.
+                    scaling_factor = 5000.0
+                    normalized_level = min(1.0, rms / scaling_factor)
+
+                    # Call the callback with the normalized level
+                    self.audio_level_callback(normalized_level)
+                except Exception as level_err:
+                    # Log error but don't stop audio processing for level calculation failure
+                    logger.error(f"Error calculating/sending audio level: {level_err}", exc_info=False) # Avoid excessive logging
+
         except queue.Full:
             logger.warning("Audio queue is full. Dropping audio frame.")
             # Consider adding a status update here if it happens frequently

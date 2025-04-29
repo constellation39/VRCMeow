@@ -186,10 +186,11 @@ def main(page: ft.Page):
     output_text = dashboard_elements.get("output_text")
     toggle_button = dashboard_elements.get("toggle_button")
     progress_indicator = dashboard_elements.get("progress_indicator")
+    audio_level_bar = dashboard_elements.get("audio_level_bar") # Get the new element
 
     # Validate that essential dashboard elements were created
     if not all(
-        [status_icon, status_label, output_text, toggle_button, progress_indicator]
+        [status_icon, status_label, output_text, toggle_button, progress_indicator, audio_level_bar] # Add new element to check
     ):
         logger.critical(
             "CRITICAL: Failed to create essential dashboard UI elements. GUI cannot function."
@@ -218,6 +219,11 @@ def main(page: ft.Page):
         update_output_display,  # Function from gui_dashboard
         page,
         output_text,
+    )
+    update_audio_level_callback = functools.partial(
+        update_audio_level_display, # Function from gui_dashboard
+        page,
+        audio_level_bar, # Pass the progress bar element
     )
 
     # --- Core Application Logic Handlers (Start/Stop) ---
@@ -310,7 +316,8 @@ def main(page: ft.Page):
             app_state.audio_manager = AudioManager(
                 llm_client=app_state.llm_client,
                 output_dispatcher=app_state.output_dispatcher,
-                status_callback=update_status_callback,  # Pass the partial callback
+                status_callback=update_status_callback,
+                audio_level_callback=update_audio_level_callback, # Pass the audio level callback
             )
             logger.info("AudioManager initialized.")
 

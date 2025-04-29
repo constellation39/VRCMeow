@@ -68,6 +68,20 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
     elements["info_vrc_label"] = ft.Text("VRC OSC: -", **default_info_text_style, selectable=True)
     elements["info_file_label"] = ft.Text("文件输出: -", **default_info_text_style, selectable=True)
 
+    # --- Add element for audio level visualization ---
+    elements["audio_level_bar"] = ft.ProgressBar(
+        width=150, # Adjust width as needed
+        height=8, # Adjust height for thickness
+        value=0.0, # Start empty
+        bar_height=8,
+        color=ft.colors.with_opacity(0.7, ft.colors.BLUE_ACCENT), # Color for the bar
+        bgcolor=ft.colors.with_opacity(0.2, ft.colors.OUTLINE), # Background color
+        border_radius=ft.border_radius.all(4),
+        tooltip="当前麦克风音量",
+        # visible=False # Initially hidden, shown when running? Or always visible? Let's keep visible.
+    )
+
+
     return elements
 
 
@@ -99,13 +113,24 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
             # --- Configuration Info Section ---
             ft.Column(
                 [
-                    _create_info_row(ft.icons.MIC_NONE_OUTLINED, elements["info_mic_label"]),
+                    # Combine Mic info and volume bar in one row
+                    ft.Row(
+                        [
+                            ft.Icon(name=ft.icons.MIC_NONE_OUTLINED, size=16, opacity=0.7),
+                            elements["info_mic_label"],
+                            ft.Container(width=10), # Spacer
+                            elements["audio_level_bar"], # Add volume bar here
+                        ],
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    # Other info rows remain the same
                     _create_info_row(ft.icons.RECORD_VOICE_OVER_OUTLINED, elements["info_stt_label"]),
                     _create_info_row(ft.icons.TEXT_SNIPPET_OUTLINED, elements["info_llm_label"]),
                     _create_info_row(ft.icons.SEND_AND_ARCHIVE_OUTLINED, elements["info_vrc_label"]),
                     _create_info_row(ft.icons.SAVE_ALT_OUTLINED, elements["info_file_label"]),
                 ],
-                spacing=5,
+                spacing=5, # Adjust spacing if needed after adding the bar
                 alignment=ft.MainAxisAlignment.START,
                 horizontal_alignment=ft.CrossAxisAlignment.START, # Align info text left
             ),
@@ -223,6 +248,48 @@ def update_dashboard_info_display(
             logger.warning("Page object seems invalid, skipping run_thread in update_dashboard_info_display.")
     except Exception as e:
         logger.error(f"Error calling page.run_thread in update_dashboard_info_display: {e}", exc_info=True)
+
+
+def update_audio_level_display(
+    page: ft.Page,
+    audio_level_bar: ft.ProgressBar,
+    level: float # Expect normalized level 0.0 to 1.0
+):
+    """线程安全地更新音频电平指示器 (需要传入 UI 元素)"""
+    if not page:
+        # logger.warning("update_audio_level_display called without a valid page object.") # Can be noisy
+        return
+    if not audio_level_bar:
+        logger.warning("update_audio_level_display called without audio_level_bar.")
+        return
+
+    # Clamp level just in case
+    level = max(0.0, min(1.0, level))
+
+    def update_ui():
+        if audio_level_bar:
+            audio_level_bar.value = level
+            try:
+                # Check if page and controls are still valid before updating
+                if page and page.controls:
+                    # Update only the specific control
+                    page.update(audio_level_bar)
+                # No need for else, page check already handled
+            except Exception as e:
+                # Catch errors during update (e.g., page closed unexpectedly)
+                # logger.error(f"Error during page.update in update_audio_level_display: {e}", exc_info=True) # Can be noisy
+                pass # Ignore update errors for level bar
+
+    # Run UI updates on the Flet thread
+    try:
+        # Check if page is still valid before running thread
+        if page and page.controls is not None:
+            page.run_thread(update_ui)  # type: ignore
+        # No need for else, page check already handled
+    except Exception as e:
+        # Catch potential errors if page becomes invalid between check and run_thread
+        # logger.error(f"Error calling page.run_thread in update_audio_level_display: {e}", exc_info=True) # Can be noisy
+        pass # Ignore run_thread errors for level bar
 
 
 def update_status_display(
