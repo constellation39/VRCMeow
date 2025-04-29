@@ -5,7 +5,6 @@ from datetime import datetime # Import datetime
 
 logger = logging.getLogger(__name__)
 
-from config import Config # Import Config for type hinting
 
 # --- Dashboard UI Element Creation and Layout ---
 
@@ -42,7 +41,7 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
         read_only=True,
         # Keep min/max lines for fixed size and scrolling
         min_lines=5,  # Set minimum lines visible
-        max_lines=8,  # Set maximum lines before scrolling activates
+        max_lines=5,  # Set maximum lines before scrolling activates
         border_radius=ft.border_radius.all(8),
         border_color=ft.colors.with_opacity(0.5, ft.colors.OUTLINE),
         filled=True,
