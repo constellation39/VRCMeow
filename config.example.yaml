@@ -132,3 +132,10 @@ logging:
   # 日志级别决定了控制台输出的详细程度。
   # 选项： DEBUG, INFO, WARNING, ERROR, CRITICAL
   level: "INFO"
+  # --- 应用程序日志文件设置 ---
+  file:
+    # 设置为 true 以将应用程序的详细运行日志（DEBUG、INFO、ERROR 等）写入文件。
+    # 这与 outputs.file 不同，后者用于记录最终的识别/处理结果。
+    enabled: false
+    # 指定保存应用程序运行日志的文件路径。
+    path: "vrcmeow_app.log"
