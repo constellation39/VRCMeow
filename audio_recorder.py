@@ -560,26 +560,38 @@ class AudioManager:
 
     def _run_audio_stream(self):
         """Target function for the audio processing thread."""
+        stream_device_index: Optional[int] = None # Use index for reliability
         try:
-            # --- Determine Device to Use ---
-            stream_device = None # None uses default
-            if self.device and self.device != "Default":
-                # Attempt to use the configured device name/index directly
-                stream_device = self.device
-                logger.info(f"Attempting to use configured audio input device: {stream_device}")
-                # Add a check to see if the device actually exists?
-                try:
-                    sd.check_input_settings(device=stream_device)
-                    logger.info(f"Device '{stream_device}' seems valid.")
-                except (ValueError, sd.PortAudioError) as e:
-                    logger.warning(f"Configured audio device '{stream_device}' not found or invalid: {e}. Falling back to default.")
-                    stream_device = None # Fallback to default
-            else:
-                logger.info("Using default audio input device.")
+            # --- Determine Device Index to Use ---
+            configured_device_name = self.device # Name from config (e.g., "Mic (MME)")
+            if configured_device_name and configured_device_name != "Default":
+                logger.info(f"Attempting to find index for configured device: '{configured_device_name}'")
+                found_device = False
+                # Use the same logic as get_input_devices to find the matching index
+                available_devices = get_input_devices() # Get list of dicts {id, name, is_default, raw_name}
+                for device_info in available_devices:
+                    if device_info.get("name") == configured_device_name:
+                        stream_device_index = device_info.get("id")
+                        if stream_device_index is not None and stream_device_index >= 0:
+                            logger.info(f"Found matching device index: {stream_device_index} for '{configured_device_name}'")
+                            found_device = True
+                            break # Stop searching once found
+                        else:
+                             logger.warning(f"Found matching device '{configured_device_name}' but its index '{stream_device_index}' is invalid.")
 
+                if not found_device:
+                    logger.warning(f"Configured audio device '{configured_device_name}' not found among available MME devices. Falling back to default.")
+                    stream_device_index = None # Fallback to default explicitly
+            else:
+                logger.info("Using default audio input device (index: None).")
+                stream_device_index = None # Use default
 
             # --- Log Device Info ---
             try:
+                # Query the device that will actually be used (default if index is None)
+                actual_input_device_info = sd.query_devices(device=stream_device_index, kind='input')
+                input_name = actual_input_device_info.get('name', 'Unknown') if actual_input_device_info else 'Unknown (Default)'
+                logger.info(f"Using Input Device: {input_name} (Index: {stream_device_index})")
                 # Query the device that will actually be used (or default if stream_device is None)
                 actual_input_device_info = sd.query_devices(device=stream_device, kind='input')
                 input_name = actual_input_device_info.get('name', 'Unknown') if actual_input_device_info else 'Unknown (Default)'
@@ -606,7 +618,7 @@ class AudioManager:
 
             # Use sounddevice Stream context manager
             with sd.Stream(
-                device=(stream_device, None), # Specify input device, default output
+                device=(stream_device_index, None), # Specify input device index, default output
                 samplerate=self.sample_rate,
                 channels=self.channels,
                 dtype=self.dtype,
