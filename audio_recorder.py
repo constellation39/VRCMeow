@@ -35,22 +35,35 @@ def get_input_devices() -> List[Dict[str, Any]]:
         for i, device in enumerate(device_list):
             # Check if it's an input device (has input channels)
             if device.get("max_input_channels", 0) > 0:
-                # Try to get a more descriptive name using host API info
+                # Try to get host API info
                 try:
                     hostapi_info = hostapis[device.get('hostapi', 0)]
                     hostapi_name = hostapi_info.get('name', 'Unknown API')
-                    device_name = f"{device.get('name', 'Unknown Device')} ({hostapi_name})"
                 except IndexError:
-                    device_name = device.get('name', 'Unknown Device')
+                    hostapi_name = 'Unknown API' # Handle case where hostapi index is invalid
 
-                is_default = (i == default_input_idx)
-                devices.append({
-                    "id": i, # Store index for potential use with sounddevice
-                    "name": device_name, # User-friendly name
-                    "is_default": is_default,
-                    "raw_name": device.get('name') # Store original name for matching if needed
-                })
-        logger.debug(f"Found input devices: {devices}")
+                # --- Filter by Host API (Keep only MME) ---
+                if hostapi_name == 'MME':
+                    # Use original device name, maybe add (MME) for clarity?
+                    # For now, just use the name sounddevice provides.
+                    device_name = device.get('name', 'Unknown Device')
+                    # Add (MME) suffix for clarity in the dropdown
+                    display_name = f"{device_name} (MME)"
+
+                    is_default = (i == default_input_idx)
+                    devices.append({
+                        "id": i, # Store index for potential use with sounddevice
+                        "name": display_name, # User-friendly name with MME suffix
+                        "is_default": is_default,
+                        # Store the original name without suffix for potential matching in AudioManager
+                        "raw_name": device.get('name')
+                    })
+                else:
+                    # Log skipped devices for debugging if needed
+                    # logger.debug(f"Skipping device '{device.get('name')}' with host API '{hostapi_name}'")
+                    pass # Skip devices that are not MME
+
+        logger.debug(f"Found MME input devices: {devices}")
     except Exception as e:
         logger.error(f"Error querying audio devices: {e}", exc_info=True)
         # Return a fallback device entry if query fails
