@@ -312,6 +312,12 @@ class Config:
         # Returning direct reference for performance. Be cautious about modifying it externally.
         return self._config_data
 
+    @property
+    def loaded_config_path(self) -> Optional[str]:
+        """Returns the path or status of the configuration file that was loaded."""
+        # This property was missing, causing the dashboard to show "Unknown"
+        return getattr(self, '_loaded_config_path', None) # Safely access the internal attribute
+
     def reload(self) -> None:
         """Reloads the configuration."""
         logger.info("Reloading configuration...")
