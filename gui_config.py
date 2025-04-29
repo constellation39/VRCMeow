@@ -516,6 +516,7 @@ async def save_config_handler(
     page: ft.Page,  # Need page for banner
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
+    e: Optional[ft.ControlEvent] = None, # Add optional event argument
 ):
     """保存按钮点击事件处理程序 (配置选项卡)"""
     logger.info("Save configuration button clicked.")
@@ -968,6 +969,7 @@ async def reload_config_handler(
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
     create_example_row_func: Callable,  # Need row creation func
+    e: Optional[ft.ControlEvent] = None, # Add optional event argument
 ):
     """Reloads configuration from file and updates the GUI."""
     logger.info("Reload configuration button clicked.")
@@ -1062,6 +1064,7 @@ def create_config_example_row(
 async def add_example_handler(
     page: ft.Page,  # Need page for update and row creation
     all_config_controls: Dict[str, ft.Control],  # Need controls dict to find column
+    e: Optional[ft.ControlEvent] = None, # Add optional event argument
 ):
     """Adds a new, empty example row to the column."""
     few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
