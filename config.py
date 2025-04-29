@@ -171,13 +171,17 @@ class Config:
                              self._loaded_config_path = f"Copied example '{config_path_obj}' is invalid, using defaults" # Update status: copied example is bad
                 else:
                     logger.warning(f"Example config file '{example_config_path_obj}' not found in CWD. Using default configuration.")
+                    self._loaded_config_path = f"Not found & example missing, using defaults (tried: {config_path_obj})" # Update status: file and example missing
             except Exception as copy_err:
                 logger.error(f"Failed to copy '{example_config_path_obj}' to '{config_path_obj}': {copy_err}. Using default configuration.", exc_info=True)
+                self._loaded_config_path = f"Error copying example to {config_path_obj}, using defaults" # Update status: copy failed
 
         except yaml.YAMLError as e:
             logger.error(f"Error parsing config file {config_path_obj}: {e}. Using default config.", exc_info=True)
+            self._loaded_config_path = f"YAML error in {config_path_obj}, using defaults" # Update status: YAML parse error
         except Exception as e:
             logger.error(f"Unknown error loading config file {config_path_obj}: {e}. Using default config.", exc_info=True)
+            self._loaded_config_path = f"Error loading {config_path_obj}, using defaults" # Update status: other load error
 
         # 2. Environment variable override (Dashscope API Key)
         env_dash_api_key = os.getenv('DASHSCOPE_API_KEY')
