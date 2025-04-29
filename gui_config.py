@@ -240,6 +240,11 @@ def create_vrc_osc_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
         keyboard_type=ft.KeyboardType.NUMBER,
         tooltip="发送到 VRChat 的最小时间间隔",
     )
+    controls["outputs.vrc_osc.format"] = ft.TextField(
+        label="VRC OSC 消息格式",
+        value=vrc_conf.get("format", "{text}"), # Default format from example
+        tooltip="发送到 VRChat 的消息格式。可用占位符: {text}",
+    )
     return controls
 
 
@@ -370,6 +375,7 @@ def create_config_tab_content(
             get_ctrl("outputs.vrc_osc.address"),
             get_ctrl("outputs.vrc_osc.port"),
             get_ctrl("outputs.vrc_osc.message_interval"),
+            get_ctrl("outputs.vrc_osc.format"), # Add the format control here
         ],
     )
 
@@ -682,6 +688,13 @@ async def save_config_handler(
             "outputs.vrc_osc.message_interval",
             get_control_value(
                 all_config_controls, "outputs.vrc_osc.message_interval", float, 1.333
+            ),
+        )
+        update_nested_dict(
+            new_config_data,
+            "outputs.vrc_osc.format",
+            get_control_value(
+                all_config_controls, "outputs.vrc_osc.format", str, "{text}" # Match default
             ),
         )
 
