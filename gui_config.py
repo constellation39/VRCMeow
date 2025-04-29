@@ -522,6 +522,7 @@ async def save_config_handler(
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
     create_example_row_func: Callable, # Function to create few-shot rows for reload
+    dashboard_update_callback: Optional[Callable[[], Awaitable[None]]] = None, # Add dashboard update callback
     e: Optional[ft.ControlEvent] = None, # Add optional event argument
 ):
     """
@@ -805,7 +806,20 @@ async def save_config_handler(
 
         # Show success banner indicating save and reload
         gui_utils.show_success_banner(page, "配置已保存并重新加载到当前应用")
-        page.update() # Ensure banner and updated controls are shown
+
+        # Call the dashboard update callback AFTER saving, reloading, and updating controls
+        if dashboard_update_callback:
+            logger.info("Calling dashboard update callback after save.")
+            try:
+                # Ensure the callback uses the *latest* config data
+                # The partial in gui.py should handle this if it accesses config.data directly
+                await dashboard_update_callback()
+            except Exception as cb_ex:
+                logger.error(f"Error executing dashboard update callback after save: {cb_ex}", exc_info=True)
+        else:
+            logger.warning("Dashboard update callback not provided to save_config_handler.")
+
+        page.update() # Ensure banner, updated controls, and updated dashboard are shown
 
     except Exception as ex:
         error_msg = f"保存或重载配置时出错: {ex}"
@@ -995,6 +1009,7 @@ async def reload_config_handler(
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
     create_example_row_func: Callable,  # Need row creation func
+    dashboard_update_callback: Optional[Callable[[], Awaitable[None]]] = None, # Add dashboard update callback
     e: Optional[ft.ControlEvent] = None, # Add optional event argument
 ):
     """Reloads configuration from file and updates the GUI."""
@@ -1012,6 +1027,20 @@ async def reload_config_handler(
         )
         # Show success banner
         gui_utils.show_success_banner(page, "配置已从 config.yaml 重新加载")
+
+        # Call the dashboard update callback AFTER reloading and updating controls
+        if dashboard_update_callback:
+            logger.info("Calling dashboard update callback after reload.")
+            try:
+                 # Ensure the callback uses the *latest* config data
+                await dashboard_update_callback()
+            except Exception as cb_ex:
+                logger.error(f"Error executing dashboard update callback after reload: {cb_ex}", exc_info=True)
+        else:
+            logger.warning("Dashboard update callback not provided to reload_config_handler.")
+
+        # Update the page once after all changes (banner, controls, dashboard)
+        page.update()
 
     except Exception as ex:
         error_msg = f"重新加载配置时出错: {ex}"

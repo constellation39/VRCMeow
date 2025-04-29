@@ -57,6 +57,7 @@ from gui_dashboard import (
     create_dashboard_tab_content,
     update_output_display,
     update_status_display,
+    update_dashboard_info_display, # Import the dashboard info update function
 )
 from llm_client import LLMClient
 from logger_config import get_logger, setup_logging
@@ -457,6 +458,21 @@ def main(page: ft.Page):
             # Return a dummy row or raise an error? Returning dummy for now.
             return ft.Row([ft.Text("Error creating row", color=ft.colors.RED)])
 
+    # --- Create Dashboard Info Update Callback ---
+    # This partial binds the necessary arguments for updating the dashboard info display
+    update_dashboard_info_partial = functools.partial(
+        update_dashboard_info_display,
+        page,
+        dashboard_elements, # Pass the dashboard elements dict
+        config.data, # Pass the initial config data (will be updated on reload)
+        # Note: config.data passed here is a reference. When config reloads,
+        # calling this partial *should* get the updated data if config.data points
+        # to the new dictionary. Let's verify this behavior.
+        # If not, we might need to pass the config object itself and access .data inside the callback.
+        # For now, let's try passing the data dictionary directly.
+    )
+
+
     # Config tab buttons - Use functools.partial to bind arguments to async handlers
     # Flet will automatically run the async handler in its event loop.
     save_handler_partial = functools.partial(
@@ -465,6 +481,7 @@ def main(page: ft.Page):
         all_config_controls,
         config,
         create_row_wrapper_for_reload, # Pass the row creation function
+        update_dashboard_info_partial, # Pass the dashboard update callback
     )
     save_config_button.on_click = save_handler_partial
 
@@ -474,6 +491,7 @@ def main(page: ft.Page):
         all_config_controls,
         config,
         create_row_wrapper_for_reload, # Pass the same row creation function
+        update_dashboard_info_partial, # Pass the dashboard update callback
     )
     reload_config_button.on_click = reload_handler_partial
 
@@ -546,6 +564,27 @@ def main(page: ft.Page):
             logger.warning("'llm.few_shot_examples' in initial config is not a list.")
     else:
          logger.error("Cannot populate few-shot examples: Column control not found or invalid.")
+
+    # --- Initial Dashboard Info Population ---
+    logger.debug("Initial population of dashboard info display.")
+    # Call the partial function created earlier
+    # Run it in the background as it might involve UI updates
+    async def initial_dashboard_update():
+        try:
+            # Pass the *current* config data when calling
+            await update_dashboard_info_display(page, dashboard_elements, config.data)
+        except Exception as e:
+            logger.error(f"Error during initial dashboard info update: {e}", exc_info=True)
+
+    # Schedule the initial update to run after the main layout is built
+    # Using asyncio.create_task might be better if running within an async context already
+    # but page.run_thread is safer if unsure about the context Flet runs main() in.
+    # Let's try calling the partial directly first, as it uses run_thread internally.
+    try:
+        # Directly call the partial which uses page.run_thread internally
+         update_dashboard_info_partial() # This now uses the initial config.data
+    except Exception as e:
+        logger.error(f"Error scheduling initial dashboard update: {e}", exc_info=True)
 
 
     # --- Final Page Update ---
