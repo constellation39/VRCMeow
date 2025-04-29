@@ -98,8 +98,8 @@ def main(page: ft.Page):
     from gui_config import (
         create_dashscope_controls, create_audio_controls, create_llm_controls,
         create_vrc_osc_controls, create_console_output_controls,
-        create_file_output_controls, create_logging_controls,
-        config_controls as config_controls_dict # Import the shared dict
+        create_file_output_controls, create_logging_controls
+        # Removed unused import: config_controls as config_controls_dict
     )
 
     # Create controls for each section using helper functions and initial config
