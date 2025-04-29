@@ -858,11 +858,14 @@ def reload_config_controls(
                     logger.debug(
                         f"Config path for '{key}' invalid at '{k}': parent is not a dictionary. Skipping reload for this control."
                     )
+                    logger.warning( # Changed to WARNING
+                        f"Config path for '{key}' invalid at '{k}': parent is not a dictionary. Skipping reload for this control."
+                    )
                     current_value = None  # Indicate value not found
                     valid_path = False
                     break
             except (KeyError, TypeError, IndexError):
-                logger.debug(
+                logger.warning( # Changed to WARNING
                     f"Key '{key}' path invalid or key missing at '{k}' in reloaded config data. Skipping reload for this control."
                 )
                 current_value = None  # Indicate value not found
