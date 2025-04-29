@@ -425,13 +425,13 @@ def main(page: ft.Page):
     toggle_button.on_click = toggle_recording  # Dashboard button (local handler)
     page.on_window_event = on_window_event  # Page event (local handler)
 
-    # Config tab buttons - use lambdas to run async handlers and pass necessary args
+    # Config tab buttons - Use functools.partial to bind arguments to async handlers
+    # Flet will automatically run the async handler in its event loop.
     # Ensure config object (singleton) is passed
-    save_config_button.on_click = lambda e: asyncio.create_task(
-        save_config_handler(
-            page, all_config_controls, config
-        )  # Pass page, controls, config
+    save_handler_partial = functools.partial(
+        save_config_handler, page, all_config_controls, config
     )
+    save_config_button.on_click = save_handler_partial
 
     # Define a wrapper for create_config_example_row needed by reload_config_handler
     # This wrapper matches the signature expected by reload_config_controls
@@ -449,17 +449,21 @@ def main(page: ft.Page):
             # Return a dummy row or raise an error? Returning dummy for now.
             return ft.Row([ft.Text("Error creating row", color=ft.colors.RED)])
 
-    reload_config_button.on_click = lambda e: asyncio.create_task(
-        reload_config_handler(
-            page, all_config_controls, config, create_row_wrapper_for_reload
-        )  # Pass necessary args
+    reload_handler_partial = functools.partial(
+        reload_config_handler,
+        page,
+        all_config_controls,
+        config,
+        create_row_wrapper_for_reload,
     )
+    reload_config_button.on_click = reload_handler_partial
 
     # Ensure add_example_button is valid before assigning handler
     if add_example_button:
-        add_example_button.on_click = lambda e: asyncio.create_task(
-            add_example_handler(page, all_config_controls)  # Pass page, controls
+        add_example_partial = functools.partial(
+            add_example_handler, page, all_config_controls
         )
+        add_example_button.on_click = add_example_partial
     else:
         logger.error("Cannot assign handler: Add example button is invalid.")
 
