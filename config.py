@@ -3,6 +3,7 @@ import os
 import logging
 from typing import Dict, Any, Optional
 import copy # Import copy for deep copying config data
+import pathlib # Import pathlib
 
 # Use standard logging; configuration (level etc.) is handled by logger_config later
 logger = logging.getLogger(__name__)
@@ -19,8 +20,13 @@ if not logger.hasHandlers():
     logger.setLevel(logging.INFO) # Default to INFO for initial config loading messages
     # logger.propagate = False # Optional: Prevent messages duplicating if root logger is configured
 
+# Determine paths relative to the Current Working Directory (CWD)
+CWD = pathlib.Path.cwd()
+DEFAULT_CONFIG_FILENAME = "config.yaml"
+DEFAULT_EXAMPLE_CONFIG_FILENAME = "config.example.yaml"
+DEFAULT_CONFIG_PATH = CWD / DEFAULT_CONFIG_FILENAME
+DEFAULT_EXAMPLE_CONFIG_PATH = CWD / DEFAULT_EXAMPLE_CONFIG_FILENAME
 
-DEFAULT_CONFIG_PATH = "config.yaml"
 
 # --- Default Config (kept private for clarity) ---
 _DEFAULT_CONFIG: Dict[str, Any] = {
@@ -110,11 +116,15 @@ class Config:
         if cls._instance is None:
             cls._instance = super(Config, cls).__new__(cls)
             # Load config only once when the first instance is created
-            cls._instance._load_config()
+            # Load config using the default path based on CWD
+            cls._instance._load_config(str(DEFAULT_CONFIG_PATH))
         return cls._instance
 
-    def _load_config(self, config_path: str = DEFAULT_CONFIG_PATH) -> None:
+    def _load_config(self, config_path: str) -> None: # Default removed, set in __new__
         """Loads configuration from file and environment variables."""
+        # config_path is now expected to be an absolute path
+        config_path_obj = pathlib.Path(config_path) # Work with Path object
+
         # Start with a deep copy of defaults to avoid modifying the original
         # Use recursive copy for nested dicts
         config = {}
@@ -124,42 +134,43 @@ class Config:
             else:
                 config[k] = v
 
-        # 1. Load from file
+        # 1. Load from file (using absolute path)
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path_obj, 'r', encoding='utf-8') as f:
                 file_config = yaml.safe_load(f)
                 if file_config and isinstance(file_config, dict):
                     config = _recursive_update(config, file_config)
-                    logger.info(f"Loaded configuration from {config_path}.")
+                    logger.info(f"Loaded configuration from {config_path_obj}.")
                 elif file_config: # Loaded something, but not a dict
-                     logger.warning(f"Config file {config_path} does not contain a valid YAML dictionary. Using defaults.")
+                     logger.warning(f"Config file {config_path_obj} does not contain a valid YAML dictionary. Using defaults.")
                 else: # File is empty
-                    logger.info(f"Config file {config_path} is empty. Using default configuration.")
+                    logger.info(f"Config file {config_path_obj} is empty. Using default configuration.")
         except FileNotFoundError:
-            logger.warning(f"Config file '{config_path}' not found.")
-            example_config_path = config_path.replace(".yaml", ".example.yaml")
+            logger.warning(f"Config file '{config_path_obj}' not found in CWD.")
+            # Look for example config in CWD
+            example_config_path_obj = DEFAULT_EXAMPLE_CONFIG_PATH
             try:
-                if os.path.exists(example_config_path):
+                if example_config_path_obj.exists():
                     import shutil
-                    shutil.copy2(example_config_path, config_path) # copy2 preserves metadata
-                    logger.info(f"Copied '{example_config_path}' to '{config_path}'.")
+                    shutil.copy2(str(example_config_path_obj), str(config_path_obj)) # copy2 preserves metadata
+                    logger.info(f"Copied '{example_config_path_obj}' to '{config_path_obj}'.")
                     # Now attempt to load the newly created file
-                    with open(config_path, 'r', encoding='utf-8') as f:
+                    with open(config_path_obj, 'r', encoding='utf-8') as f:
                          file_config = yaml.safe_load(f)
                          if file_config and isinstance(file_config, dict):
                              config = _recursive_update(config, file_config)
-                             logger.info(f"Successfully loaded configuration from newly created '{config_path}'.")
+                             logger.info(f"Successfully loaded configuration from newly created '{config_path_obj}'.")
                          else:
-                             logger.warning(f"Newly created '{config_path}' is empty or invalid. Using defaults.")
+                             logger.warning(f"Newly created '{config_path_obj}' is empty or invalid. Using defaults.")
                 else:
-                    logger.warning(f"Example config file '{example_config_path}' not found. Using default configuration.")
+                    logger.warning(f"Example config file '{example_config_path_obj}' not found in CWD. Using default configuration.")
             except Exception as copy_err:
-                logger.error(f"Failed to copy '{example_config_path}' to '{config_path}': {copy_err}. Using default configuration.", exc_info=True)
+                logger.error(f"Failed to copy '{example_config_path_obj}' to '{config_path_obj}': {copy_err}. Using default configuration.", exc_info=True)
 
         except yaml.YAMLError as e:
-            logger.error(f"Error parsing config file {config_path}: {e}. Using default config.", exc_info=True)
+            logger.error(f"Error parsing config file {config_path_obj}: {e}. Using default config.", exc_info=True)
         except Exception as e:
-            logger.error(f"Unknown error loading config file {config_path}: {e}. Using default config.", exc_info=True)
+            logger.error(f"Unknown error loading config file {config_path_obj}: {e}. Using default config.", exc_info=True)
 
         # 2. Environment variable override (Dashscope API Key)
         env_dash_api_key = os.getenv('DASHSCOPE_API_KEY')
@@ -304,11 +315,13 @@ class Config:
     def reload(self) -> None:
         """Reloads the configuration."""
         logger.info("Reloading configuration...")
-        self._load_config()
+        # Reload using the default path based on CWD
+        self._load_config(str(DEFAULT_CONFIG_PATH))
 
-    def save(self, config_path: str = DEFAULT_CONFIG_PATH) -> None:
+    def save(self, config_path: str = str(DEFAULT_CONFIG_PATH)) -> None: # Use absolute default path
         """Saves the current configuration back to the YAML file."""
         logger.info(f"Attempting to save configuration to {config_path}...")
+        config_path_obj = pathlib.Path(config_path) # Work with Path object
         # Create a deep copy to avoid modifying the live config dict directly during preparation
         config_to_save = copy.deepcopy(self._config_data)
 
@@ -325,11 +338,13 @@ class Config:
         # If OPENAI_API_KEY was used, config_to_save['llm']['api_key'] will hold its value.
 
         try:
-            with open(config_path, 'w', encoding='utf-8') as f:
+            # Ensure the directory exists before saving
+            config_path_obj.parent.mkdir(parents=True, exist_ok=True)
+            with open(config_path_obj, 'w', encoding='utf-8') as f:
                 yaml.dump(config_to_save, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
-            logger.info(f"Configuration successfully saved to {config_path}.")
+            logger.info(f"Configuration successfully saved to {config_path_obj}.")
         except Exception as e:
-            logger.error(f"Failed to save configuration to {config_path}: {e}", exc_info=True)
+            logger.error(f"Failed to save configuration to {config_path_obj}: {e}", exc_info=True)
             # Re-raise or handle as appropriate for the application context (e.g., show error in GUI)
             raise
 
