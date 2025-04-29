@@ -58,6 +58,7 @@ from gui_dashboard import (
     update_output_display,
     update_status_display,
     update_dashboard_info_display, # Import the dashboard info update function
+    update_audio_level_display, # Import the audio level update function
 )
 from llm_client import LLMClient
 from logger_config import get_logger, setup_logging
