@@ -77,10 +77,11 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
            elements["output_text"], # Place TextField directly in the Column
        ],
        expand=True,
-        alignment=ft.MainAxisAlignment.START,
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=10,
-    )
+       alignment=ft.MainAxisAlignment.START,
+       horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+       spacing=10,
+       scroll=ft.ScrollMode.ADAPTIVE, # Add scrolling to the main column
+   )
 
 
 # --- Dashboard Callback Functions ---
