@@ -80,6 +80,7 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
         tooltip="当前麦克风音量",
         # visible=False # Initially hidden, shown when running? Or always visible? Let's keep visible.
     )
+    elements["info_config_path_label"] = ft.Text("配置文件: Loading...", **default_info_text_style, selectable=True, color=ft.colors.SECONDARY) # Add config path text
 
 
     return elements
@@ -129,6 +130,7 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
                     _create_info_row(ft.icons.TEXT_SNIPPET_OUTLINED, elements["info_llm_label"]),
                     _create_info_row(ft.icons.SEND_AND_ARCHIVE_OUTLINED, elements["info_vrc_label"]),
                     _create_info_row(ft.icons.SAVE_ALT_OUTLINED, elements["info_file_label"]),
+                    _create_info_row(ft.icons.FOLDER_OPEN_OUTLINED, elements["info_config_path_label"]), # Add config file path row
                 ],
                 spacing=5, # Adjust spacing if needed after adding the bar
                 alignment=ft.MainAxisAlignment.START,
@@ -222,6 +224,7 @@ def update_dashboard_info_display(
     llm_label = elements.get("info_llm_label")
     vrc_label = elements.get("info_vrc_label")
     file_label = elements.get("info_file_label")
+    config_path_label = elements.get("info_config_path_label") # Get config path label
 
     def update_info_ui():
         if mic_label and isinstance(mic_label, ft.Text): mic_label.value = mic_info
@@ -229,11 +232,15 @@ def update_dashboard_info_display(
         if llm_label and isinstance(llm_label, ft.Text): llm_label.value = llm_info
         if vrc_label and isinstance(vrc_label, ft.Text): vrc_label.value = vrc_info
         if file_label and isinstance(file_label, ft.Text): file_label.value = file_info
+        # Update config file path display
+        if config_path_label and isinstance(config_path_label, ft.Text):
+            loaded_path = getattr(config_instance, 'loaded_config_path', "Unknown") # Use getattr for safety with FallbackConfig
+            config_path_label.value = f"配置文件: {loaded_path}" # Display the path/status
 
         try:
             if page and page.controls:
                 # Update only the specific controls that changed
-                controls_to_update = [ctrl for ctrl in [mic_label, stt_label, llm_label, vrc_label, file_label] if ctrl]
+                controls_to_update = [ctrl for ctrl in [mic_label, stt_label, llm_label, vrc_label, file_label, config_path_label] if ctrl] # Add config_path_label
                 if controls_to_update:
                     page.update(*controls_to_update)
             elif page:
