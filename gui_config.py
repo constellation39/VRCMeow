@@ -6,6 +6,9 @@ import sounddevice as sd # Import sounddevice
 import copy
 import gui_utils  # Import for close_banner
 from audio_recorder import get_input_devices # Import device getter
+import sys
+import os
+from typing import Dict, Any, Optional, Callable, TYPE_CHECKING, List, Awaitable # Added Awaitable
 
 
 # Use standard logging; setup happens elsewhere
@@ -14,6 +17,8 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from config import Config  # Type hint only
     # Avoid circular import for Config singleton instance, pass it as arg
+    # Need AppState for type hint if passing app_state directly, but passing stop_func instead
+    # from gui import AppState
 
 # --- Configuration UI Element Definitions & Helpers ---
 
@@ -516,9 +521,13 @@ async def save_config_handler(
     page: ft.Page,  # Need page for banner
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
+    stop_func: Callable[[], Awaitable[None]], # Function to stop background processes
     e: Optional[ft.ControlEvent] = None, # Add optional event argument
 ):
-    """保存按钮点击事件处理程序 (配置选项卡)"""
+    """
+    保存按钮点击事件处理程序 (配置选项卡)。
+    保存成功后将停止后台进程并重启应用。
+    """
     logger.info("Save configuration button clicked.")
     if not config_instance:
         logger.error("Cannot save config, config object not available.")
@@ -781,11 +790,35 @@ async def save_config_handler(
         # Call the save method on the config instance (runs in thread)
         await asyncio.to_thread(config_instance.save)
 
-        # Show success banner
-        gui_utils.show_success_banner(page, "配置已成功保存到 config.yaml")
+        # Show success banner indicating restart
+        gui_utils.show_success_banner(page, "配置已保存，正在准备重启...")
+        page.update() # Ensure banner is shown
+
+        # Stop background processes gracefully
+        logger.info("Stopping background processes before restart...")
+        await stop_func() # Call the passed stop function
+        logger.info("Background processes stopped.")
+
+        # Show final message and restart
+        gui_utils.show_banner(page, "正在重启...", icon=ft.icons.RESTART_ALT, icon_color=ft.colors.BLUE)
+        page.update()
+        await asyncio.sleep(1.5) # Give time for user to see message
+
+        logger.info("Executing application restart...")
+        try:
+            # Ensure sys.executable and sys.argv are valid
+            if not sys.executable or not sys.argv:
+                 raise RuntimeError("sys.executable or sys.argv is not available for restart.")
+            # Use os.execv to replace the current process
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        except Exception as restart_ex:
+            error_msg = f"重启应用程序时出错: {restart_ex}"
+            logger.critical(error_msg, exc_info=True)
+            gui_utils.show_error_banner(page, error_msg)
+            # If restart fails, the app continues running in the old state.
 
     except Exception as ex:
-        error_msg = f"保存配置时出错: {ex}"
+        error_msg = f"保存配置或准备重启时出错: {ex}"
         logger.critical(error_msg, exc_info=True)
         # Show error banner
         gui_utils.show_error_banner(page, error_msg)

@@ -425,13 +425,24 @@ def main(page: ft.Page):
     toggle_button.on_click = toggle_recording  # Dashboard button (local handler)
     page.on_window_event = on_window_event  # Page event (local handler)
 
+    # --- Define Stop Wrapper for Save Handler ---
+    # This wrapper provides a simple async function reference to _stop_recording_internal
+    # without needing to pass the 'is_error' argument from the save handler.
+    async def stop_wrapper():
+        logger.debug("stop_wrapper called, invoking _stop_recording_internal.")
+        await _stop_recording_internal()
+
     # Config tab buttons - Use functools.partial to bind arguments to async handlers
     # Flet will automatically run the async handler in its event loop.
-    # Ensure config object (singleton) is passed
     save_handler_partial = functools.partial(
-        save_config_handler, page, all_config_controls, config
+        save_config_handler,
+        page,
+        all_config_controls,
+        config,
+        stop_wrapper, # Pass the stop function wrapper
     )
     save_config_button.on_click = save_handler_partial
+
 
     # Define a wrapper for create_config_example_row needed by reload_config_handler
     # This wrapper matches the signature expected by reload_config_controls
