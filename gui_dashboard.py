@@ -5,11 +5,23 @@ from datetime import datetime # Import datetime
 
 logger = logging.getLogger(__name__)
 
+from config import Config # Import Config for type hinting
+
 # --- Dashboard UI Element Creation and Layout ---
 
+def _create_info_row(icon: str, text_control: ft.Control) -> ft.Row:
+    """Helper to create a consistent row for info display."""
+    return ft.Row(
+        [
+            ft.Icon(name=icon, size=16, opacity=0.7),
+            text_control,
+        ],
+        spacing=8,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    )
 
 def create_dashboard_elements() -> Dict[str, ft.Control]:
-    """Creates the core UI elements for the dashboard tab."""
+    """Creates the core UI elements for the dashboard tab, including info display."""
     elements = {}
     # Default state: Red status, Green button
     elements["status_icon"] = ft.Icon(
@@ -48,6 +60,15 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
     elements["progress_indicator"] = ft.ProgressRing(
         width=20, height=20, stroke_width=2, visible=False
     )
+
+    # --- Add elements for displaying configuration info ---
+    default_info_text_style = {"size": 12, "opacity": 0.9}
+    elements["info_mic_label"] = ft.Text("麦克风: -", **default_info_text_style, selectable=True)
+    elements["info_stt_label"] = ft.Text("STT: -", **default_info_text_style, selectable=True)
+    elements["info_llm_label"] = ft.Text("LLM: -", **default_info_text_style, selectable=True)
+    elements["info_vrc_label"] = ft.Text("VRC OSC: -", **default_info_text_style, selectable=True)
+    elements["info_file_label"] = ft.Text("文件输出: -", **default_info_text_style, selectable=True)
+
     return elements
 
 
@@ -68,15 +89,31 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
                 elements["status_row"], padding=ft.padding.only(top=15, bottom=5)
             ),
             # Combined Start/Stop button below status, centered
-            ft.Row(
                 [elements["toggle_button"], elements["progress_indicator"]],
                 alignment=ft.MainAxisAlignment.CENTER,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
-               spacing=15,
-           ),
-           # Output text area with fixed height
-           elements["output_text"], # Place TextField directly in the Column
-       ],
+                spacing=15,
+            ),
+            ft.Divider(height=10, thickness=1), # Separator
+
+            # --- Configuration Info Section ---
+            ft.Column(
+                [
+                    _create_info_row(ft.icons.MIC_NONE_OUTLINED, elements["info_mic_label"]),
+                    _create_info_row(ft.icons.RECORD_VOICE_OVER_OUTLINED, elements["info_stt_label"]),
+                    _create_info_row(ft.icons.TEXT_SNIPPET_OUTLINED, elements["info_llm_label"]),
+                    _create_info_row(ft.icons.SEND_AND_ARCHIVE_OUTLINED, elements["info_vrc_label"]),
+                    _create_info_row(ft.icons.SAVE_ALT_OUTLINED, elements["info_file_label"]),
+                ],
+                spacing=5,
+                alignment=ft.MainAxisAlignment.START,
+                horizontal_alignment=ft.CrossAxisAlignment.START, # Align info text left
+            ),
+            ft.Divider(height=10, thickness=1), # Separator
+
+            # Output text area with fixed height
+            elements["output_text"], # Place TextField directly in the Column
+        ],
        # expand=True, # Remove expand from column
        alignment=ft.MainAxisAlignment.START,
        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -86,6 +123,90 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
 
 
 # --- Dashboard Callback Functions ---
+
+# Function to update the static info display
+def update_dashboard_info_display(
+    page: ft.Page,
+    elements: Dict[str, ft.Control],
+    config_data: Dict, # Pass the config data dictionary
+):
+    """线程安全地更新仪表盘上的静态配置信息显示"""
+    if not page:
+        logger.warning("update_dashboard_info_display called without a valid page object.")
+        return
+    if not elements:
+        logger.warning("update_dashboard_info_display called without elements.")
+        return
+    if not config_data:
+        logger.warning("update_dashboard_info_display called without config_data.")
+        return
+
+    # Extract info from config_data (use .get() for safety)
+    audio_conf = config_data.get("audio", {})
+    mic_device = audio_conf.get("device", "Default")
+    mic_info = f"麦克风: {mic_device}"
+
+    dash_conf = config_data.get("dashscope", {}).get("stt", {})
+    stt_model = dash_conf.get("model", "未知")
+    stt_translate = dash_conf.get("translation_target_language")
+    stt_info = f"STT: {stt_model}"
+    if stt_translate:
+        stt_info += f" (翻译: {stt_translate})"
+
+    llm_conf = config_data.get("llm", {})
+    llm_enabled = llm_conf.get("enabled", False)
+    llm_model = llm_conf.get("model", "未知")
+    llm_info = f"LLM: {'启用' if llm_enabled else '禁用'}"
+    if llm_enabled:
+        llm_info += f" ({llm_model})"
+
+    vrc_conf = config_data.get("outputs", {}).get("vrc_osc", {})
+    vrc_enabled = vrc_conf.get("enabled", False)
+    vrc_addr = vrc_conf.get("address", "未知")
+    vrc_port = vrc_conf.get("port", "未知")
+    vrc_info = f"VRC OSC: {'启用' if vrc_enabled else '禁用'}"
+    if vrc_enabled:
+        vrc_info += f" ({vrc_addr}:{vrc_port})"
+
+    file_conf = config_data.get("outputs", {}).get("file", {})
+    file_enabled = file_conf.get("enabled", False)
+    file_path = file_conf.get("path", "未知")
+    file_info = f"文件输出: {'启用' if file_enabled else '禁用'}"
+    if file_enabled:
+        file_info += f" ({file_path})"
+
+    # Get control references
+    mic_label = elements.get("info_mic_label")
+    stt_label = elements.get("info_stt_label")
+    llm_label = elements.get("info_llm_label")
+    vrc_label = elements.get("info_vrc_label")
+    file_label = elements.get("info_file_label")
+
+    def update_info_ui():
+        if mic_label and isinstance(mic_label, ft.Text): mic_label.value = mic_info
+        if stt_label and isinstance(stt_label, ft.Text): stt_label.value = stt_info
+        if llm_label and isinstance(llm_label, ft.Text): llm_label.value = llm_info
+        if vrc_label and isinstance(vrc_label, ft.Text): vrc_label.value = vrc_info
+        if file_label and isinstance(file_label, ft.Text): file_label.value = file_info
+
+        try:
+            if page and page.controls:
+                # Update only the specific controls that changed
+                controls_to_update = [ctrl for ctrl in [mic_label, stt_label, llm_label, vrc_label, file_label] if ctrl]
+                if controls_to_update:
+                    page.update(*controls_to_update)
+            elif page:
+                logger.warning("Page has no controls, skipping update in update_dashboard_info_display.")
+        except Exception as e:
+            logger.error(f"Error during page.update in update_dashboard_info_display: {e}", exc_info=True)
+
+    try:
+        if page and page.controls is not None:
+            page.run_thread(update_info_ui) # type: ignore
+        elif page:
+            logger.warning("Page object seems invalid, skipping run_thread in update_dashboard_info_display.")
+    except Exception as e:
+        logger.error(f"Error calling page.run_thread in update_dashboard_info_display: {e}", exc_info=True)
 
 
 def update_status_display(
