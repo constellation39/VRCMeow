@@ -415,11 +415,27 @@ def main(page: ft.Page):
             logger.info("检测到窗口关闭事件。")
             # Ensure processes are stopped before closing
             if app_state.is_running:
-                logger.info("Window closing, stopping background processes...")
+                logger.info("Window closing, stopping background processes before restart...")
                 await _stop_recording_internal()  # Call internal stop logic
-            # Now destroy the window
-            # Ensure window is actually destroyed
-            page.window_destroy()
+            else:
+                logger.info("Window closing, no active processes to stop.")
+
+            # Don't destroy the window, restart the application instead
+            logger.info("Executing application restart after window close...")
+            try:
+                # Ensure sys.executable and sys.argv are valid
+                if not sys.executable or not sys.argv:
+                    raise RuntimeError("sys.executable or sys.argv is not available for restart.")
+                # Use os.execv to replace the current process
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+            except Exception as restart_ex:
+                # If restart fails, log critical error and maybe destroy window as fallback?
+                logger.critical(f"重启应用程序时出错: {restart_ex}", exc_info=True)
+                # Fallback: Destroy the window if restart fails to prevent hanging
+                try:
+                    page.window_destroy()
+                except Exception as destroy_ex:
+                    logger.error(f"Error destroying window after failed restart: {destroy_ex}")
 
     # --- Bind Event Handlers ---
     toggle_button.on_click = toggle_recording  # Dashboard button (local handler)
