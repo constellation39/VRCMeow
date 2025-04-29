@@ -855,6 +855,18 @@ def reload_config_controls(
                         )
                     # Optionally set to None or a default if value is invalid? For now, keep existing.
                     # control.value = None # Or some default?
+            elif isinstance(control, ft.Dropdown) and key == "audio.device":
+                 # Special handling for device dropdown reload
+                 # Refresh options in case devices changed? No, keep it simple for now.
+                 # Just set the value if it exists in the current options.
+                 current_options = control.options or []
+                 if value is not None and any(opt.key == value for opt in current_options):
+                     control.value = value
+                 elif value == "Default": # Always allow Default
+                     control.value = "Default"
+                 else:
+                     logger.warning(f"Reload: Configured audio device '{value}' not found in dropdown options. Setting to Default.")
+                     control.value = "Default" # Fallback if saved device not in list
             elif isinstance(control, ft.TextField):
                 # Handle keys where None should be represented as empty string
                 if (
