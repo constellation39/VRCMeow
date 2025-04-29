@@ -12,7 +12,6 @@ from logger_config import get_logger
 # 直接从 config 模块导入 config 实例
 from config import config
 
-import time # Import time for potential sleeps if needed
 
 # Import VRCClient for type hinting and usage in callback
 from llm_client import LLMClient
@@ -268,7 +267,7 @@ class GummyCallback(TranslationRecognizerCallback):
                  osc_thread = threading.Thread(
                      target=self._send_osc_intermediate,
                      args=(text_to_send,),
-                     name=f"GummyOscIntermediateThread",
+                     name="GummyOscIntermediateThread",
                      daemon=True
                  )
                  osc_thread.start()

@@ -1,4 +1,3 @@
-import asyncio
 import threading
 import queue  # Use standard queue for thread-safe communication
 from typing import Optional, TYPE_CHECKING, Union, Callable, Any

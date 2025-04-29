@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-import sys # Add this line
 # Directly import the config instance
 from typing import Optional, Callable  # 导入 Callable 和 Awaitable
 
@@ -9,7 +8,6 @@ import aiofiles  # Use aiofiles for async file operations
 # Directly import the config instance
 from config import config
 from logger_config import get_logger
-import logging  # 导入标准 logging 库
 # Import VRCClient for type hinting, handle potential ImportError if needed
 from osc_client import VRCClient
 
@@ -24,7 +22,7 @@ class OutputDispatcher:
         vrc_client_instance: Optional[VRCClient] = None,
         gui_output_callback: Optional[Callable[[str], None]] = None # 添加 GUI 回调参数
     ) -> None:
-        logger.info(f"OutputDispatcher initializing...") # <-- Add initialization log
+        logger.info("OutputDispatcher initializing...") # <-- Add initialization log
         self.vrc_client = vrc_client_instance
         self.gui_output_callback = gui_output_callback # 存储回调
         self.outputs_config = config.get("outputs", {})

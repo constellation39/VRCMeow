@@ -6,6 +6,13 @@ import pathlib
 import sys
 import copy  # Needed for handling config data
 import logging  # Add missing import for logging constants
+from config import config  # 导入 Config 类用于类型提示 <- 移到 CWD 设置之后
+from logger_config import setup_logging, get_logger
+from audio_recorder import AudioManager
+from output_dispatcher import OutputDispatcher
+from llm_client import LLMClient
+from osc_client import VRCClient
+import gui_utils  # Import the utils module
 
 # --- 设置正确的工作目录 ---
 # 确定脚本文件所在的目录
@@ -36,16 +43,6 @@ else:
 # --- 工作目录设置结束 ---
 
 
-# --- 现在导入依赖于 CWD 或 sys.path 的项目模块 ---
-from config import config  # 导入 Config 类用于类型提示 <- 移到 CWD 设置之后
-from logger_config import setup_logging, get_logger
-from audio_recorder import AudioManager
-from output_dispatcher import OutputDispatcher
-from llm_client import LLMClient
-from osc_client import VRCClient
-import gui_utils # Import the utils module
-
-
 # 初始化日志记录 (在 Flet 应用启动前)
 setup_logging()
 logger = get_logger("VRCMeowGUI")
@@ -56,7 +53,9 @@ class AppState:
 
     def __init__(self):
         self.is_running = False
-        self.audio_manager: Optional["AudioManager"] = None # Use quotes for forward refs if needed
+        self.audio_manager: Optional["AudioManager"] = (
+            None  # Use quotes for forward refs if needed
+        )
         self.output_dispatcher: Optional["OutputDispatcher"] = None
         self.llm_client: Optional["LLMClient"] = None
         self.vrc_client: Optional["VRCClient"] = None
@@ -86,19 +85,24 @@ def main(page: ft.Page):
     initial_config_data = {}
     try:
         if config:
-             initial_config_data = config.data
+            initial_config_data = config.data
         else:
-             logger.error("Config object not available during GUI initialization.")
-             # Potentially show an error message to the user here?
+            logger.error("Config object not available during GUI initialization.")
+            # Potentially show an error message to the user here?
     except Exception as e:
-        logger.error(f"Error accessing config data during GUI initialization: {e}", exc_info=True)
-
+        logger.error(
+            f"Error accessing config data during GUI initialization: {e}", exc_info=True
+        )
 
     # Import control creation functions from gui_config
     from gui_config import (
-        create_dashscope_controls, create_audio_controls, create_llm_controls,
-        create_vrc_osc_controls, create_console_output_controls,
-        create_file_output_controls, create_logging_controls
+        create_dashscope_controls,
+        create_audio_controls,
+        create_llm_controls,
+        create_vrc_osc_controls,
+        create_console_output_controls,
+        create_file_output_controls,
+        create_logging_controls,
         # Removed unused import: config_controls as config_controls_dict
     )
 
@@ -114,9 +118,12 @@ def main(page: ft.Page):
     # Extract actual few-shot UI elements (created in create_llm_controls)
     # Use .get() for safety in case of issues during creation
     # Ensure the local variables are assigned correctly
-    few_shot_examples_column = all_config_controls.get("llm.few_shot_examples_column", ft.Column())
-    add_example_button = all_config_controls.get("llm.add_example_button", ft.TextButton())
-
+    few_shot_examples_column = all_config_controls.get(
+        "llm.few_shot_examples_column", ft.Column()
+    )
+    add_example_button = all_config_controls.get(
+        "llm.add_example_button", ft.TextButton()
+    )
 
     vrc_osc_controls = create_vrc_osc_controls(initial_config_data)
     all_config_controls.update(vrc_osc_controls)
@@ -133,13 +140,13 @@ def main(page: ft.Page):
     # Create Config Save/Reload buttons
     save_config_button = ft.ElevatedButton(
         "保存配置",
-        on_click=None, # Handlers assigned later
+        on_click=None,  # Handlers assigned later
         icon=ft.icons.SAVE,
         tooltip="将当前设置写入 config.yaml",
     )
     reload_config_button = ft.ElevatedButton(
         "从文件重载",
-        on_click=None, # Handlers assigned later
+        on_click=None,  # Handlers assigned later
         icon=ft.icons.REFRESH,
         tooltip="放弃当前更改并从 config.yaml 重新加载",
     )
@@ -170,25 +177,31 @@ def main(page: ft.Page):
     toggle_button = ft.IconButton(
         icon=ft.icons.PLAY_ARROW_ROUNDED,
         tooltip="启动",
-        on_click=None, # Handler assigned later
+        on_click=None,  # Handler assigned later
         disabled=False,
         icon_size=30,
         style=ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700),
     )
-    progress_indicator = ft.ProgressRing(width=20, height=20, stroke_width=2, visible=False)
-
+    progress_indicator = ft.ProgressRing(
+        width=20, height=20, stroke_width=2, visible=False
+    )
 
     # --- 回调函数 (用于更新 UI 和处理事件) ---
     # These callbacks now correctly reference the elements created above in main's scope
-    def update_status_display(message: str, is_running: Optional[bool] = None, is_processing: bool = False):
+    def update_status_display(
+        message: str, is_running: Optional[bool] = None, is_processing: bool = False
+    ):
         """线程安全地更新状态文本和图标"""
         if page:  # 确保页面仍然存在
+
             def update_ui():
-                status_label.value = message # Update text
+                status_label.value = message  # Update text
                 # Update icon and text color based on state
                 if is_processing:
                     # Transition State (Starting/Stopping) - Amber status, button handled below
-                    status_icon.name = ft.icons.HOURGLASS_EMPTY_ROUNDED # Use a processing icon
+                    status_icon.name = (
+                        ft.icons.HOURGLASS_EMPTY_ROUNDED
+                    )  # Use a processing icon
                     status_icon.color = ft.colors.AMBER_700
                     status_label.color = ft.colors.AMBER_700
                 elif is_running is True:
@@ -200,16 +213,20 @@ def main(page: ft.Page):
                     toggle_button.icon = ft.icons.STOP_ROUNDED
                     toggle_button.tooltip = "停止"
                     toggle_button.style = ft.ButtonStyle(color=ft.colors.RED_ACCENT_700)
-                    toggle_button.disabled = False # Enable stop when running
-                else: # Stopped State (is_running is False or None) - Red status, Green button
-                    status_icon.name = ft.icons.CIRCLE_OUTLINED # Or ft.icons.ERROR_OUTLINE if stopped due to error?
+                    toggle_button.disabled = False  # Enable stop when running
+                else:  # Stopped State (is_running is False or None) - Red status, Green button
+                    status_icon.name = (
+                        ft.icons.CIRCLE_OUTLINED
+                    )  # Or ft.icons.ERROR_OUTLINE if stopped due to error?
                     status_icon.color = ft.colors.RED_ACCENT_700
                     status_label.color = ft.colors.RED_ACCENT_700
                     # Update button to "Start" state
                     toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED
                     toggle_button.tooltip = "启动"
-                    toggle_button.style = ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700)
-                    toggle_button.disabled = False # Enable start when stopped
+                    toggle_button.style = ft.ButtonStyle(
+                        color=ft.colors.GREEN_ACCENT_700
+                    )
+                    toggle_button.disabled = False  # Enable start when stopped
 
                 # Show/hide progress indicator
                 progress_indicator.visible = is_processing
@@ -218,22 +235,28 @@ def main(page: ft.Page):
                 if is_processing:
                     toggle_button.disabled = True
                 # Re-enable button based on the final state (handled above for True/False)
-                elif is_running is not None: # Only re-enable if state is known (True or False) and not processing
-                     toggle_button.disabled = False
+                elif (
+                    is_running is not None
+                ):  # Only re-enable if state is known (True or False) and not processing
+                    toggle_button.disabled = False
                 # Ensure button color/icon during processing matches the transition state
                 if is_processing:
                     # Consistent "Processing" state for the button
-                    toggle_button.icon = ft.icons.HOURGLASS_EMPTY_ROUNDED # Use a processing icon for button too
+                    toggle_button.icon = (
+                        ft.icons.HOURGLASS_EMPTY_ROUNDED
+                    )  # Use a processing icon for button too
                     toggle_button.tooltip = "处理中..."
-                    toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER_700) # Amber during processing
-                    toggle_button.disabled = True # Always disable during processing
+                    toggle_button.style = ft.ButtonStyle(
+                        color=ft.colors.AMBER_700
+                    )  # Amber during processing
+                    toggle_button.disabled = True  # Always disable during processing
 
                 page.update()
 
             # Run UI updates on the Flet thread
             # Use page.run() if Flet version supports it, or keep page.run_thread()
             # Assuming page.run_thread for compatibility as used elsewhere
-            page.run_thread(update_ui) # type: ignore
+            page.run_thread(update_ui)  # type: ignore
 
     def update_output_display(text: str):
         """线程安全地将文本附加到输出区域"""
@@ -249,18 +272,24 @@ def main(page: ft.Page):
     # --- (Removed show_snackbar function) ---
 
     # --- Helper function to get value from a control ---
-    def get_control_value(key: str, control_type: type = str, default: Any = None) -> Any:
+    def get_control_value(
+        key: str, control_type: type = str, default: Any = None
+    ) -> Any:
         """Safely retrieves and converts the value from a GUI control."""
-        control = all_config_controls.get(key) # Use the aggregated dict
+        control = all_config_controls.get(key)  # Use the aggregated dict
         if control is None:
-            logger.warning(f"Control for config key '{key}' not found in GUI. Returning default: {default}")
+            logger.warning(
+                f"Control for config key '{key}' not found in GUI. Returning default: {default}"
+            )
             return default
 
         value = getattr(control, "value", default)
 
         # Handle specific control types first
         if isinstance(control, ft.Switch):
-            return bool(value) if value is not None else bool(default) # Ensure bool conversion
+            return (
+                bool(value) if value is not None else bool(default)
+            )  # Ensure bool conversion
         if isinstance(control, ft.Dropdown):
             # Return the selected value directly, assuming it's the correct type
             # Handle case where value might be None if nothing is selected and no default
@@ -272,22 +301,26 @@ def main(page: ft.Page):
             # Check specific keys that explicitly allow None
             if key in [
                 "dashscope.stt.translation_target_language",
-                "audio.sample_rate", # Sample rate None means auto-detect
+                "audio.sample_rate",  # Sample rate None means auto-detect
                 "llm.base_url",
-                "llm.api_key", # Allow empty API key string, handle downstream
-                "dashscope.api_key", # Allow empty API key string, handle downstream
+                "llm.api_key",  # Allow empty API key string, handle downstream
+                "dashscope.api_key",  # Allow empty API key string, handle downstream
             ]:
-                 # If the intended type is not string, return None. If string, return empty string or None based on default.
-                 return None if control_type != str else (value if value is not None else default)
+                # If the intended type is not string, return None. If string, return empty string or None based on default.
+                return (
+                    None
+                    if control_type != str
+                    else (value if value is not None else default)
+                )
 
             # If a default value is provided, return it for empty fields (unless None is allowed above)
             if default is not None:
                 return default
             # Otherwise, return None for numeric types or empty string for strings
             elif control_type in [int, float]:
-                return None # Cannot convert empty string to number
+                return None  # Cannot convert empty string to number
             else:
-                return "" # Default empty string for text
+                return ""  # Default empty string for text
 
         # Attempt type conversion for non-empty values from text-based inputs
         try:
@@ -296,15 +329,15 @@ def main(page: ft.Page):
             if control_type == float:
                 # Handle potential locale issues if needed, assuming standard decimal format
                 return float(value)
-            if control_type == bool: # Should be handled by Switch, but as fallback
-                return str(value).lower() in ['true', '1', 'yes', 'on']
+            if control_type == bool:  # Should be handled by Switch, but as fallback
+                return str(value).lower() in ["true", "1", "yes", "on"]
             # Default to string if no other type matches (or if control_type is str)
             return str(value)
         except (ValueError, TypeError) as convert_err:
             logger.error(
                 f"Invalid value '{value}' for '{key}'. Expected type {control_type}. Error: {convert_err}. Returning default value: {default}"
             )
-            return default # Return default on conversion error
+            return default  # Return default on conversion error
 
     # --- 配置保存/重载逻辑 ---
     async def save_config_handler(e: ft.ControlEvent):
@@ -323,12 +356,12 @@ def main(page: ft.Page):
 
             # Recursively update the new_config_data dictionary
             def update_nested_dict(data_dict: Dict, key: str, value: Any):
-                keys = key.split('.')
+                keys = key.split(".")
                 temp_dict = data_dict
                 for i, k in enumerate(keys[:-1]):
                     # Ensure intermediate level is a dictionary
                     if not isinstance(temp_dict.get(k), dict):
-                         temp_dict[k] = {} # Create or overwrite if not a dict
+                        temp_dict[k] = {}  # Create or overwrite if not a dict
                     temp_dict = temp_dict[k]
 
                 # Set the final value
@@ -339,27 +372,35 @@ def main(page: ft.Page):
             update_nested_dict(
                 new_config_data,
                 "dashscope.api_key",
-                get_control_value("dashscope.api_key", str, ""), # API keys are strings
+                get_control_value("dashscope.api_key", str, ""),  # API keys are strings
             )
             update_nested_dict(
                 new_config_data,
                 "dashscope.stt.model",
-                get_control_value("dashscope.stt.model", str, "gummy-realtime-v1"), # Dropdown returns string
+                get_control_value(
+                    "dashscope.stt.model", str, "gummy-realtime-v1"
+                ),  # Dropdown returns string
             )
             update_nested_dict(
                 new_config_data,
                 "dashscope.stt.translation_target_language",
-                get_control_value("dashscope.stt.translation_target_language", str, None), # Allow None
+                get_control_value(
+                    "dashscope.stt.translation_target_language", str, None
+                ),  # Allow None
             )
             update_nested_dict(
                 new_config_data,
                 "dashscope.stt.intermediate_result_behavior",
-                get_control_value("dashscope.stt.intermediate_result_behavior", str, "ignore"), # Dropdown returns string
+                get_control_value(
+                    "dashscope.stt.intermediate_result_behavior", str, "ignore"
+                ),  # Dropdown returns string
             )
             update_nested_dict(
                 new_config_data,
                 "audio.sample_rate",
-                get_control_value("audio.sample_rate", int, None), # Allow None (auto-detect)
+                get_control_value(
+                    "audio.sample_rate", int, None
+                ),  # Allow None (auto-detect)
             )
             update_nested_dict(
                 new_config_data,
@@ -369,27 +410,31 @@ def main(page: ft.Page):
             update_nested_dict(
                 new_config_data,
                 "audio.dtype",
-                get_control_value("audio.dtype", str, "int16"), # Dropdown returns string
+                get_control_value(
+                    "audio.dtype", str, "int16"
+                ),  # Dropdown returns string
             )
             update_nested_dict(
                 new_config_data,
                 "audio.debug_echo_mode",
-                get_control_value("audio.debug_echo_mode", bool, False), # Switch returns bool
+                get_control_value(
+                    "audio.debug_echo_mode", bool, False
+                ),  # Switch returns bool
             )
             update_nested_dict(
                 new_config_data,
                 "llm.enabled",
-                get_control_value("llm.enabled", bool, False), # Switch returns bool
+                get_control_value("llm.enabled", bool, False),  # Switch returns bool
             )
             update_nested_dict(
                 new_config_data,
                 "llm.api_key",
-                get_control_value("llm.api_key", str, ""), # API keys are strings
+                get_control_value("llm.api_key", str, ""),  # API keys are strings
             )
             update_nested_dict(
                 new_config_data,
                 "llm.base_url",
-                get_control_value("llm.base_url", str, None), # Allow None
+                get_control_value("llm.base_url", str, None),  # Allow None
             )
             update_nested_dict(
                 new_config_data,
@@ -414,7 +459,9 @@ def main(page: ft.Page):
             update_nested_dict(
                 new_config_data,
                 "outputs.vrc_osc.enabled",
-                get_control_value("outputs.vrc_osc.enabled", bool, True), # Switch returns bool
+                get_control_value(
+                    "outputs.vrc_osc.enabled", bool, True
+                ),  # Switch returns bool
             )
             update_nested_dict(
                 new_config_data,
@@ -434,7 +481,9 @@ def main(page: ft.Page):
             update_nested_dict(
                 new_config_data,
                 "outputs.console.enabled",
-                get_control_value("outputs.console.enabled", bool, True), # Switch returns bool
+                get_control_value(
+                    "outputs.console.enabled", bool, True
+                ),  # Switch returns bool
             )
             update_nested_dict(
                 new_config_data,
@@ -444,7 +493,9 @@ def main(page: ft.Page):
             update_nested_dict(
                 new_config_data,
                 "outputs.file.enabled",
-                get_control_value("outputs.file.enabled", bool, False), # Switch returns bool
+                get_control_value(
+                    "outputs.file.enabled", bool, False
+                ),  # Switch returns bool
             )
             update_nested_dict(
                 new_config_data,
@@ -454,36 +505,57 @@ def main(page: ft.Page):
             update_nested_dict(
                 new_config_data,
                 "outputs.file.format",
-                get_control_value("outputs.file.format", str, "{timestamp} - {text}"), # Dropdown returns string
+                get_control_value(
+                    "outputs.file.format", str, "{timestamp} - {text}"
+                ),  # Dropdown returns string
             )
             update_nested_dict(
                 new_config_data,
                 "logging.level",
-                get_control_value("logging.level", str, "INFO"), # Dropdown returns string
+                get_control_value(
+                    "logging.level", str, "INFO"
+                ),  # Dropdown returns string
             )
 
             # Update few-shot examples from the dynamic rows
             examples_list = []
             # Use the correct column variable reference if available
-            active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column", few_shot_examples_column) # Use local variable if possible
+            active_few_shot_column = all_config_controls.get(
+                "llm.few_shot_examples_column", few_shot_examples_column
+            )  # Use local variable if possible
             if active_few_shot_column and isinstance(active_few_shot_column, ft.Column):
-                 for row in active_few_shot_column.controls:
-                    if isinstance(row, ft.Row) and len(row.controls) >= 3: # Expect 3 controls: user, assistant, remove_button
+                for row in active_few_shot_column.controls:
+                    if (
+                        isinstance(row, ft.Row) and len(row.controls) >= 3
+                    ):  # Expect 3 controls: user, assistant, remove_button
                         # Check control types more robustly before accessing value
-                        user_tf = row.controls[0] if isinstance(row.controls[0], ft.TextField) else None
-                        assistant_tf = row.controls[1] if isinstance(row.controls[1], ft.TextField) else None
+                        user_tf = (
+                            row.controls[0]
+                            if isinstance(row.controls[0], ft.TextField)
+                            else None
+                        )
+                        assistant_tf = (
+                            row.controls[1]
+                            if isinstance(row.controls[1], ft.TextField)
+                            else None
+                        )
 
                         if user_tf and assistant_tf:
                             user_text = user_tf.value or ""
                             assistant_text = assistant_tf.value or ""
                             # Only save if at least one field has text
                             if user_text or assistant_text:
-                                examples_list.append({"user": user_text, "assistant": assistant_text})
+                                examples_list.append(
+                                    {"user": user_text, "assistant": assistant_text}
+                                )
                         else:
-                            logger.warning(f"Unexpected control types in few-shot row: {row.controls}")
+                            logger.warning(
+                                f"Unexpected control types in few-shot row: {row.controls}"
+                            )
             else:
-                 logger.warning("Few-shot examples column control not found or invalid during save.")
-
+                logger.warning(
+                    "Few-shot examples column control not found or invalid during save."
+                )
 
             logger.debug(f"Saving {len(examples_list)} few-shot examples.")
             update_nested_dict(new_config_data, "llm.few_shot_examples", examples_list)
@@ -510,7 +582,9 @@ def main(page: ft.Page):
                 actions=[
                     ft.TextButton(
                         "关闭",
-                        on_click=lambda _: gui_utils.close_banner(page), # Use imported function
+                        on_click=lambda _: gui_utils.close_banner(
+                            page
+                        ),  # Use imported function
                         style=ft.ButtonStyle(color=ft.colors.GREEN_900),
                     )
                 ],
@@ -529,7 +603,9 @@ def main(page: ft.Page):
                 actions=[
                     ft.TextButton(
                         "关闭",
-                        on_click=lambda _: gui_utils.close_banner(page), # Use imported function
+                        on_click=lambda _: gui_utils.close_banner(
+                            page
+                        ),  # Use imported function
                         style=ft.ButtonStyle(color=ft.colors.RED_900),
                     )
                 ],
@@ -540,16 +616,16 @@ def main(page: ft.Page):
     def reload_config_controls():
         """Updates the GUI controls with values from the reloaded config."""
         logger.info("Reloading config values into GUI controls.")
-        reloaded_config_data = config.data if config else {} # Get reloaded data safely
+        reloaded_config_data = config.data if config else {}  # Get reloaded data safely
 
         # Use the aggregated dictionary of controls
         for key, control in all_config_controls.items():
             # Skip special controls that don't map directly to config keys
             if key in ["llm.few_shot_examples_column", "llm.add_example_button"]:
-                 continue
+                continue
 
             # Get value from the *reloaded* data using nested access if needed
-            keys = key.split('.')
+            keys = key.split(".")
             current_value = reloaded_config_data
             for k in keys:
                 try:
@@ -557,67 +633,93 @@ def main(page: ft.Page):
                     if isinstance(current_value, dict):
                         current_value = current_value[k]
                     else:
-                        logger.warning(f"Config path for '{key}' invalid at '{k}': parent is not a dictionary. Skipping.")
+                        logger.warning(
+                            f"Config path for '{key}' invalid at '{k}': parent is not a dictionary. Skipping."
+                        )
                         current_value = None
                         break
                 except (KeyError, TypeError, IndexError):
-                    logger.warning(f"Key '{key}' path invalid or key missing at '{k}' in reloaded config data. Skipping control update.")
-                    current_value = None # Mark value as not found
-                    break # Stop traversing this key
+                    logger.warning(
+                        f"Key '{key}' path invalid or key missing at '{k}' in reloaded config data. Skipping control update."
+                    )
+                    current_value = None  # Mark value as not found
+                    break  # Stop traversing this key
 
             # Assign the final retrieved value (or None if path was invalid)
             value = current_value
 
             try:
-                if control is None: # Should not happen if loop continues, but check anyway
-                     logger.debug(f"Skipping reload for key '{key}' as control is None.")
-                     continue
+                if (
+                    control is None
+                ):  # Should not happen if loop continues, but check anyway
+                    logger.debug(f"Skipping reload for key '{key}' as control is None.")
+                    continue
 
                 # --- Update control based on type ---
                 if isinstance(control, ft.Switch):
                     control.value = bool(value) if value is not None else False
                 elif isinstance(control, ft.Dropdown):
                     # Ensure the value exists in options before setting
-                    if value is not None and hasattr(control, 'options') and isinstance(control.options, list) and any(opt.key == value for opt in control.options):
+                    if (
+                        value is not None
+                        and hasattr(control, "options")
+                        and isinstance(control.options, list)
+                        and any(opt.key == value for opt in control.options)
+                    ):
                         control.value = value
                     else:
                         # Log warning but don't change value if invalid or not found
-                        if value is not None: # Log only if there was a value expected
-                             logger.warning(
-                                 f"Value '{value}' for dropdown '{key}' not in options or invalid. Keeping previous selection: {control.value}"
-                             )
+                        if value is not None:  # Log only if there was a value expected
+                            logger.warning(
+                                f"Value '{value}' for dropdown '{key}' not in options or invalid. Keeping previous selection: {control.value}"
+                            )
                         # Consider setting to None or a default if value is invalid? For now, keep existing.
                 elif isinstance(control, ft.TextField):
-                     # Check specific keys that allow None/empty representation
-                    if key in [
+                    # Check specific keys that allow None/empty representation
+                    if (
+                        key
+                        in [
                             "dashscope.stt.translation_target_language",
                             "audio.sample_rate",
                             "llm.base_url",
-                        ] and value is None:
-                         control.value = "" # Use empty string for None
+                        ]
+                        and value is None
+                    ):
+                        control.value = ""  # Use empty string for None
                     else:
-                         # Ensure value is converted to string for TextField
-                         control.value = str(value) if value is not None else ""
+                        # Ensure value is converted to string for TextField
+                        control.value = str(value) if value is not None else ""
                 # Add other control types if necessary
                 else:
-                     logger.debug(f"Control for key '{key}' has unhandled type '{type(control)}' during reload.")
+                    logger.debug(
+                        f"Control for key '{key}' has unhandled type '{type(control)}' during reload."
+                    )
 
             except Exception as ex:
                 logger.error(
-                    f"Error reloading control for key '{key}' with value '{value}': {ex}", exc_info=True # Add exc_info
+                    f"Error reloading control for key '{key}' with value '{value}': {ex}",
+                    exc_info=True,  # Add exc_info
                 )
 
         # Reload few-shot examples (ensure column control exists)
         # Use the correct column variable reference if available
-        active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column", few_shot_examples_column) # Use local if possible
-        reloaded_config_data = config.data if config else {} # Get reloaded data again safely
+        active_few_shot_column = all_config_controls.get(
+            "llm.few_shot_examples_column", few_shot_examples_column
+        )  # Use local if possible
+        reloaded_config_data = (
+            config.data if config else {}
+        )  # Get reloaded data again safely
 
         if active_few_shot_column and isinstance(active_few_shot_column, ft.Column):
             active_few_shot_column.controls.clear()  # Remove existing rows
             # Safely get examples from reloaded data
-            loaded_examples = reloaded_config_data.get("llm", {}).get("few_shot_examples", [])
+            loaded_examples = reloaded_config_data.get("llm", {}).get(
+                "few_shot_examples", []
+            )
             if isinstance(loaded_examples, list):
-                logger.info(f"Reloading {len(loaded_examples)} few-shot examples into GUI.")
+                logger.info(
+                    f"Reloading {len(loaded_examples)} few-shot examples into GUI."
+                )
                 for example in loaded_examples:
                     if (
                         isinstance(example, dict)
@@ -656,7 +758,9 @@ def main(page: ft.Page):
                 actions=[
                     ft.TextButton(
                         "关闭",
-                        on_click=lambda _: gui_utils.close_banner(page), # Use imported function
+                        on_click=lambda _: gui_utils.close_banner(
+                            page
+                        ),  # Use imported function
                         style=ft.ButtonStyle(color=ft.colors.GREEN_900),
                     )
                 ],
@@ -674,7 +778,9 @@ def main(page: ft.Page):
                 actions=[
                     ft.TextButton(
                         "关闭",
-                        on_click=lambda _: gui_utils.close_banner(page), # Use imported function
+                        on_click=lambda _: gui_utils.close_banner(
+                            page
+                        ),  # Use imported function
                         style=ft.ButtonStyle(color=ft.colors.RED_900),
                     )
                 ],
@@ -685,17 +791,19 @@ def main(page: ft.Page):
     # --- Few-Shot Example Add/Remove Logic (defined within main) ---
     # close_banner function is now in gui_utils.py
 
-    def _create_example_row_internal(user_text: str = "", assistant_text: str = "") -> ft.Row:
-         """Creates a Flet Row for a single few-shot example with its remove handler."""
-         # Create controls for the row
-         user_input = ft.TextField(
-             label="用户输入 (User)",
-             value=user_text,
+    def _create_example_row_internal(
+        user_text: str = "", assistant_text: str = ""
+    ) -> ft.Row:
+        """Creates a Flet Row for a single few-shot example with its remove handler."""
+        # Create controls for the row
+        user_input = ft.TextField(
+            label="用户输入 (User)",
+            value=user_text,
             multiline=True,
             max_lines=3,
             expand=True,
         )
-         assistant_output = ft.TextField(
+        assistant_output = ft.TextField(
             label="助手响应 (Assistant)",
             value=assistant_text,
             multiline=True,
@@ -703,36 +811,46 @@ def main(page: ft.Page):
             expand=True,
         )
 
-         # Helper function for remove button handler
-         async def remove_this_row(e_remove: ft.ControlEvent):
-            row_to_remove = e_remove.control.data # Get the Row associated with the button
+        # Helper function for remove button handler
+        async def remove_this_row(e_remove: ft.ControlEvent):
+            row_to_remove = (
+                e_remove.control.data
+            )  # Get the Row associated with the button
             # Use all_config_controls to get the column reference robustly
-            active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
-            if active_few_shot_column and isinstance(active_few_shot_column, ft.Column) and row_to_remove in active_few_shot_column.controls:
+            active_few_shot_column = all_config_controls.get(
+                "llm.few_shot_examples_column"
+            )
+            if (
+                active_few_shot_column
+                and isinstance(active_few_shot_column, ft.Column)
+                and row_to_remove in active_few_shot_column.controls
+            ):
                 active_few_shot_column.controls.remove(row_to_remove)
                 logger.debug("Removed few-shot example row.")
                 page.update()
             else:
-                logger.warning("Attempted to remove a row not found in the column or column control not found/invalid.")
+                logger.warning(
+                    "Attempted to remove a row not found in the column or column control not found/invalid."
+                )
 
-         remove_button = ft.IconButton(
+        remove_button = ft.IconButton(
             icon=ft.icons.DELETE_OUTLINE,
             tooltip="删除此示例",
             on_click=remove_this_row,
             icon_color=ft.colors.RED_ACCENT_400,
         )
 
-         new_row = ft.Row(
+        new_row = ft.Row(
             controls=[user_input, assistant_output, remove_button],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
-         remove_button.data = new_row  # Associate the row with the button for removal
-         return new_row
+        remove_button.data = new_row  # Associate the row with the button for removal
+        return new_row
 
     async def add_example_handler(e: ft.ControlEvent):
         """Adds a new, empty example row to the column."""
-        new_row = _create_example_row_internal() # Use the correct internal function
+        new_row = _create_example_row_internal()  # Use the correct internal function
         # Use all_config_controls to get the column reference robustly
         active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
         if active_few_shot_column and isinstance(active_few_shot_column, ft.Column):
@@ -740,7 +858,9 @@ def main(page: ft.Page):
             logger.debug("Added new few-shot example row.")
             page.update()
         else:
-            logger.error("Could not add few-shot example row: Column control not found or invalid.")
+            logger.error(
+                "Could not add few-shot example row: Column control not found or invalid."
+            )
 
     # Assign the handler to the button
     add_example_button.on_click = add_example_handler
@@ -762,7 +882,9 @@ def main(page: ft.Page):
             if not dashscope_api_key:
                 error_msg = "错误：Dashscope API Key 未设置。"
                 logger.error(error_msg)
-                update_status_display(error_msg, is_running=False, is_processing=False) # Show error state, this will reset button via callback
+                update_status_display(
+                    error_msg, is_running=False, is_processing=False
+                )  # Show error state, this will reset button via callback
                 # No need to manually reset button here, callback handles it
                 # toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED
                 # toggle_button.tooltip = "启动"
@@ -835,17 +957,23 @@ def main(page: ft.Page):
             error_msg = f"启动过程中出错: {ex}"
             logger.critical(error_msg, exc_info=True)
             # Update status display to show error, which will reset the button state via callback
-            update_status_display(f"启动错误: {ex}", is_running=False, is_processing=False)
+            update_status_display(
+                f"启动错误: {ex}", is_running=False, is_processing=False
+            )
             # Attempt cleanup even on startup error
-            await _stop_recording_internal(is_error=True) # Call internal stop logic for cleanup
+            await _stop_recording_internal(
+                is_error=True
+            )  # Call internal stop logic for cleanup
 
     async def _stop_recording_internal(is_error: bool = False):
         """Internal logic for stopping the process."""
         # Only proceed if actually running or if called due to an error needing cleanup
         if not app_state.is_running and not is_error:
-             # If already stopped and not an error, ensure button/status is in 'Stopped' state (Red/Green)
-             update_status_display("已停止", is_running=False, is_processing=False) # This updates the button/status
-             return
+            # If already stopped and not an error, ensure button/status is in 'Stopped' state (Red/Green)
+            update_status_display(
+                "已停止", is_running=False, is_processing=False
+            )  # This updates the button/status
+            return
 
         # Status update now handles button state during processing
         update_status_display("正在停止...", is_running=True, is_processing=True)
@@ -884,7 +1012,7 @@ def main(page: ft.Page):
         app_state.llm_client = None
         app_state.output_dispatcher = None
 
-        app_state.is_running = False # Mark as not running logically first
+        app_state.is_running = False  # Mark as not running logically first
         logger.info("All components requested to stop.")
         # Final status update ("Stopped" or "Stopped (with issues)") comes from AudioManager callback
         # update_status_display("已停止", is_running=False, is_processing=False) # Removed, handled by callback
@@ -901,7 +1029,7 @@ def main(page: ft.Page):
             await _start_recording_internal()
 
     # --- 绑定事件 ---
-    toggle_button.on_click = toggle_recording # Assign the new handler
+    toggle_button.on_click = toggle_recording  # Assign the new handler
 
     # --- 页面关闭处理 ---
     async def on_window_event(e: ft.ControlEvent):
@@ -910,18 +1038,16 @@ def main(page: ft.Page):
             # Ensure processes are stopped before closing
             if app_state.is_running:
                 logger.info("Window closing, stopping background processes...")
-                await _stop_recording_internal() # Call internal stop logic
+                await _stop_recording_internal()  # Call internal stop logic
             # Now destroy the window
             page.window_destroy()
 
-
     # --- Bind event handlers ---
-    toggle_button.on_click = toggle_recording      # Dashboard button
-    save_config_button.on_click = save_config_handler    # Config button
-    reload_config_button.on_click = reload_config_handler # Config button
-    add_example_button.on_click = add_example_handler    # Config button (already assigned above, but good to be explicit)
-    page.on_window_event = on_window_event               # Page event
-
+    toggle_button.on_click = toggle_recording  # Dashboard button
+    save_config_button.on_click = save_config_handler  # Config button
+    reload_config_button.on_click = reload_config_handler  # Config button
+    add_example_button.on_click = add_example_handler  # Config button (already assigned above, but good to be explicit)
+    page.on_window_event = on_window_event  # Page event
 
     # --- Layout using Tabs ---
     # Import layout functions from the new modules
@@ -932,16 +1058,16 @@ def main(page: ft.Page):
     # Create tab content by calling functions from imported modules
     dashboard_tab_layout = create_dashboard_tab_content(
         # Pass the elements created locally in main
-        status_row_control=status_row,             # Pass the local status_row
-        toggle_button_control=toggle_button,       # Pass the local toggle_button
-        progress_indicator_control=progress_indicator, # Pass the local progress_indicator
-        output_text_control=output_text            # Pass the local output_text
+        status_row_control=status_row,  # Pass the local status_row
+        toggle_button_control=toggle_button,  # Pass the local toggle_button
+        progress_indicator_control=progress_indicator,  # Pass the local progress_indicator
+        output_text_control=output_text,  # Pass the local output_text
     )
 
     config_tab_layout = create_config_tab_content(
         save_button=save_config_button,
         reload_button=reload_config_button,
-        all_controls=all_config_controls # Pass the aggregated dictionary
+        all_controls=all_config_controls,  # Pass the aggregated dictionary
     )
 
     page.add(
@@ -950,9 +1076,11 @@ def main(page: ft.Page):
                 ft.Tab(
                     text="仪表盘",
                     icon=ft.icons.DASHBOARD,
-                    content=dashboard_tab_layout, # Use correct variable
+                    content=dashboard_tab_layout,  # Use correct variable
                 ),
-                ft.Tab(text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout), # Use correct variable
+                ft.Tab(
+                    text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout
+                ),  # Use correct variable
             ],
             expand=True,  # Make tabs fill the page width
         )
@@ -962,9 +1090,11 @@ def main(page: ft.Page):
     logger.debug("Initial population of few-shot examples UI.")
     # Use safe access to initial config data
     initial_config_data = config.data if config else {}
-    initial_examples = initial_config_data.get('llm', {}).get('few_shot_examples', [])
+    initial_examples = initial_config_data.get("llm", {}).get("few_shot_examples", [])
     # Use the correct column variable reference
-    active_few_shot_column = all_config_controls.get("llm.few_shot_examples_column", few_shot_examples_column)
+    active_few_shot_column = all_config_controls.get(
+        "llm.few_shot_examples_column", few_shot_examples_column
+    )
     if isinstance(initial_examples, list) and active_few_shot_column and isinstance(active_few_shot_column, ft.Column):
         for example in initial_examples:
             if isinstance(example, dict) and 'user' in example and 'assistant' in example:

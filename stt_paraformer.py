@@ -210,7 +210,7 @@ class ParaformerCallback(RecognitionCallback):
                 intermediate_thread = threading.Thread(
                     target=self._dispatch_intermediate_in_background,
                     args=(text_to_process,), # Send actual partial text
-                    name=f"ParaformerIntermediateThread-Partial",
+                    name="ParaformerIntermediateThread-Partial",
                     daemon=True
                 )
                 intermediate_thread.start()

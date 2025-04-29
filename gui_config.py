@@ -1,5 +1,5 @@
 import flet as ft
-from typing import Dict, Any, Callable, Optional
+from typing import Dict, Any, Optional
 import logging
 
 # Use standard logging; setup happens elsewhere
