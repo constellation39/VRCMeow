@@ -592,10 +592,6 @@ class AudioManager:
                 actual_input_device_info = sd.query_devices(device=stream_device_index, kind='input')
                 input_name = actual_input_device_info.get('name', 'Unknown') if actual_input_device_info else 'Unknown (Default)'
                 logger.info(f"Using Input Device: {input_name} (Index: {stream_device_index})")
-                # Query the device that will actually be used (or default if stream_device is None)
-                actual_input_device_info = sd.query_devices(device=stream_device, kind='input')
-                input_name = actual_input_device_info.get('name', 'Unknown') if actual_input_device_info else 'Unknown (Default)'
-                logger.info(f"Using Input Device: {input_name}")
 
                 # Log default output device for echo mode reference
                 default_output_info = sd.query_devices(kind="output")
@@ -607,7 +603,8 @@ class AudioManager:
 
             # --- Log Configuration ---
             logger.info("Audio Stream Thread Configuration:")
-            logger.info(f"  Device: {stream_device or 'Default'}") # Log the device being used
+            # Use the input_name determined earlier, which reflects the actual device used (including default)
+            logger.info(f"  Device: {input_name} (Index: {stream_device_index})")
             logger.info(f"  Sample Rate: {self.sample_rate} Hz")
             logger.info(f"  Channels: {self.channels}")
             logger.info(f"  Dtype: {self.dtype}")
