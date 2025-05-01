@@ -57,8 +57,8 @@ from gui_dashboard import (
     create_dashboard_tab_content,
     update_output_display,
     update_status_display,
-    update_dashboard_info_display, # Import the dashboard info update function
-    update_audio_level_display, # Import the audio level update function
+    update_dashboard_info_display,  # Import the dashboard info update function
+    update_audio_level_display,  # Import the audio level update function
 )
 from llm_client import LLMClient
 from logger_config import get_logger, setup_logging
@@ -138,11 +138,18 @@ def main(page: ft.Page):
     output_text = dashboard_elements.get("output_text")
     toggle_button = dashboard_elements.get("toggle_button")
     progress_indicator = dashboard_elements.get("progress_indicator")
-    audio_level_bar = dashboard_elements.get("audio_level_bar") # Get the new element
+    audio_level_bar = dashboard_elements.get("audio_level_bar")  # Get the new element
 
     # Validate that essential dashboard elements were created
     if not all(
-        [status_icon, status_label, output_text, toggle_button, progress_indicator, audio_level_bar] # Add new element to check
+        [
+            status_icon,
+            status_label,
+            output_text,
+            toggle_button,
+            progress_indicator,
+            audio_level_bar,
+        ]  # Add new element to check
     ):
         logger.critical(
             "CRITICAL: Failed to create essential dashboard UI elements. GUI cannot function."
@@ -173,9 +180,9 @@ def main(page: ft.Page):
         output_text,
     )
     update_audio_level_callback = functools.partial(
-        update_audio_level_display, # Function from gui_dashboard
+        update_audio_level_display,  # Function from gui_dashboard
         page,
-        audio_level_bar, # Pass the progress bar element
+        audio_level_bar,  # Pass the progress bar element
     )
 
     # --- Initialize Core Components (based on config) ---
@@ -185,8 +192,10 @@ def main(page: ft.Page):
         if config.get("llm.enabled", False):
             app_state.llm_client = LLMClient()
             if not app_state.llm_client.enabled:
-                logger.warning("LLMClient initialization failed or API Key missing, LLM processing will be disabled.")
-                app_state.llm_client = None # Ensure it's None if disabled
+                logger.warning(
+                    "LLMClient initialization failed or API Key missing, LLM processing will be disabled."
+                )
+                app_state.llm_client = None  # Ensure it's None if disabled
             else:
                 logger.info("LLMClient initialized.")
         else:
@@ -199,8 +208,8 @@ def main(page: ft.Page):
         # 3. OutputDispatcher (pass VRC client placeholder and GUI output callback)
         # Initialize OutputDispatcher, VRCClient will be set later if enabled
         app_state.output_dispatcher = OutputDispatcher(
-            vrc_client_instance=None, # VRCClient instance will be set later
-            gui_output_callback=update_output_callback, # Pass the partial callback
+            vrc_client_instance=app_state.vrc_client,  # VRCClient instance will be set later
+            gui_output_callback=update_output_callback,  # Pass the partial callback
         )
         logger.info("OutputDispatcher initialized (VRCClient pending).")
 
@@ -209,16 +218,18 @@ def main(page: ft.Page):
             llm_client=app_state.llm_client,
             output_dispatcher=app_state.output_dispatcher,
             status_callback=update_status_callback,
-            audio_level_callback=update_audio_level_callback, # Pass the audio level callback
+            audio_level_callback=update_audio_level_callback,  # Pass the audio level callback
         )
         logger.info("AudioManager initialized.")
 
     except Exception as init_err:
-        logger.critical(f"CRITICAL ERROR during core component initialization: {init_err}", exc_info=True)
+        logger.critical(
+            f"CRITICAL ERROR during core component initialization: {init_err}",
+            exc_info=True,
+        )
         gui_utils.show_error_banner(page, f"核心组件初始化失败: {init_err}")
         # Depending on the error, we might want to return or disable features
         # For now, log and show banner, hoping some parts might still work.
-
 
     # --- Create Config Tab Controls ---
     # These are created here because the layout function in gui_config needs them.
@@ -286,9 +297,9 @@ def main(page: ft.Page):
         output_text,
     )
     update_audio_level_callback = functools.partial(
-        update_audio_level_display, # Function from gui_dashboard
+        update_audio_level_display,  # Function from gui_dashboard
         page,
-        audio_level_bar, # Pass the progress bar element
+        audio_level_bar,  # Pass the progress bar element
     )
 
     # --- Core Application Logic Handlers (Start/Stop) ---
@@ -300,9 +311,7 @@ def main(page: ft.Page):
     async def _start_recording_internal():
         """Internal logic for starting the process."""
         # Status update now handles button state during processing
-        update_status_callback(
-            "正在启动...", is_running=None, is_processing=True
-        )
+        update_status_callback("正在启动...", is_running=None, is_processing=True)
         # page.update() # update_status_callback calls page.update()
 
         try:
@@ -310,7 +319,7 @@ def main(page: ft.Page):
             # Components (LLM, VRC, Dispatcher, AudioManager) are now initialized earlier.
             # We just need to start the AudioManager here.
             if not app_state.audio_manager:
-                 # This shouldn't happen if initialization worked, but handle defensively.
+                # This shouldn't happen if initialization worked, but handle defensively.
                 error_msg = "错误：AudioManager 未初始化。"
                 logger.error(error_msg)
                 update_status_callback(error_msg, is_running=False, is_processing=False)
@@ -373,21 +382,28 @@ def main(page: ft.Page):
                 # The final status update ("Stopped", "Error") should come from
                 # the AudioManager's status_callback when its threads fully exit.
             except Exception as am_stop_err:
-                logger.error(f"Error requesting AudioManager stop: {am_stop_err}", exc_info=True)
+                logger.error(
+                    f"Error requesting AudioManager stop: {am_stop_err}", exc_info=True
+                )
                 # Force status update on error during stop request
-                update_status_callback("停止时出错", is_running=False, is_processing=False)
-                gui_utils.show_error_banner(page, f"停止 AudioManager 时出错: {am_stop_err}")
+                update_status_callback(
+                    "停止时出错", is_running=False, is_processing=False
+                )
+                gui_utils.show_error_banner(
+                    page, f"停止 AudioManager 时出错: {am_stop_err}"
+                )
         else:
-             logger.warning("Stop requested, but AudioManager not found in state.")
-             # Ensure UI reflects stopped state if manager is missing
-             update_status_callback("已停止", is_running=False, is_processing=False)
-
+            logger.warning("Stop requested, but AudioManager not found in state.")
+            # Ensure UI reflects stopped state if manager is missing
+            update_status_callback("已停止", is_running=False, is_processing=False)
 
         # Do NOT stop VRCClient or nullify LLMClient/OutputDispatcher here.
         # They persist for other functions (like text input) or app lifetime.
 
         # Mark logical *audio recording* state as stopped
-        app_state.is_running = False # This now specifically means audio recording is off
+        app_state.is_running = (
+            False  # This now specifically means audio recording is off
+        )
         logger.info(
             "All components requested to stop. Final status update relies on AudioManager callback."
         )
@@ -415,9 +431,9 @@ def main(page: ft.Page):
             logger.info("检测到窗口关闭事件。")
             logger.info("Window closing event detected.")
             # Ensure audio processes are stopped
-            if app_state.is_running: # is_running now refers to audio state
+            if app_state.is_running:  # is_running now refers to audio state
                 logger.info("Stopping active audio recording before closing...")
-                await _stop_recording_internal() # Stop AudioManager if running
+                await _stop_recording_internal()  # Stop AudioManager if running
                 # Add a small delay to allow AudioManager's threads to potentially finish cleanup
                 await asyncio.sleep(0.2)
             else:
@@ -430,15 +446,20 @@ def main(page: ft.Page):
                     await app_state.vrc_client.stop()
                     logger.info("VRCClient stopped.")
                 except Exception as vrc_stop_err:
-                    logger.error(f"Error stopping VRCClient during window close: {vrc_stop_err}", exc_info=True)
-                app_state.vrc_client = None # Clear reference
+                    logger.error(
+                        f"Error stopping VRCClient during window close: {vrc_stop_err}",
+                        exc_info=True,
+                    )
+                app_state.vrc_client = None  # Clear reference
 
             # Don't destroy the window, restart the application instead
             logger.info("Attempting application restart after cleanup...")
             try:
                 # Ensure sys.executable and sys.argv are valid
                 if not sys.executable or not sys.argv:
-                    raise RuntimeError("sys.executable or sys.argv is not available for restart.")
+                    raise RuntimeError(
+                        "sys.executable or sys.argv is not available for restart."
+                    )
                 # Use os.execv to replace the current process
                 os.execv(sys.executable, [sys.executable] + sys.argv)
             except Exception as restart_ex:
@@ -448,7 +469,9 @@ def main(page: ft.Page):
                 try:
                     page.window_destroy()
                 except Exception as destroy_ex:
-                    logger.error(f"Error destroying window after failed restart: {destroy_ex}")
+                    logger.error(
+                        f"Error destroying window after failed restart: {destroy_ex}"
+                    )
 
     # --- Bind Event Handlers ---
     toggle_button.on_click = toggle_recording  # Dashboard button (local handler)
@@ -478,13 +501,12 @@ def main(page: ft.Page):
     update_dashboard_info_partial = functools.partial(
         update_dashboard_info_display,
         page,
-        dashboard_elements, # Pass the dashboard elements dict
-        config, # Pass the config instance itself
+        dashboard_elements,  # Pass the dashboard elements dict
+        config,  # Pass the config instance itself
         # Now, inside update_dashboard_info_display, it will access config.data
         # If not, we might need to pass the config object itself and access .data inside the callback.
         # For now, let's try passing the data dictionary directly.
     )
-
 
     # Config tab buttons - Use functools.partial to bind arguments to async handlers
     # Flet will automatically run the async handler in its event loop.
@@ -493,8 +515,8 @@ def main(page: ft.Page):
         page,
         all_config_controls,
         config,
-        create_row_wrapper_for_reload, # Pass the row creation function
-        update_dashboard_info_partial, # Pass the dashboard update callback
+        create_row_wrapper_for_reload,  # Pass the row creation function
+        update_dashboard_info_partial,  # Pass the dashboard update callback
     )
     save_config_button.on_click = save_handler_partial
 
@@ -503,8 +525,8 @@ def main(page: ft.Page):
         page,
         all_config_controls,
         config,
-        create_row_wrapper_for_reload, # Pass the same row creation function
-        update_dashboard_info_partial, # Pass the dashboard update callback
+        create_row_wrapper_for_reload,  # Pass the same row creation function
+        update_dashboard_info_partial,  # Pass the dashboard update callback
     )
     reload_config_button.on_click = reload_handler_partial
 
@@ -517,17 +539,18 @@ def main(page: ft.Page):
     else:
         logger.error("Cannot assign handler: Add example button is invalid.")
 
-
     # --- Create Text Input Tab Elements & Handler ---
     text_input_field = ft.TextField(
         label="在此输入文本",
         multiline=True,
         min_lines=3,
         max_lines=5,
-        expand=True, # Allow vertical expansion
+        expand=True,  # Allow vertical expansion
         border_color=ft.colors.OUTLINE,
     )
-    text_input_progress = ft.ProgressRing(visible=False, width=16, height=16, stroke_width=2)
+    text_input_progress = ft.ProgressRing(
+        visible=False, width=16, height=16, stroke_width=2
+    )
     submit_text_button = ft.ElevatedButton(
         "发送",
         icon=ft.icons.SEND,
@@ -545,9 +568,9 @@ def main(page: ft.Page):
         logger.info(f"Text input submitted: '{input_text[:50]}...'")
         submit_text_button.disabled = True
         text_input_progress.visible = True
-        page.update() # Show progress
+        page.update()  # Show progress
 
-        processed_text = input_text # Default to original text
+        processed_text = input_text  # Default to original text
         try:
             # 1. Process with LLM (if enabled and available)
             if app_state.llm_client:
@@ -566,8 +589,10 @@ def main(page: ft.Page):
                 logger.debug("Dispatching processed text...")
                 await app_state.output_dispatcher.dispatch(processed_text)
                 # Add result to GUI output display as well for consistency
-                update_output_callback(f"文本输入已发送: {processed_text}") # Use the existing callback
-                text_input_field.value = "" # Clear input on success
+                update_output_callback(
+                    f"文本输入已发送: {processed_text}"
+                )  # Use the existing callback
+                text_input_field.value = ""  # Clear input on success
             else:
                 logger.error("OutputDispatcher not available, cannot dispatch text.")
                 gui_utils.show_error_banner(page, "错误：无法分发文本。")
@@ -584,7 +609,6 @@ def main(page: ft.Page):
 
     submit_text_button.on_click = submit_text_handler
 
-
     # --- Create Tab Layouts ---
     dashboard_tab_layout = create_dashboard_tab_content(
         dashboard_elements
@@ -598,7 +622,9 @@ def main(page: ft.Page):
 
     text_input_tab_content = ft.Column(
         [
-            ft.Text("手动输入文本并发送，将通过与语音输入相同的处理流程（LLM -> 输出）。"),
+            ft.Text(
+                "手动输入文本并发送，将通过与语音输入相同的处理流程（LLM -> 输出）。"
+            ),
             text_input_field,
             ft.Row(
                 [submit_text_button, text_input_progress],
@@ -610,7 +636,6 @@ def main(page: ft.Page):
         # scroll=ft.ScrollMode.ADAPTIVE,
     )
 
-
     # --- Add Tabs to Page ---
     page.add(
         ft.Tabs(
@@ -620,13 +645,11 @@ def main(page: ft.Page):
                     icon=ft.icons.DASHBOARD,
                     content=dashboard_tab_layout,  # Use correct variable
                 ),
-                ft.Tab(
-                    text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout
-                ),
+                ft.Tab(text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout),
                 ft.Tab(
                     text="文本输入",
                     icon=ft.icons.TEXT_FIELDS,
-                    content=text_input_tab_content, # Add the new tab content
+                    content=text_input_tab_content,  # Add the new tab content
                 ),
             ],
             expand=True,  # Make tabs fill the page width
@@ -660,11 +683,15 @@ def main(page: ft.Page):
                             exc_info=True,
                         )
                 else:
-                    logger.warning(f"Skipping invalid few-shot example during initial load: {example}")
+                    logger.warning(
+                        f"Skipping invalid few-shot example during initial load: {example}"
+                    )
         else:
             logger.warning("'llm.few_shot_examples' in initial config is not a list.")
     else:
-         logger.error("Cannot populate few-shot examples: Column control not found or invalid.")
+        logger.error(
+            "Cannot populate few-shot examples: Column control not found or invalid."
+        )
 
     # --- Initial Dashboard Info Population ---
     logger.debug("Initial population of dashboard info display.")
@@ -692,7 +719,6 @@ def main(page: ft.Page):
     except Exception as e:
         logger.error(f"Error scheduling initial dashboard update: {e}", exc_info=True)
 
-
     # --- Async Component Initialization ---
     async def initialize_async_components():
         """Initialize and start components that require a running event loop."""
@@ -704,13 +730,19 @@ def main(page: ft.Page):
             osc_port = config.get("outputs.vrc_osc.port", 9000)
             osc_interval = config.get("outputs.vrc_osc.message_interval", 1.333)
             try:
-                app_state.vrc_client = VRCClient(address=osc_address, port=osc_port, interval=osc_interval)
+                app_state.vrc_client = VRCClient(
+                    address=osc_address, port=osc_port, interval=osc_interval
+                )
                 # Assign the created client to the dispatcher
                 if app_state.output_dispatcher:
-                    app_state.output_dispatcher.vrc_client_instance = app_state.vrc_client
+                    app_state.output_dispatcher.vrc_client_instance = (
+                        app_state.vrc_client
+                    )
                     logger.info("VRCClient instance assigned to OutputDispatcher.")
                 else:
-                     logger.warning("OutputDispatcher not available when VRCClient initialized.")
+                    logger.warning(
+                        "OutputDispatcher not available when VRCClient initialized."
+                    )
 
                 # Start VRCClient using asyncio.create_task now that loop is running
                 asyncio.create_task(app_state.vrc_client.start())
@@ -719,7 +751,7 @@ def main(page: ft.Page):
                 error_msg = f"Error initializing or starting VRCClient: {vrc_err}"
                 logger.error(error_msg, exc_info=True)
                 gui_utils.show_error_banner(page, error_msg)
-                app_state.vrc_client = None # Ensure it's None on error
+                app_state.vrc_client = None  # Ensure it's None on error
                 # Ensure dispatcher doesn't hold a reference if init failed
                 if app_state.output_dispatcher:
                     app_state.output_dispatcher.vrc_client_instance = None
