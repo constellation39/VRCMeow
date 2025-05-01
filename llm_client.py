@@ -161,18 +161,39 @@ class LLMClient:
                     )
                     return None  # Treat empty response as failure
             else:
-                # Log the problematic response structure for debugging
-                response_dump = "None"
+                # Handle cases where the response structure is unexpected or content is null
+                finish_reason = "Unknown"
+                response_dump = "Response object not available or dump failed."
                 try:
-                    # Attempt to dump the response to JSON for inspection
+                    # Try to get the finish reason if possible
+                    if response.choices and response.choices[0]:
+                        finish_reason = response.choices[0].finish_reason
+                    # Attempt to dump the response for logging
                     response_dump = response.model_dump_json(indent=2)
                 except Exception as dump_err:
-                    response_dump = f"Could not dump response object: {dump_err}"
+                    logger.debug(f"Could not fully parse response or dump JSON: {dump_err}")
+                    # Try a simpler representation if dump fails
+                    response_dump = str(response)
 
-                logger.warning(
-                    "LLMClient: LLM response did not contain the expected structure (choices[0].message.content). Response received:\n%s",
-                    response_dump
-                )
+
+                if finish_reason == "length" and (not response.choices or not response.choices[0].message or response.choices[0].message.content is None):
+                     logger.warning(
+                        "LLMClient: LLM response finished due to 'length' but content is missing or null. "
+                        "This might happen if max_tokens is too small, or due to content filtering. "
+                        "Consider increasing max_tokens or checking model provider's safety settings. Response dump:\n%s",
+                        response_dump
+                    )
+                elif finish_reason == "content_filter":
+                     logger.warning(
+                        "LLMClient: LLM response finished due to 'content_filter'. Input or potential output may have triggered safety filters. Response dump:\n%s",
+                        response_dump
+                     )
+                else:
+                    # General warning for other unexpected structures or finish reasons
+                    logger.warning(
+                        "LLMClient: LLM response did not contain the expected content (choices[0].message.content). Finish Reason: '%s'. Response dump:\n%s",
+                        finish_reason, response_dump
+                    )
                 return None
 
         except OpenAIError as e:
