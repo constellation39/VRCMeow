@@ -738,6 +738,18 @@ def main(page: ft.Page):
     reload_config_button.on_click = reload_handler_partial
 
 
+    # --- Define LLM UI Update Callback (BEFORE use in preset dialog) ---
+    # This function will be passed to the preset dialog and reload handler
+    # It uses the update_llm_config_ui function from gui_config
+    update_llm_ui_partial = functools.partial(
+        update_llm_config_ui,
+        page,
+        all_config_controls,
+        # system_prompt_value, few_shot_examples_list, active_preset_name_value are passed by caller
+        create_example_row_func=create_row_wrapper_for_reload, # Pass row creation func
+    )
+
+
     # --- Create Preset Management Dialog ---
     preset_dialog = ft.AlertDialog(
         modal=True,
