@@ -133,9 +133,14 @@ class OutputDispatcher:
                 )
 
         # 3. VRC OSC Output (Async - Await directly)
+        # DEBUG: Check if VRC OSC dispatch will be attempted
+        logger.debug(f"OUTPUT_DISP: Checking VRC OSC condition. Enabled: {self.vrc_osc_enabled}, Client valid: {bool(self.vrc_client)}")
         if self.vrc_osc_enabled and self.vrc_client:
+            logger.info("OUTPUT_DISP: VRC OSC condition met. Proceeding with formatting and sending.") # Log entry into VRC block
             formatted_vrc_text = text  # Default to raw text
             try:
+                # DEBUG: Log the format string being used
+                logger.debug(f"OUTPUT_DISP: Formatting VRC text using format: '{self.vrc_osc_format}'")
                 formatted_vrc_text = self.vrc_osc_format.format(text=text)
             except KeyError as e:
                 logger.warning(
@@ -147,12 +152,12 @@ class OutputDispatcher:
                     f"OutputDispatcher: Error formatting VRC OSC text: {e}. Sending raw text.",
                     exc_info=True,
                 )
-                # formatted_vrc_text will be the fallback (raw text)
+                formatted_vrc_text = text # Ensure fallback is assigned on error
 
             try:
                 # INFO: Log before calling VRCClient.send_chatbox
                 logger.info(
-                    f"OUTPUT_DISP: Awaiting VRCClient.send_chatbox with: '{formatted_vrc_text}'"
+                    f"OUTPUT_DISP: Attempting to call VRCClient.send_chatbox with formatted text: '{formatted_vrc_text}'"
                 )
                 await self.vrc_client.send_chatbox(formatted_vrc_text)
                 # DEBUG: Log after successful send
