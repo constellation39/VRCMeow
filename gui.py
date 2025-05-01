@@ -741,6 +741,45 @@ def main(page: ft.Page):
         on_click=None,  # Assigned later
     )
 
+
+    # --- Timer UI Handlers (Defined BEFORE use) ---
+    async def timer_switch_change(e: ft.ControlEvent):
+        """Handles changes to the timer enable switch."""
+        app_state.is_timer_enabled = e.control.value
+        logger.info(f"Text input timer {'enabled' if app_state.is_timer_enabled else 'disabled'}.")
+        if app_state.is_timer_enabled:
+            # Start timer immediately if enabled and text exists
+            # Need to ensure _start_text_timer is defined or moved earlier too if not already
+            await _start_text_timer(
+                app_state, page, text_input_field, submit_text_button, text_input_progress, submit_text_handler
+            )
+        else:
+            # Cancel timer if disabled
+            _cancel_text_timer(app_state)
+        if page.window_exists(): page.update() # Update UI if needed
+
+    async def timer_delay_change(e: ft.ControlEvent):
+        """Handles changes to the timer delay input."""
+        try:
+            new_delay = float(e.control.value)
+            if new_delay >= 0: # Allow 0 to effectively disable timer via delay
+                app_state.text_input_timer_delay = new_delay
+                logger.info(f"Text input timer delay set to: {app_state.text_input_timer_delay}s.")
+                # Reset the timer with the new delay if it's currently running/should run
+                await _start_text_timer(
+                    app_state, page, text_input_field, submit_text_button, text_input_progress, submit_text_handler
+                )
+            else:
+                logger.warning("Timer delay must be non-negative.")
+                e.control.value = str(app_state.text_input_timer_delay) # Revert display
+                gui_utils.show_error_banner(page, "定时器延迟必须是非负数。")
+        except ValueError:
+            logger.warning(f"Invalid timer delay input: {e.control.value}")
+            e.control.value = str(app_state.text_input_timer_delay) # Revert display
+            gui_utils.show_error_banner(page, "无效的定时器延迟值。")
+        if page.window_exists(): page.update() # Update UI
+
+
     # --- Timer UI Elements ---
     timer_switch = ft.Switch(
         label="启用定时发送",
@@ -827,45 +866,6 @@ def main(page: ft.Page):
             # Optionally clear field only on success? Currently clears before dispatch attempt.
             # text_input_field.value = "" # Clearing moved to after successful dispatch
             if page.window_exists(): # Check if page exists before updating
-                 page.update()
-
-
-    # --- Timer UI Handlers ---
-    async def timer_switch_change(e: ft.ControlEvent):
-        """Handles changes to the timer enable switch."""
-        app_state.is_timer_enabled = e.control.value
-        logger.info(f"Text input timer {'enabled' if app_state.is_timer_enabled else 'disabled'}.")
-        if app_state.is_timer_enabled:
-            # Start timer immediately if enabled and text exists
-            await _start_text_timer(
-                app_state, page, text_input_field, submit_text_button, text_input_progress, submit_text_handler
-            )
-        else:
-            # Cancel timer if disabled
-            _cancel_text_timer(app_state)
-        if page.window_exists(): page.update() # Update UI if needed
-
-    async def timer_delay_change(e: ft.ControlEvent):
-        """Handles changes to the timer delay input."""
-        try:
-            new_delay = float(e.control.value)
-            if new_delay >= 0: # Allow 0 to effectively disable timer via delay
-                app_state.text_input_timer_delay = new_delay
-                logger.info(f"Text input timer delay set to: {app_state.text_input_timer_delay}s.")
-                # Reset the timer with the new delay if it's currently running/should run
-                await _start_text_timer(
-                    app_state, page, text_input_field, submit_text_button, text_input_progress, submit_text_handler
-                )
-            else:
-                logger.warning("Timer delay must be non-negative.")
-                e.control.value = str(app_state.text_input_timer_delay) # Revert display
-                gui_utils.show_error_banner(page, "定时器延迟必须是非负数。")
-        except ValueError:
-            logger.warning(f"Invalid timer delay input: {e.control.value}")
-            e.control.value = str(app_state.text_input_timer_delay) # Revert display
-            gui_utils.show_error_banner(page, "无效的定时器延迟值。")
-        if page.window_exists(): page.update() # Update UI
-
     async def text_input_change(e: ft.ControlEvent):
         """Handles changes in the text input field to reset the timer."""
         # Don't await here, just schedule the timer start/reset
