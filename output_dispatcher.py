@@ -22,15 +22,12 @@ class OutputDispatcher:
     def __init__(
         self,
         vrc_client_instance: Optional[VRCClient] = None,
-        gui_output_callback: Optional[
-            Callable[[str], None]
-        ] = None,  # 添加 GUI 回调参数
+        # REMOVED: gui_output_callback parameter
     ) -> None:
-        logger.info("OutputDispatcher initializing...")  # <-- Add initialization log
+        logger.info("OutputDispatcher initializing...")
         self.vrc_client = vrc_client_instance
-        self.gui_output_callback = gui_output_callback  # 存储回调
+        # REMOVED: self.gui_output_callback = gui_output_callback
         self.outputs_config = config.get("outputs", {})
-        # self.loop is no longer needed
 
         # --- Validate File Output Config ---
         self.file_output_enabled = self.outputs_config.get("file", {}).get(
@@ -102,8 +99,7 @@ class OutputDispatcher:
             enabled_outputs.append(f"File ({self.file_path})")
         if self.vrc_osc_enabled:
             enabled_outputs.append("VRC OSC")
-        if self.gui_output_callback:
-            enabled_outputs.append("GUI")
+        # REMOVED: GUI output check
 
         if enabled_outputs:
             logger.info(
@@ -171,18 +167,7 @@ class OutputDispatcher:
                     exc_info=osc_err,
                 )
 
-        # 4. GUI Output (Synchronous Call - Callback handles thread safety)
-        if self.gui_output_callback:
-            try:
-                # 直接调用回调，假设回调是线程安全的 (例如，使用 page.run_thread_safe)
-                self.gui_output_callback(text)
-                logger.debug("Dispatched text to GUI.")
-            except Exception as gui_err:
-                logger.error(
-                    f"OutputDispatcher: Error calling GUI output callback: {gui_err}",
-                    exc_info=True,
-                )
-                # Assuming callback is synchronous or handles its own threading/async calls safely
+        # REMOVED: GUI Output section
 
         # No more asyncio.gather needed as operations are awaited directly above.
         logger.info(f"OUTPUT_DISP: Exiting dispatch method for text: '{text}'")

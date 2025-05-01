@@ -55,10 +55,18 @@ from gui_config import (
 from gui_dashboard import (
     create_dashboard_elements,
     create_dashboard_tab_content,
-    update_output_display,
+    # REMOVED: update_output_display,
     update_status_display,
     update_dashboard_info_display,  # Import the dashboard info update function
     update_audio_level_display,  # Import the audio level update function
+)
+# --- New Log Tab Imports ---
+from gui_log import (
+    create_log_elements,
+    create_log_tab_content,
+    update_log_display,
+    clear_log_display,
+    set_log_level_filter,
 )
 from llm_client import LLMClient
 from logger_config import get_logger, setup_logging
@@ -66,9 +74,9 @@ from osc_client import VRCClient
 from output_dispatcher import OutputDispatcher
 
 
-# --- Initialize Logging (after imports and CWD setup) ---
-setup_logging()
-logger = get_logger("VRCMeowGUI")
+# --- Logging Setup Placeholder ---
+# Logging will be configured later after the page and log UI elements are created
+logger = get_logger("VRCMeowGUI") # Get logger instance early, but setup is deferred
 
 
 class AppState:
@@ -135,7 +143,7 @@ def main(page: ft.Page):
     status_icon = dashboard_elements.get("status_icon")
     status_label = dashboard_elements.get("status_label")
     # status_row = dashboard_elements.get("status_row") # Not directly needed
-    output_text = dashboard_elements.get("output_text")
+    # REMOVED: output_text = dashboard_elements.get("output_text")
     toggle_button = dashboard_elements.get("toggle_button")
     progress_indicator = dashboard_elements.get("progress_indicator")
     audio_level_bar = dashboard_elements.get("audio_level_bar")  # Get the new element
@@ -145,11 +153,11 @@ def main(page: ft.Page):
         [
             status_icon,
             status_label,
-            output_text,
+            # REMOVED: output_text,
             toggle_button,
             progress_indicator,
             audio_level_bar,
-        ]  # Add new element to check
+        ]
     ):
         logger.critical(
             "CRITICAL: Failed to create essential dashboard UI elements. GUI cannot function."
@@ -174,16 +182,39 @@ def main(page: ft.Page):
         toggle_button,
         progress_indicator,
     )
-    update_output_callback = functools.partial(
-        update_output_display,  # Function from gui_dashboard
-        page,
-        output_text,
-    )
+    # REMOVED: update_output_callback = functools.partial(...)
     update_audio_level_callback = functools.partial(
         update_audio_level_display,  # Function from gui_dashboard
         page,
         audio_level_bar,  # Pass the progress bar element
     )
+
+    # --- Create Log Tab UI Elements ---
+    log_elements = create_log_elements()
+    log_output_listview = log_elements.get("log_output")
+    clear_log_button = log_elements.get("clear_log_button")
+    log_level_dropdown = log_elements.get("log_level_dropdown")
+
+    # Validate essential log elements
+    if not all([log_output_listview, clear_log_button, log_level_dropdown]):
+         logger.critical("CRITICAL: Failed to create essential log UI elements.")
+         # Handle error appropriately, maybe show message and exit
+         page.add(ft.Text("CRITICAL ERROR: Failed to create log UI.", color=ft.colors.RED))
+         page.update()
+         return
+
+    # --- Create Log Update Callback ---
+    # This will be called periodically to pull logs from the queue
+    log_update_callback = functools.partial(
+        update_log_display, # Function from gui_log
+        page,
+        log_output_listview,
+    )
+
+    # --- Initialize Logging (NOW that page and log elements exist) ---
+    # Pass the log update callback to the setup function
+    setup_logging(log_update_callback=log_update_callback)
+    logger.info("Logging setup complete with Flet handler.") # Now logger is fully configured
 
     # --- Initialize Core Components (based on config) ---
     logger.info("Initializing core components...")
@@ -279,16 +310,13 @@ def main(page: ft.Page):
         toggle_button,
         progress_indicator,
     )
-    update_output_callback = functools.partial(
-        update_output_display,  # Function from gui_dashboard
-        page,
-        output_text,
-    )
+    # REMOVED: update_output_callback = functools.partial(...)
     update_audio_level_callback = functools.partial(
         update_audio_level_display,  # Function from gui_dashboard
         page,
         audio_level_bar,  # Pass the progress bar element
     )
+    # Log update callback was created earlier before setup_logging
 
     # --- Core Application Logic Handlers (Start/Stop) ---
     # These remain in gui.py as they orchestrate multiple components
@@ -296,6 +324,23 @@ def main(page: ft.Page):
     # REMOVED: Definition of get_control_value
     # REMOVED: Definitions of save_config_handler, reload_config_controls, reload_config_handler
     # REMOVED: Definitions of _create_example_row_internal, add_example_handler
+
+    # --- Log Tab Handlers ---
+    async def clear_log_handler(e: ft.ControlEvent):
+        """Handles clicks on the clear log button."""
+        logger.info("Clearing GUI log display.")
+        clear_log_display(page, log_output_listview) # Call function from gui_log
+
+    async def log_level_change_handler(e: ft.ControlEvent):
+        """Handles changes in the log level dropdown."""
+        selected_level = e.control.value
+        logger.info(f"GUI log level filter changed to: {selected_level}")
+        set_log_level_filter(selected_level) # Call function from gui_log
+        # The update_log_display function (called periodically) will use the new filter
+        # We might force an immediate update here if desired, but periodic is usually fine.
+        log_update_callback() # Force immediate update after level change
+
+
     async def _start_recording_internal():
         """Internal logic for starting the process."""
         # Status update now handles button state during processing
@@ -462,8 +507,10 @@ def main(page: ft.Page):
                     )
 
     # --- Bind Event Handlers ---
-    toggle_button.on_click = toggle_recording  # Dashboard button (local handler)
-    page.on_window_event = on_window_event  # Page event (local handler)
+    toggle_button.on_click = toggle_recording  # Dashboard button
+    page.on_window_event = on_window_event  # Page event
+    clear_log_button.on_click = clear_log_handler # Log tab button
+    log_level_dropdown.on_change = log_level_change_handler # Log tab dropdown
 
     # --- Define a wrapper for create_config_example_row needed by reload/save handlers ---
     # This wrapper matches the signature expected by reload_config_controls
@@ -566,23 +613,21 @@ def main(page: ft.Page):
                 llm_result = await app_state.llm_client.process_text(input_text)
                 if llm_result is not None:
                     processed_text = llm_result
-                    logger.debug(f"LLM result: '{processed_text[:50]}...'")
+                    logger.info(f"LLM processed text input: '{processed_text[:50]}...'") # Log LLM result
                 else:
-                    logger.warning("LLM processing returned None, using original text.")
+                    logger.warning("LLM processing returned None, using original text for dispatch.")
                     # Optionally show a warning banner?
                     # gui_utils.show_banner(page, "LLM 处理失败，使用原始文本。", icon=ft.icons.WARNING_AMBER_ROUNDED, bgcolor=ft.colors.AMBER_100, icon_color=ft.colors.AMBER_700)
 
             # 2. Dispatch the result (original or processed)
             if app_state.output_dispatcher:
-                logger.debug("Dispatching processed text...")
+                logger.info(f"Dispatching text input result: '{processed_text[:50]}...'") # Log before dispatch
                 await app_state.output_dispatcher.dispatch(processed_text)
-                # Add result to GUI output display as well for consistency
-                update_output_callback(
-                    f"文本输入已发送: {processed_text}"
-                )  # Use the existing callback
+                # REMOVED: update_output_callback(...) call
+                logger.info("Text input dispatched successfully.") # Log after dispatch
                 text_input_field.value = ""  # Clear input on success
             else:
-                logger.error("OutputDispatcher not available, cannot dispatch text.")
+                logger.error("OutputDispatcher not available, cannot dispatch text input.")
                 gui_utils.show_error_banner(page, "错误：无法分发文本。")
 
         except Exception as ex:
@@ -605,8 +650,10 @@ def main(page: ft.Page):
     config_tab_layout = create_config_tab_content(
         save_button=save_config_button,
         reload_button=reload_config_button,
-        all_controls=all_config_controls,  # Pass controls dict (includes few-shot column/button)
+        all_controls=all_config_controls,  # Pass controls dict
     )
+
+    log_tab_layout = create_log_tab_content(log_elements) # Create log tab layout
 
     text_input_tab_content = ft.Column(
         [
@@ -637,12 +684,34 @@ def main(page: ft.Page):
                 ft.Tab(
                     text="文本输入",
                     icon=ft.icons.TEXT_FIELDS,
-                    content=text_input_tab_content,  # Add the new tab content
+                    content=text_input_tab_content,
+                ),
+                 ft.Tab( # Add the new Log tab
+                    text="日志",
+                    icon=ft.icons.LIST_ALT_ROUNDED,
+                    content=log_tab_layout,
                 ),
             ],
             expand=True,  # Make tabs fill the page width
         )
     )
+
+    # --- Periodic Log Queue Check ---
+    # Schedule a task to periodically check the log queue and update the UI
+    async def periodic_log_update():
+        while True:
+            # Check if the page still exists before trying to update
+            if page and page.client: # Check if connection is alive
+                 try:
+                    log_update_callback() # Call the partial function
+                 except Exception as log_update_err:
+                     print(f"Error in periodic log update: {log_update_err}") # Print error directly
+            else:
+                logger.info("Page closed or connection lost, stopping periodic log update.")
+                break # Exit the loop if page is gone
+            await asyncio.sleep(0.5) # Check every 500ms
+
+    page.run_task(periodic_log_update)
 
     # --- Initial Population of Few-Shot Examples ---
     logger.debug("Initial population of few-shot examples UI.")
@@ -755,7 +824,7 @@ def main(page: ft.Page):
             logger.info("Initializing OutputDispatcher asynchronously...")
             app_state.output_dispatcher = OutputDispatcher(
                 vrc_client_instance=app_state.vrc_client, # Pass the actual client instance (or None)
-                gui_output_callback=update_output_callback,
+                # REMOVED: gui_output_callback=update_output_callback,
             )
             logger.info("OutputDispatcher initialized.")
         except Exception as disp_err:

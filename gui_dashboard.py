@@ -35,19 +35,7 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
         vertical_alignment=ft.CrossAxisAlignment.CENTER,
         spacing=5,
     )
-    elements["output_text"] = ft.TextField(
-        label="最终输出", # Changed from hint_text to label
-        multiline=True,
-        read_only=True,
-        # Keep min/max lines for fixed size and scrolling
-        min_lines=5,  # Set minimum lines visible
-        max_lines=5,  # Set maximum lines before scrolling activates
-        border_radius=ft.border_radius.all(8),
-        border_color=ft.colors.with_opacity(0.5, ft.colors.OUTLINE),
-        filled=True,
-        bgcolor=ft.colors.with_opacity(0.02, ft.colors.ON_SURFACE),
-        content_padding=ft.padding.only(top=15, bottom=10, left=10, right=10), # Apply padding directly here
-    )
+    # REMOVED: elements["output_text"] = ft.TextField(...)
     elements["toggle_button"] = ft.IconButton(
         icon=ft.icons.PLAY_ARROW_ROUNDED,
         tooltip="启动",
@@ -88,8 +76,8 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
 
 def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
     """Creates the layout Column for the Dashboard tab using pre-created elements."""
-    # Validate required elements exist
-    required_keys = ["status_row", "toggle_button", "progress_indicator", "output_text"]
+    # Validate required elements exist (removed output_text)
+    required_keys = ["status_row", "toggle_button", "progress_indicator"]
     if not all(key in elements for key in required_keys):
         logger.error("Missing required elements for dashboard layout.")
         return ft.Column(
@@ -138,11 +126,10 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
             ),
             ft.Divider(height=10, thickness=1), # Separator
 
-            # Output text area with fixed height
-            elements["output_text"], # Place TextField directly in the Column
+            # REMOVED: elements["output_text"],
         ],
        # expand=True, # Remove expand from column
-       alignment=ft.MainAxisAlignment.START,
+       alignment=ft.MainAxisAlignment.START, # Keep column alignment
        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
        spacing=10,
        # scroll=ft.ScrollMode.ADAPTIVE, # Remove scroll from column, TextField handles its own
@@ -391,65 +378,4 @@ def update_status_display(
             exc_info=True,
         )
 
-
-def update_output_display(page: ft.Page, output_text_control: ft.TextField, text: str):
-    """线程安全地将文本附加到输出区域 (需要传入 UI 元素)"""
-    if not page:
-        logger.warning("update_output_display called without a valid page object.")
-        return
-    if not output_text_control:
-        logger.warning(
-            "update_output_display called without a valid output_text_control."
-        )
-        return
-
-    def append_text():
-        current_value = (
-            output_text_control.value if output_text_control.value is not None else ""
-        )
-        # Get current time and format it
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        formatted_text = f"[{timestamp}] {text}"
-
-        # Limit the amount of text to prevent performance issues
-        max_len = 10000  # Example limit, adjust as needed
-        new_value = current_value + formatted_text + "\n" # Add formatted text
-        if len(new_value) > max_len:
-            # Keep the last max_len characters
-            # Find the first newline after the part to be truncated to avoid partial lines
-            cutoff_point = new_value.find('\n', len(new_value) - max_len)
-            if cutoff_point != -1:
-                new_value = "[... log truncated ...]\n" + new_value[cutoff_point + 1:]
-            else: # If no newline found (very long single line), just truncate
-                new_value = "[... log truncated ...]\n" + new_value[-max_len:]
-            # Optional: Add a marker indicating truncation
-            # new_value = "[...]\n" + new_value
-
-        output_text_control.value = new_value
-        try:
-            # Check if page and controls are still valid before updating
-            if page and page.controls:
-                page.update(output_text_control)  # Update only the specific control
-            elif page:
-                logger.warning(
-                    "Page has no controls, skipping update in update_output_display."
-                )
-            # No need for else, page check already handled
-        except Exception as e:
-            # Catch errors during update
-            logger.error(
-                f"Error during page.update in update_output_display: {e}", exc_info=True
-            )
-
-    try:
-        # Check if page is still valid before running thread
-        if page and page.controls is not None:
-            page.run_thread(append_text)  # type: ignore
-        elif page:
-            logger.warning(
-                "Page object seems invalid (no controls), skipping run_thread in update_output_display."
-            )
-        # No need for else, page check already handled
-    except Exception as e:
-        # Catch potential errors if page becomes invalid
-        logger.error(f"Error calling page.run_thread in update_output_display: {e}", exc_info=True)
+# REMOVED: update_output_display function

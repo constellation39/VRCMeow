@@ -1,7 +1,13 @@
 import logging
 import sys
-from typing import Optional
+from typing import Optional, Callable # Add Callable
 import os # Ensure os module is imported
+# Import the Flet handler (assuming gui_log.py is in the same directory or accessible)
+try:
+    from gui_log import FletLogHandler
+except ImportError:
+    # Handle case where GUI is not used or file is missing
+    FletLogHandler = None
 
 # Directly import the config instance. If this fails, the application should exit.
 from config import config as app_config
@@ -16,10 +22,14 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 APP_LOGGER_NAME = "VRCMeowApp"
 
 
-def setup_logging(level: Optional[int] = None):
+def setup_logging(
+    level: Optional[int] = None,
+    log_update_callback: Optional[Callable[[], None]] = None, # Add callback for Flet handler
+):
     """
     配置应用程序的日志记录。
     如果未提供 level 参数，则尝试从配置中获取。
+    如果提供了 log_update_callback，则添加 Flet GUI 日志处理器。
     """
     # 确定要使用的日志级别
     if level is None:
@@ -69,8 +79,22 @@ def setup_logging(level: Optional[int] = None):
     formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
     console_handler.setFormatter(formatter)
 
-    # 将处理器添加到根记录器
+    # 将控制台处理器添加到根记录器
     root_logger.addHandler(console_handler)
+
+    # --- 添加 Flet GUI 日志处理器 (如果提供了回调) ---
+    if FletLogHandler and log_update_callback:
+        try:
+            flet_handler = FletLogHandler(level=level) # Use the same level
+            root_logger.addHandler(flet_handler)
+            root_logger.info("Flet GUI logging handler enabled.")
+            # Note: The actual UI update is triggered separately by periodically
+            # calling log_update_callback which checks the queue filled by FletLogHandler.
+        except Exception as e:
+            root_logger.error(f"Failed to configure Flet GUI logging handler: {e}", exc_info=True)
+    elif log_update_callback and not FletLogHandler:
+         root_logger.warning("FletLogHandler could not be imported. GUI logging disabled.")
+
 
     # --- 添加应用程序日志文件处理器 (如果已启用) ---
     try:
