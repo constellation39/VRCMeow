@@ -325,96 +325,7 @@ def main(page: ft.Page):
     # REMOVED: Definition of get_control_value
     # REMOVED: Definitions of save_config_handler, reload_config_controls, reload_config_handler
     # REMOVED: Definitions of _create_example_row_internal, add_example_handler
-
-    # --- Application Restart Logic ---
-    async def restart_application(page: ft.Page, app_state: AppState):
-        """Performs cleanup and restarts the application."""
-        logger.info("Initiating application restart sequence...")
-
-        # Ensure audio processes are stopped
-        if app_state.is_running:  # is_running now refers to audio state
-            logger.info("Restart: Stopping active audio recording...")
-            try:
-                await _stop_recording_internal()  # Stop AudioManager if running
-                logger.info("Restart: AudioManager stop requested (callback will confirm final state).")
-                # Add a slightly longer delay to allow AudioManager's threads to potentially finish cleanup
-                logger.info("Restart: Waiting briefly for audio cleanup...")
-                await asyncio.sleep(0.5) # Increased from 0.2
-                logger.info("Restart: Finished waiting after audio stop request.")
-            except Exception as audio_stop_err:
-                 logger.error(f"Restart: Error during _stop_recording_internal: {audio_stop_err}", exc_info=True)
-        else:
-            logger.info("Restart: Audio recording not active, skipping audio stop.")
-
-        # Stop VRCClient if it exists and is running
-        if app_state.vrc_client:
-            logger.info("Restart: Stopping VRCClient...")
-            try:
-                await app_state.vrc_client.stop()
-                logger.info("Restart: VRCClient stopped successfully.")
-            except Exception as vrc_stop_err:
-                logger.error(
-                    f"Restart: Error stopping VRCClient: {vrc_stop_err}",
-                    exc_info=True,
-                )
-            # Still clear reference even if stop failed
-            app_state.vrc_client = None
-        else:
-            logger.info("Restart: VRCClient not active, skipping VRC stop.")
-
-
-        # Attempt restart by launching a new detached process and exiting the current one
-        logger.critical(">>> Preparing to launch new application instance and exit <<<")
-        try:
-            # Determine if running as a frozen executable
-            is_frozen = getattr(sys, 'frozen', False)
-            exec_path = sys.executable
-            exec_args = []
-
-            if is_frozen:
-                logger.info("Restart: Application is frozen. Restarting the executable directly.")
-                # When frozen, sys.executable is the path to the .exe
-                # We likely don't need/want the original sys.argv when restarting the .exe
-                exec_args = [exec_path]
-            else:
-                logger.info("Restart: Application is running from source. Restarting using Python interpreter.")
-                # When running from source, sys.executable is python, sys.argv includes the script
-                exec_args = [exec_path] + sys.argv
-
-            logger.debug(f"Restart: Determined executable path: {exec_path}")
-            logger.debug(f"Restart: Determined arguments: {exec_args}")
-
-            if not exec_path or not exec_args:
-                raise RuntimeError(
-                    "Could not determine executable path or arguments for restart."
-                )
-
-            # Platform-specific flags for detaching the process
-            creationflags = 0
-            if sys.platform == "win32":
-                creationflags = subprocess.DETACHED_PROCESS # Detach on Windows
-
-            # Launch the new process using the determined arguments
-            logger.info(f"Launching new process: {exec_args} with creationflags={creationflags}")
-            subprocess.Popen(exec_args, creationflags=creationflags)
-
-            # Successfully launched, now exit the current process by closing the window
-            logger.info("New process launched. Closing current application window...")
-            try:
-                page.window_close() # Use window_close() instead of window_destroy()
-                # Note: Code execution might stop here as the window closes.
-                logger.info("Window close requested.") # This log might not always appear
-            except Exception as destroy_ex:
-                 # This might happen if the page context is already invalid
-                logger.error(f"Error requesting window destroy during restart: {destroy_ex}")
-                logger.info("Attempting sys.exit(0) as fallback.")
-                sys.exit(0) # Force exit if window destroy fails
-
-        except Exception as launch_ex:
-            # If launching the new process fails
-            logger.critical(f"启动新应用程序实例时出错: {launch_ex}", exc_info=True)
-            gui_utils.show_error_banner(page, f"启动新实例失败: {launch_ex}")
-            # Do not destroy the window here, allow the current instance to continue running
+    # REMOVED: restart_application function
 
     # --- Log Tab Handlers ---
     async def clear_log_handler(e: ft.ControlEvent):
@@ -560,51 +471,53 @@ def main(page: ft.Page):
 
     # --- Page Close Handler ---
     async def on_window_event(e: ft.ControlEvent):
+        """Handles window events, specifically the close event."""
         if e.data == "close":
-            logger.info("检测到窗口关闭事件。")
-            logger.info("Window closing event detected.")
+            logger.info("Window closing event detected. Initiating cleanup...")
+
             # Ensure audio processes are stopped
             if app_state.is_running:  # is_running now refers to audio state
-                logger.info("Stopping active audio recording before closing...")
-                await _stop_recording_internal()  # Stop AudioManager if running
-                # Add a small delay to allow AudioManager's threads to potentially finish cleanup
-                await asyncio.sleep(0.2)
+                logger.info("Closing: Stopping active audio recording...")
+                try:
+                    # Use a slightly longer timeout for closing than for restart
+                    stop_timeout = 10.0
+                    logger.info(f"Closing: Waiting up to {stop_timeout}s for AudioManager.stop()...")
+                    await asyncio.wait_for(
+                        asyncio.to_thread(app_state.audio_manager.stop),
+                        timeout=stop_timeout
+                    )
+                    logger.info("Closing: AudioManager stopped.")
+                except asyncio.TimeoutError:
+                    logger.warning(f"Closing: AudioManager.stop() timed out after {stop_timeout}s.")
+                except Exception as audio_stop_err:
+                    logger.error(f"Closing: Error stopping AudioManager: {audio_stop_err}", exc_info=True)
             else:
-                logger.info("Audio recording not active.")
+                logger.info("Closing: Audio recording not active.")
 
             # Stop VRCClient if it exists and is running
             if app_state.vrc_client:
-                logger.info("Stopping VRCClient before closing...")
+                logger.info("Closing: Stopping VRCClient...")
                 try:
                     await app_state.vrc_client.stop()
-                    logger.info("VRCClient stopped.")
+                    logger.info("Closing: VRCClient stopped.")
                 except Exception as vrc_stop_err:
                     logger.error(
-                        f"Error stopping VRCClient during window close: {vrc_stop_err}",
+                        f"Closing: Error stopping VRCClient: {vrc_stop_err}",
                         exc_info=True,
                     )
                 app_state.vrc_client = None  # Clear reference
+            else:
+                 logger.info("Closing: VRCClient not active.")
 
-            # Don't destroy the window, restart the application instead
-            logger.info("Attempting application restart after cleanup...")
+            # Close the window to exit the application
+            logger.info("Cleanup finished. Closing application window...")
             try:
-                # Ensure sys.executable and sys.argv are valid
-                if not sys.executable or not sys.argv:
-                    raise RuntimeError(
-                        "sys.executable or sys.argv is not available for restart."
-                    )
-                # Use os.execv to replace the current process
-                os.execv(sys.executable, [sys.executable] + sys.argv)
-            except Exception as restart_ex:
-                # If restart fails, log critical error and maybe destroy window as fallback?
-                logger.critical(f"重启应用程序时出错: {restart_ex}", exc_info=True)
-                # Fallback: Destroy the window if restart fails to prevent hanging
-                try:
-                    page.window_destroy()
-                except Exception as destroy_ex:
-                    logger.error(
-                        f"Error destroying window after failed restart: {destroy_ex}"
-                    )
+                page.window_close()
+                logger.info("Window close requested.")
+            except Exception as close_ex:
+                logger.error(f"Error requesting window close: {close_ex}", exc_info=True)
+                logger.info("Attempting sys.exit(0) as fallback.")
+                sys.exit(0) # Force exit if window close fails
 
     # --- Bind Event Handlers ---
     toggle_button.on_click = toggle_recording  # Dashboard button
@@ -652,8 +565,8 @@ def main(page: ft.Page):
         config, # Config instance
         create_row_wrapper_for_reload,  # Function to create few-shot rows
         update_dashboard_info_partial,  # Callback to update dashboard info
-        app_state, # Pass the application state for cleanup during restart
-        functools.partial(restart_application, page, app_state), # Pass the restart function bound with page and app_state
+        # REMOVED: app_state argument
+        # REMOVED: restart_callback argument
     )
     save_config_button.on_click = save_handler_partial
 

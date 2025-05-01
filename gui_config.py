@@ -561,13 +561,13 @@ async def save_config_handler(
     dashboard_update_callback: Optional[
         Callable[[], None]
     ],  # Dashboard update callback (now synchronous call via run_thread)
-    app_state: "AppState",  # Add AppState for cleanup before restart
-    restart_callback: Callable[[], Awaitable[None]],  # Add restart callback
+    # REMOVED: app_state: "AppState",
+    # REMOVED: restart_callback: Callable[[], Awaitable[None]],
     e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
     """
     保存按钮点击事件处理程序 (配置选项卡)。
-    保存成功后将重新加载配置、更新 UI，然后触发应用程序重启。
+    保存成功后将重新加载配置并更新 UI。不再触发重启。
     """
     logger.info("Save configuration button clicked.")
     if not config_instance:
@@ -887,31 +887,13 @@ async def save_config_handler(
                 "Dashboard update callback not provided to save_config_handler."
             )
 
-        # Show banner and update page BEFORE initiating restart
+        # Show banner and update page
         page.update()
 
-        # Add a small delay to allow the user to see the success message
-        await asyncio.sleep(1.0)
-
-        # --- Trigger Application Restart ---
-        logger.info(
-            "Configuration saved and UI updated. Triggering application restart..."
-        )
-        try:
-            await restart_callback()
-            # If restart_callback returns (e.g., os.execv failed), log it.
-            logger.error(
-                "Restart callback returned unexpectedly. Restart may have failed."
-            )
-            gui_utils.show_error_banner(page, "应用程序重启失败。请查看日志。")
-        except Exception as restart_ex:
-            logger.critical(
-                f"Error calling restart callback: {restart_ex}", exc_info=True
-            )
-            gui_utils.show_error_banner(page, f"调用重启时出错: {restart_ex}")
+        # REMOVED: Delay and restart logic
 
     except Exception as ex:
-        error_msg = f"保存配置时出错: {ex}"  # Updated error message context
+        error_msg = f"保存或重载配置时出错: {ex}" # Reverted error message context
         logger.critical(error_msg, exc_info=True)
         # Show error banner
         gui_utils.show_error_banner(page, error_msg)
