@@ -91,6 +91,10 @@ class AppState:
         self.output_dispatcher: Optional["OutputDispatcher"] = None
         self.llm_client: Optional["LLMClient"] = None
         self.vrc_client: Optional["VRCClient"] = None
+        # --- Text Input Timer State ---
+        self.text_input_timer_task: Optional[asyncio.Task] = None
+        self.text_input_timer_delay: float = 5.0  # Default delay in seconds
+        self.is_timer_enabled: bool = False
 
 
 def main(page: ft.Page):
@@ -330,6 +334,89 @@ def main(page: ft.Page):
     # REMOVED: Definitions of save_config_handler, reload_config_controls, reload_config_handler
     # REMOVED: Definitions of _create_example_row_internal, add_example_handler
     # REMOVED: restart_application function
+
+
+    # --- Timer Logic ---
+    def _cancel_text_timer(app_state: AppState):
+        """Cancels the existing text input timer task."""
+        if app_state.text_input_timer_task and not app_state.text_input_timer_task.done():
+            app_state.text_input_timer_task.cancel()
+            logger.debug("Text input timer cancelled.")
+        app_state.text_input_timer_task = None
+
+    async def _timer_expired(
+        app_state: AppState,
+        page: ft.Page,
+        text_input_field: ft.TextField,
+        submit_text_button: ft.ElevatedButton,
+        text_input_progress: ft.ProgressRing,
+        # Need submit_text_handler ref to call it
+        submit_handler_func: callable,
+    ):
+        """Callback executed when the timer expires."""
+        logger.info(f"Text input timer expired after {app_state.text_input_timer_delay}s.")
+        app_state.text_input_timer_task = None # Clear task reference
+        # Check if there's actually text to send before submitting
+        if text_input_field.value and text_input_field.value.strip():
+            logger.info("Timer expired, submitting text...")
+            # Call the original submit handler, simulating a button click (event is None)
+            # Ensure the submit handler itself cancels any *new* timer if needed
+            # (though it shouldn't start one in this flow)
+            await submit_handler_func(e=None) # Pass None for the event
+        else:
+            logger.info("Timer expired, but text input is empty. Doing nothing.")
+            # Ensure UI is in correct state if submit wasn't called
+            text_input_field.disabled = False
+            submit_text_button.disabled = False
+            text_input_progress.visible = False
+            if page.window_exists(): # Check if page exists before updating
+                 page.update()
+
+
+    async def _start_text_timer(
+        app_state: AppState,
+        page: ft.Page,
+        text_input_field: ft.TextField,
+        submit_text_button: ft.ElevatedButton,
+        text_input_progress: ft.ProgressRing,
+        submit_handler_func: callable, # Need submit handler ref
+    ):
+        """Starts or restarts the text input timer if conditions are met."""
+        _cancel_text_timer(app_state) # Always cancel previous timer first
+
+        if (
+            app_state.is_timer_enabled
+            and app_state.text_input_timer_delay > 0
+            and text_input_field.value and text_input_field.value.strip() # Only start if text exists
+        ):
+            logger.debug(f"Starting text input timer for {app_state.text_input_timer_delay}s...")
+            timer_callback = functools.partial(
+                _timer_expired,
+                app_state,
+                page,
+                text_input_field,
+                submit_text_button,
+                text_input_progress,
+                submit_handler_func, # Pass submit handler ref
+            )
+            # Use asyncio.create_task to run the timer coro
+            app_state.text_input_timer_task = asyncio.create_task(
+                _run_timer_async(app_state.text_input_timer_delay, timer_callback)
+            )
+
+
+    async def _run_timer_async(delay: float, callback: callable):
+        """Helper async function to wait and then call the callback."""
+        try:
+            await asyncio.sleep(delay)
+            logger.debug(f"Timer finished waiting for {delay}s.")
+            await callback() # Await the callback which might be async
+        except asyncio.CancelledError:
+            logger.debug("Timer task explicitly cancelled.")
+            # Don't call callback if cancelled
+        except Exception as e:
+            logger.error(f"Error during timer execution: {e}", exc_info=True)
+
 
     # --- Log Tab Handlers ---
     async def clear_log_handler(e: ft.ControlEvent):
@@ -627,17 +714,18 @@ def main(page: ft.Page):
     else:
         logger.error("Cannot assign handler: Add example button is invalid.")
 
-    # --- Create Text Input Tab Elements & Handler ---
+    # --- Create Text Input Tab Elements & Handlers ---
     text_input_field = ft.TextField(
-        label="在此输入文本",
+        label="在此输入文本 (或等待定时器发送)", # Updated label
         multiline=True,
-        min_lines=1,  # Reduced min lines
-        max_lines=3,  # Reduced max lines
-        # expand=True, # Removed: Let the parent Column's alignment handle width/centering
+        min_lines=3,  # Increased min lines for better multiline visibility
+        max_lines=5,  # Increased max lines
+        # expand=True, # Keep removed
         border_color=ft.colors.OUTLINE,
-        dense=True,  # Make the text field more compact vertically
-        on_submit=None,  # Assign after handler definition below
-        text_align=ft.TextAlign.LEFT,  # Keep text left-aligned within the field
+        dense=True,
+        on_submit=None,  # Assigned later
+        on_change=None,  # Assigned later
+        text_align=ft.TextAlign.LEFT,
     )
     text_input_progress = ft.ProgressRing(
         visible=False, width=16, height=16, stroke_width=2
@@ -645,15 +733,39 @@ def main(page: ft.Page):
     submit_text_button = ft.ElevatedButton(
         "发送",
         icon=ft.icons.SEND,
-        tooltip="处理并发送输入的文本 (Enter 键也可发送)",  # Updated tooltip
-        on_click=None,  # Assign after handler definition below
+        tooltip="处理并发送输入的文本 (Enter 键也可发送)",
+        on_click=None,  # Assigned later
     )
 
+    # --- Timer UI Elements ---
+    timer_switch = ft.Switch(
+        label="启用定时发送",
+        value=app_state.is_timer_enabled,
+        on_change=timer_switch_change, # Assigned here
+        tooltip="启用后，停止输入指定时间后自动发送",
+    )
+    timer_delay_input = ft.TextField(
+        label="延迟(秒)",
+        value=str(app_state.text_input_timer_delay),
+        width=80, # Make input smaller
+        dense=True,
+        keyboard_type=ft.KeyboardType.NUMBER,
+        on_change=timer_delay_change, # Assigned here
+        tooltip="停止输入后等待多少秒发送 (例如 5.0)",
+    )
+
+
     async def submit_text_handler(e: ft.ControlEvent):
-        """Handles clicks on the text input submit button."""
+        """
+        Handles clicks on the text input submit button or Enter key.
+        Also called by the timer expiry function.
+        """
+        # Always cancel any pending timer on manual submit or timer fire
+        _cancel_text_timer(app_state)
+
         input_text = text_input_field.value
         if not input_text or not input_text.strip():
-            # Don't show banner on empty submit via Enter key, just do nothing.
+            # Don't show banner on empty submit, just do nothing.
             # gui_utils.show_error_banner(page, "请输入要发送的文本。")
             logger.debug("Empty text submitted, doing nothing.")
             return
@@ -690,8 +802,9 @@ def main(page: ft.Page):
                 )  # Log before dispatch
                 await app_state.output_dispatcher.dispatch(processed_text)
                 # REMOVED: update_output_callback(...) call
-                logger.info("Text input dispatched successfully.")  # Log after dispatch
-                text_input_field.value = ""  # Clear input on success
+                logger.info("Text input dispatched successfully.")
+                text_input_field.value = ""  # Clear input on successful dispatch
+                # DO NOT restart timer here. Timer restarts on text_input_change.
             else:
                 logger.error(
                     "OutputDispatcher not available, cannot dispatch text input."
@@ -728,26 +841,35 @@ def main(page: ft.Page):
 
     log_tab_layout = create_log_tab_content(log_elements)  # Create log tab layout
 
-    # --- Text Input Tab Layout (Revised) ---
+    # --- Text Input Tab Layout (Revised with Timer) ---
     text_input_tab_content = ft.Column(
         [
-            ft.Text(
-                "手动输入文本并发送，将通过与语音输入相同的处理流程（LLM -> 输出）。",
-                size=12,
-                text_align=ft.TextAlign.CENTER,  # Center description text
-            ),
-            text_input_field,  # Add the text field directly
-            ft.Row(  # Row for button and progress, centered below field
+            # Removed the descriptive text, label is clearer now
+            # ft.Text(
+            #     "手动输入文本并发送...",
+            #     size=12,
+            #     text_align=ft.TextAlign.CENTER,
+            # ),
+            text_input_field,  # The multi-line text field
+            ft.Row( # Row for Send button and progress indicator
                 [submit_text_button, text_input_progress],
-                alignment=ft.MainAxisAlignment.CENTER,  # Center button/progress horizontally
-                spacing=5,
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=10,
+            ),
+            ft.Divider(height=10, color=ft.colors.TRANSPARENT), # Spacer
+            ft.Row( # Row for Timer controls
+                [
+                    timer_switch,
+                    timer_delay_input,
+                ],
+                alignment=ft.MainAxisAlignment.CENTER, # Center timer controls
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=10,
             ),
         ],
-        # Center the column's children horizontally
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=10,  # Spacing between description, field, and button row
-        expand=True,  # Allow vertical expansion
-        # Width will be controlled by parent padding and centering.
+        spacing=10,
+        expand=True,
     )
 
     # --- Add Tabs to Page ---
