@@ -128,6 +128,56 @@ def main(page: ft.Page):
         page.update()  # Try to show the error
         return  # Stop GUI setup
 
+    # --- Create Dashboard UI Elements ---
+    # Elements are created by a function in gui_dashboard
+    dashboard_elements = create_dashboard_elements()
+    # Extract key elements needed locally for callbacks and logic
+    status_icon = dashboard_elements.get("status_icon")
+    status_label = dashboard_elements.get("status_label")
+    # status_row = dashboard_elements.get("status_row") # Not directly needed
+    output_text = dashboard_elements.get("output_text")
+    toggle_button = dashboard_elements.get("toggle_button")
+    progress_indicator = dashboard_elements.get("progress_indicator")
+    audio_level_bar = dashboard_elements.get("audio_level_bar") # Get the new element
+
+    # Validate that essential dashboard elements were created
+    if not all(
+        [status_icon, status_label, output_text, toggle_button, progress_indicator, audio_level_bar] # Add new element to check
+    ):
+        logger.critical(
+            "CRITICAL: Failed to create essential dashboard UI elements. GUI cannot function."
+        )
+        page.add(
+            ft.Text(
+                "CRITICAL ERROR: Failed to create dashboard UI. Check logs.",
+                color=ft.colors.RED,
+            )
+        )
+        page.update()
+        return  # Stop GUI setup
+
+    # --- Partial Callbacks (Binding arguments) ---
+    # Create partial functions for callbacks that need page and UI elements
+    # These are passed to AudioManager and OutputDispatcher
+    update_status_callback = functools.partial(
+        update_status_display,  # Function from gui_dashboard
+        page,
+        status_icon,
+        status_label,
+        toggle_button,
+        progress_indicator,
+    )
+    update_output_callback = functools.partial(
+        update_output_display,  # Function from gui_dashboard
+        page,
+        output_text,
+    )
+    update_audio_level_callback = functools.partial(
+        update_audio_level_display, # Function from gui_dashboard
+        page,
+        audio_level_bar, # Pass the progress bar element
+    )
+
     # --- Initialize Core Components (based on config) ---
     logger.info("Initializing core components...")
     try:
@@ -234,34 +284,6 @@ def main(page: ft.Page):
         icon=ft.icons.REFRESH,
         tooltip="放弃当前更改并从 config.yaml 重新加载",
     )
-
-    # --- Create Dashboard UI Elements ---
-    # Elements are created by a function in gui_dashboard
-    dashboard_elements = create_dashboard_elements()
-    # Extract key elements needed locally for callbacks and logic
-    status_icon = dashboard_elements.get("status_icon")
-    status_label = dashboard_elements.get("status_label")
-    # status_row = dashboard_elements.get("status_row") # Not directly needed
-    output_text = dashboard_elements.get("output_text")
-    toggle_button = dashboard_elements.get("toggle_button")
-    progress_indicator = dashboard_elements.get("progress_indicator")
-    audio_level_bar = dashboard_elements.get("audio_level_bar") # Get the new element
-
-    # Validate that essential dashboard elements were created
-    if not all(
-        [status_icon, status_label, output_text, toggle_button, progress_indicator, audio_level_bar] # Add new element to check
-    ):
-        logger.critical(
-            "CRITICAL: Failed to create essential dashboard UI elements. GUI cannot function."
-        )
-        page.add(
-            ft.Text(
-                "CRITICAL ERROR: Failed to create dashboard UI. Check logs.",
-                color=ft.colors.RED,
-            )
-        )
-        page.update()
-        return  # Stop GUI setup
 
     # --- Partial Callbacks (Binding arguments) ---
     # Create partial functions for callbacks that need page and UI elements
