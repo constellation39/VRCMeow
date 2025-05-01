@@ -366,15 +366,27 @@ def main(page: ft.Page):
         # Attempt restart by launching a new detached process and exiting the current one
         logger.critical(">>> Preparing to launch new application instance and exit <<<")
         try:
-            # Ensure sys.executable and sys.argv are valid
+            # Determine if running as a frozen executable
+            is_frozen = getattr(sys, 'frozen', False)
             exec_path = sys.executable
-            exec_args = [exec_path] + sys.argv
-            logger.debug(f"Restart: Launching executable: {exec_path}")
-            logger.debug(f"Restart: Using arguments: {exec_args}")
+            exec_args = []
+
+            if is_frozen:
+                logger.info("Restart: Application is frozen. Restarting the executable directly.")
+                # When frozen, sys.executable is the path to the .exe
+                # We likely don't need/want the original sys.argv when restarting the .exe
+                exec_args = [exec_path]
+            else:
+                logger.info("Restart: Application is running from source. Restarting using Python interpreter.")
+                # When running from source, sys.executable is python, sys.argv includes the script
+                exec_args = [exec_path] + sys.argv
+
+            logger.debug(f"Restart: Determined executable path: {exec_path}")
+            logger.debug(f"Restart: Determined arguments: {exec_args}")
 
             if not exec_path or not exec_args:
                 raise RuntimeError(
-                    "sys.executable or sys.argv is not available for restart."
+                    "Could not determine executable path or arguments for restart."
                 )
 
             # Platform-specific flags for detaching the process
@@ -382,7 +394,7 @@ def main(page: ft.Page):
             if sys.platform == "win32":
                 creationflags = subprocess.DETACHED_PROCESS # Detach on Windows
 
-            # Launch the new process
+            # Launch the new process using the determined arguments
             logger.info(f"Launching new process: {exec_args} with creationflags={creationflags}")
             subprocess.Popen(exec_args, creationflags=creationflags)
 
