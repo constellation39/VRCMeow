@@ -16,17 +16,30 @@ dashscope:
     # 翻译的目标语言 (可选)
     # 如果设置了有效的语言代码 (例如 "en", "ja", "ko")，将启用翻译功能。
     # 将此值留空 (`""`) 或设置为 `null` 以禁用翻译，仅执行语音识别。
-    # 注意：请确保所选的 `model` 支持您指定的目标语言。
+    # 注意：请确保所选的 `selected_model` 支持您指定的目标语言。
     translation_target_language: "" # 示例: "en" (翻译为英语), "" (禁用翻译)
 
-    # 使用的 Dashscope 模型 (必需)
-    # - "gummy-realtime-v1": 支持实时语音识别和翻译。
-    # - "paraformer-realtime-v2", "paraformer-realtime-v1": 仅支持实时语音识别。
-    # 请查阅 Dashscope 文档以获取最新的模型列表和功能。
-    model: "gummy-realtime-v1"
+    # 选择要使用的 Dashscope STT 模型 (必需)
+    # 此处的值必须是下面 `models` 字典中的一个键。
+    selected_model: "gummy-realtime-v1"
+
+    # 定义可用的 Dashscope STT 模型及其配置 (必需)
+    # 每个模型的键是模型的名称，值是一个包含其属性的字典。
+    # - `sample_rate` (必需): 模型所需的音频采样率 (Hz)。
+    # - `supports_translation` (必需): 模型是否支持翻译功能。
+    models:
+      gummy-realtime-v1:
+        sample_rate: 16000
+        supports_translation: true
+      paraformer-realtime-v2:
+        sample_rate: 16000
+        supports_translation: false
+      # paraformer-realtime-v1: # 如果需要，可以添加其他模型
+      #   sample_rate: 16000
+      #   supports_translation: false
 
     # 中间结果处理方式 (可选, 仅影响 VRChat OSC 输出)
-    # 定义如何处理 STT 引擎返回的非最终识别结果。
+    # 定义如何处理 STT 引擎返回的非最终识别结果 (如果模型支持)。
     # - "ignore": (默认) 忽略中间结果，仅发送最终识别/翻译文本。
     # - "show_typing": 在 VRChat 中显示 "正在输入..." 状态。
     # - "show_partial": 在 VRChat 中显示部分识别的文本。
@@ -41,15 +54,8 @@ audio:
   # 设置为 "Default" (或留空/null) 以使用系统的默认输入设备。
   # device: "Default" # 取消注释并替换为您的设备名称，例如 "麦克风 (Realtek High Definition Audio)"
 
-  # 音频采样率 (Hz) (可选)
-  # 设置为 `null` (或留空) 以尝试自动检测并使用默认输入设备的采样率。
-  # 如果自动检测失败，或取消注释此行并设置具体值，将使用指定的值。
-  # 默认回退值: 16000 Hz。
-  # 注意：确保采样率与所选的 Dashscope STT 模型兼容 (例如, Gummy 模型通常需要 16000 Hz)。
-  sample_rate: null # 示例: 16000
-
   # 音频通道数 (可选)
-  # Dashscope Gummy 模型通常需要单声道 (1)。
+  # Dashscope 模型通常需要单声道 (1)。
   channels: 1
 
   # 音频数据类型 (可选)

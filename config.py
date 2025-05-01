@@ -44,8 +44,19 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
         "stt": {
             # 翻译的目标语言 (可选) - `None` 或空字符串 `""` 表示禁用翻译。
             "translation_target_language": None,  # 示例: "en", "ja", "ko"
-            # 使用的 Dashscope 模型 (必需)
-            "model": "gummy-realtime-v1",  # 示例: "paraformer-realtime-v2"
+            # 选择要使用的 Dashscope STT 模型 (必需)
+            "selected_model": "gummy-realtime-v1",
+            # 定义可用的 Dashscope STT 模型及其配置 (必需)
+            "models": {
+                "gummy-realtime-v1": {
+                    "sample_rate": 16000,
+                    "supports_translation": True,
+                },
+                "paraformer-realtime-v2": {
+                    "sample_rate": 16000,
+                    "supports_translation": False,
+                },
+            },
             # 中间结果处理方式 (可选, 仅影响 VRChat OSC 输出)
             "intermediate_result_behavior": "ignore",  # 可选: "show_typing", "show_partial"
         },
@@ -56,11 +67,10 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
     "audio": {
         # 音频输入设备名称 (可选) - `None` 或 "Default" 表示使用系统默认设备。
         "device": None,  # 示例: "麦克风 (Realtek High Definition Audio)"
-        # 音频采样率 (Hz) (可选) - `None` 表示尝试自动检测，失败则回退到 16000。
-        "sample_rate": None,  # 示例: 16000
-        # 音频通道数 (可选) - Gummy 模型通常需要 1。
+        # 音频采样率 (Hz) - 不再在此处配置，而是从所选的 STT 模型配置中获取。
+        # 音频通道数 (可选) - Dashscope 模型通常需要 1。
         "channels": 1,
-        # 音频数据类型 (可选) - Gummy 模型通常需要 'int16'。
+        # 音频数据类型 (可选) - Dashscope 模型通常需要 'int16'。
         "dtype": "int16",
         # 调试回声模式 (可选) - 将麦克风输入直接发送到扬声器。
         "debug_echo_mode": False,

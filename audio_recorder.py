@@ -145,20 +145,40 @@ class AudioManager:
         self.channels = config.get("audio.channels", 1)  # Use get for robustness
         self.dtype = config.get("audio.dtype", "int16")
         self.debug_echo_mode = config.get("audio.debug_echo_mode", False)
-        # Use new nested key for STT model
-        self.stt_model = config.get("dashscope.stt.model", "gummy-realtime-v1")
         self.device = config.get("audio.device", "Default")  # Load selected device
 
-        # Dynamically determine sample rate if not configured
-        if self.sample_rate is None:
-            self.sample_rate = (
-                self._determine_sample_rate()
-            )  # Now considers selected device
+        # --- Get STT Model and Sample Rate from Config ---
+        selected_model_name = config.get("dashscope.stt.selected_model")
+        stt_models_config = config.get("dashscope.stt.models", {})
+        model_info = stt_models_config.get(selected_model_name)
 
-    def _determine_sample_rate(self) -> int:
-        """Queries device info to determine sample rate if not set in config, considering the selected device."""
-        device_index_to_query: Optional[int] = None
-        log_device_description = "default input device"
+        if not selected_model_name or not model_info:
+            # Fallback or error if selected model is invalid or not found
+            fallback_model = "gummy-realtime-v1" # Or choose another default
+            logger.error(
+                f"Selected STT model '{selected_model_name}' not found or invalid in config. Falling back to '{fallback_model}'."
+            )
+            selected_model_name = fallback_model
+            model_info = stt_models_config.get(selected_model_name, {}) # Try getting fallback info
+
+        self.stt_model = selected_model_name # Store the final selected model name
+        self.sample_rate = model_info.get("sample_rate")
+
+        # Validate if sample rate was found for the selected (or fallback) model
+        if self.sample_rate is None:
+            default_sr = 16000 # Define a hardcoded default if config is broken
+            logger.critical(
+                f"Sample rate not defined for STT model '{self.stt_model}' in config! Using default: {default_sr} Hz. Audio stream might fail!"
+            )
+            self.sample_rate = default_sr
+        else:
+            logger.info(f"Using STT Model: '{self.stt_model}' with Sample Rate: {self.sample_rate} Hz")
+
+    # REMOVED: _determine_sample_rate method is no longer needed.
+    # def _determine_sample_rate(self) -> int:
+    #     """Queries device info to determine sample rate if not set in config, considering the selected device."""
+    #     device_index_to_query: Optional[int] = None
+    #     log_device_description = "default input device"
         try:
             # Try to find the index of the specific selected device if it's not "Default"
             configured_device_name = self.device
@@ -224,10 +244,10 @@ class AudioManager:
             logger.error(
                 f"Error querying audio devices for sample rate: {e}", exc_info=True
             )
-            logger.warning("Falling back to 16000 Hz sample rate due to error.")
+            logger.warning("Falling back to 16000 Hz sample rate due to error.") # This code block is now unreachable due to method removal
             return 16000
 
-    # Remove the old _update_status signature that didn't take kwargs
+    # Remove the old _update_status signature that didn't take kwargs # This comment is still relevant
     # def _update_status(self, message: str): ... # REMOVED
 
     # Keep the correctly defined overload signature
@@ -278,20 +298,16 @@ class AudioManager:
     def _run_stt_processor(self):
         """Target function for the STT processing thread. Handles recognizer lifecycle and data feeding."""
         # No longer an async task, but the main logic for the STT thread.
-        model = config.get(
-            "dashscope.stt.model", "gummy-realtime-v1"
-        )  # Initialize model before first use
+        # Model name (self.stt_model) and sample rate (self.sample_rate) are now set in __init__
 
-        logger.info("STT Processor Thread Started.")  # Corrected line
+        logger.info("STT Processor Thread Started.")
         if self.status_callback:
             self._update_status(
                 "STT 线程启动中...", is_processing=True
             )  # Indicate processing during startup
-        # Removed duplicate model initialization
         logger.info(
-            f"STT processing loop (Dashscope, model: {model}) starting in thread {threading.current_thread().ident}..."
+            f"STT processing loop (Dashscope, model: {self.stt_model}) starting in thread {threading.current_thread().ident}..."
         )
-        # self._update_status(f"STT Task Starting (Model: {model})") # Update status handled later
         recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
         # No event loop needed here
         #     from output_dispatcher import OutputDispatcher # Not typically needed here
@@ -317,20 +333,24 @@ class AudioManager:
             recognizer = None  # Reset recognizer before each connection attempt
             try:
                 # --- Check config and model compatibility (re-check each loop) ---
-                # Use correct nested keys with safe access via get()
-                model = config.get("dashscope.stt.model", "gummy-realtime-v1")
-                self.stt_model = model  # Update instance var
-                target_language = config.get(
-                    "dashscope.stt.translation_target_language"
-                )  # Use correct nested key
-                enable_translation = bool(target_language)
-                is_gummy_model = model.startswith("gummy-")
-                is_paraformer_model = model.startswith("paraformer-")
+                # Use instance variables set in __init__
+                current_model = self.stt_model # Get model name from instance var
+                stt_models_config = config.get("dashscope.stt.models", {}) # Reload models dict in case config changed
+                model_info = stt_models_config.get(current_model, {}) # Get current model's info
+
+                target_language = config.get("dashscope.stt.translation_target_language")
+                # Determine translation support based on config, not just model name prefix
+                model_supports_translation = model_info.get("supports_translation", False)
+                enable_translation = bool(target_language) and model_supports_translation
+
+                # Check if model name seems valid (basic check)
+                is_gummy_model = current_model.startswith("gummy-")
+                is_paraformer_model = current_model.startswith("paraformer-")
 
                 if not is_gummy_model and not is_paraformer_model:
-                    error_msg = f"不支持的 Dashscope 模型: {model}。请使用 'gummy-' 或 'paraformer-' 前缀。"
+                    # This check might be redundant if config validation is robust, but keep for safety
+                    error_msg = f"配置中选择的 STT 模型名称 '{current_model}' 似乎无效。请检查 config.yaml。"
                     logger.error(error_msg)
-                    # Fatal error, set status to stopped/error state
                     if self.status_callback:
                         self._update_status(
                             f"错误: {error_msg}", is_running=False, is_processing=False
@@ -338,53 +358,56 @@ class AudioManager:
                     self._stop_event.set()  # Signal stop
                     break  # Exit reconnect loop
 
-                if enable_translation and is_paraformer_model:
-                    logger.warning(
-                        f"Model '{model}' (Paraformer) does not support translation. "
-                        f"'translation_target_language' will be ignored."
+                # Check if translation is requested but not supported by the selected model
+                if bool(target_language) and not model_supports_translation:
+                     logger.warning(
+                        f"配置文件中请求了翻译 (目标语言: {target_language}), "
+                        f"但所选模型 '{current_model}' 不支持翻译。将禁用翻译。"
                     )
-                    enable_translation = False  # Disable translation for this attempt
+                     enable_translation = False # Ensure translation is off
 
                 # --- Select and create recognizer ---
                 # Indicate processing (connecting) state
-                # Ensure self._update_status is callable here
                 if self.status_callback:
                     self._update_status(
-                        f"连接 STT (模型: {model}, 尝试 {retry_count + 1}/{max_retries})...",
+                        f"连接 STT (模型: {current_model}, 尝试 {retry_count + 1}/{max_retries})...",
                         is_processing=True,
                     )
                 logger.info(
-                    f"Attempting to connect STT service (Model: {model}, Attempt {retry_count + 1}/{max_retries})..."
+                    f"Attempting to connect STT service (Model: {current_model}, Attempt {retry_count + 1}/{max_retries})..."
                 )
+
+                # Use model type flags determined earlier
                 if is_gummy_model:
-                    if create_gummy_recognizer is None:  # Keep check
+                    if create_gummy_recognizer is None:
                         raise RuntimeError("Gummy STT module failed to load.")
-                    engine_type = "Gummy"
-                    logger.info(
-                        f"Creating Gummy Recognizer (translation: {enable_translation})..."
-                    )
+                    engine_type = "Gummy" # Keep track of engine type for logging
+                    logger.info(f"Creating Gummy Recognizer (translation enabled: {enable_translation})...")
+                    # Pass the sample rate determined in __init__
                     recognizer = create_gummy_recognizer(
-                        # Remove main_loop argument
-                        sample_rate=self.sample_rate,  # Pass the determined sample rate
+                        sample_rate=self.sample_rate,
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
+                        # Pass translation setting based on config and model capability
+                        enable_translation=enable_translation,
+                        target_language=target_language if enable_translation else None,
                     )
                 elif is_paraformer_model:
-                    if create_paraformer_recognizer is None:  # Keep check
+                    if create_paraformer_recognizer is None:
                         raise RuntimeError("Paraformer STT module failed to load.")
-                    engine_type = "Paraformer"
+                    engine_type = "Paraformer" # Keep track of engine type
                     logger.info("Creating Paraformer Recognizer...")
+                     # Pass the sample rate determined in __init__
                     recognizer = create_paraformer_recognizer(
-                        # Remove main_loop argument
-                        sample_rate=self.sample_rate,  # Pass the determined sample rate
+                        sample_rate=self.sample_rate,
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
                     )
+                # Removed the 'else' block as the initial check should catch invalid model types
 
                 if not recognizer:
-                    raise RuntimeError(
-                        f"Failed to create recognizer instance for model '{model}'."
-                    )
+                    # This case should ideally not be reached if model selection logic is sound
+                    raise RuntimeError(f"未能为模型 '{current_model}' 创建识别器实例。")
 
                 # --- Start Recognizer ---
                 recognizer.start()
@@ -498,7 +521,7 @@ class AudioManager:
                     # Note: error_msg was defined within the IF block in the previous version,
                     # but here it seems to be referenced before definition if the loop gets here.
                     # Define error message here to ensure it's always available
-                    final_error_msg = f"STT 在 {max_retries} 次重试后连接失败 (模型: '{model}')。正在停止 STT 处理。"
+                    final_error_msg = f"STT 在 {max_retries} 次重试后连接失败 (模型: '{current_model}')。正在停止 STT 处理。" # Use current_model
                     logger.critical(final_error_msg)
                     # Indicate final error state: not running, not processing
                     if self.status_callback:
@@ -721,7 +744,7 @@ class AudioManager:
             logger.info("Audio Stream Thread Configuration:")
             # Use the input_name determined earlier, which reflects the actual device used (including default)
             logger.info(f"  Device: {input_name} (Index: {stream_device_index})")
-            logger.info(f"  Sample Rate: {self.sample_rate} Hz")
+            logger.info(f"  Sample Rate: {self.sample_rate} Hz (from model '{self.stt_model}')") # Clarify origin
             logger.info(f"  Channels: {self.channels}")
             logger.info(f"  Dtype: {self.dtype}")
             logger.info(f"  Debug Echo: {self.debug_echo_mode}")
@@ -775,7 +798,7 @@ class AudioManager:
             error_msg = f"Audio Parameter Error: {e}. Check config."
             logger.error(error_msg, exc_info=True)
             logger.error(
-                f"Verify sample rate ({self.sample_rate}), channels ({self.channels}), dtype ({self.dtype})."
+                f"Verify sample rate ({self.sample_rate} for model '{self.stt_model}'), channels ({self.channels}), dtype ({self.dtype})."
             )
             # Indicate fatal error state
             if self.status_callback:
