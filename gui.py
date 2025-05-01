@@ -742,8 +742,8 @@ def main(page: ft.Page):
         # expand=True, # Keep removed
         border_color=ft.colors.OUTLINE,
         dense=True,
-        on_submit=None,  # Assigned later
-        on_change=None,  # Assigned later
+        on_submit=submit_text_handler,  # Assign handler for Enter key
+        on_change=text_input_change,   # Assign handler for typing (timer reset)
         text_align=ft.TextAlign.LEFT,
     )
     text_input_progress = ft.ProgressRing(
@@ -912,8 +912,8 @@ def main(page: ft.Page):
 
 
     # Assign handlers now that they are defined
-    text_input_field.on_submit = submit_text_handler # Pressing Enter
-    text_input_field.on_change = text_input_change   # Typing in the field
+    # text_input_field.on_submit = submit_text_handler # Assigned directly in definition now
+    # text_input_field.on_change = text_input_change   # Assigned directly in definition now
     submit_text_button.on_click = submit_text_handler # Clicking the button
 
     # --- Create Tab Layouts ---
@@ -932,6 +932,7 @@ def main(page: ft.Page):
     # --- Text Input Tab Layout (Revised with Timer) ---
     text_input_tab_content = ft.Column(
         [
+            ft.Divider(height=10, color=ft.colors.TRANSPARENT), # Add spacer at the top
             # Removed the descriptive text, label is clearer now
             # ft.Text(
             #     "手动输入文本并发送...",
