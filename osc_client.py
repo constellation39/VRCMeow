@@ -37,9 +37,9 @@ class VRCClient:
         # 使用传入的参数初始化客户端
         self._osc_client = pythonosc_udp_client.SimpleUDPClient(address, port)
         self.interval = interval
-        self.format_string = config.get(
-            "outputs.vrc_osc.format", "{text}"
-        )  # Load format string
+        self.format_string = config.get("outputs.vrc_osc.format", "{text}")
+        self._send_immediately = config.get("outputs.vrc_osc.send_immediately", True)
+        self._play_notification_sound = config.get("outputs.vrc_osc.play_notification_sound", True)
         self._address = address  # 可以存储起来用于日志记录
         self._port = port  # 可以存储起来用于日志记录
 
@@ -123,12 +123,11 @@ class VRCClient:
 
             # 首先发送 typing=False 清除输入状态
             self._osc_client.send_message("/chatbox/typing", False)
-            # 然后发送 *已格式化* 的消息内容，send_now=True 表示立即发送
-            self._osc_client.send_message(
-                "/chatbox/input", [content, True]
-            )  # VRC 需要列表 [message, send_now=True]
+            # 然后发送 *已格式化* 的消息内容，以及配置的立即发送和通知声音设置
+            payload = [content, self._send_immediately, self._play_notification_sound]
+            self._osc_client.send_message("/chatbox/input", payload)
             self._last_send_time = time.time()  # 更新上次发送时间
-            logger.info(f"OSC 消息已发送: {content}")  # Log the content as received
+            logger.info(f"OSC 消息已发送: {payload}") # Log the full payload
         except Exception as e:
             logger.error(
                 f"发送 OSC 消息时出错: {e}", exc_info=True

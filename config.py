@@ -72,6 +72,8 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
             "port": 9000,
             "message_interval": 1.333, # Minimum interval between messages (seconds)
             "format": "{text}", # Format string for VRChat output ({text})
+            "send_immediately": True, # Send immediately (True) or populate keyboard (False)
+            "play_notification_sound": True, # Play notification sound (True) or not (False)
         },
         "console": {
             "enabled": True, # Print final results to console

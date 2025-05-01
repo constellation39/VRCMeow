@@ -102,6 +102,10 @@ outputs:
     # {text} 将被替换为最终识别/处理的文本。
     # 示例: "{text}", ">> {text}", "Meow: {text}", "\t{text}\t"
     format: "\t{text}\t" # 示例格式（前后带制表符）
+    # 设置为 true 以立即发送消息，设置为 false 以填充键盘。
+    send_immediately: true
+    # 设置为 true 以在发送消息时播放通知声音（仅当 send_immediately 为 true 时相关）。
+    play_notification_sound: true
 
   # --- 控制台输出 ---
   console:
