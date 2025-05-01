@@ -38,6 +38,7 @@ else:
 from audio_recorder import AudioManager
 from config import config  # Import singleton and class
 import gui_utils
+import prompt_presets # Import the missing module
 from gui_config import (
     create_audio_controls,
     create_config_example_row,
