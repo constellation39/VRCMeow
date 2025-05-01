@@ -200,30 +200,42 @@ class ParaformerCallback(RecognitionCallback):
         log_prefix = ""
         is_final = False
 
-        # Determine if the result is final based on 'end_time'.
-        # According to the documentation for the 'result-generated' event,
-        # if payload.output.sentence.end_time is not null, it's a final result for that sentence.
-        if (
-            sentence_data
-            and "end_time" in sentence_data
-            and sentence_data["end_time"] is not None # Check if end_time exists and is not null
-        ):
-            is_final = True
+        # --- Process result-generated event ---
+        # The SDK calls this method for 'result-generated' events.
+        # Other events like 'task-started', 'task-finished', 'task-failed'
+        # are likely handled by on_open, on_complete, on_error respectively.
 
-        # --- Extract Text ---
-        if sentence_data and "text" in sentence_data and sentence_data["text"]:
-            text_to_process = sentence_data["text"]
-        else:
-            # No text in this event, nothing to do
-            self.logger.debug("Paraformer 事件无有效文本。")
+        sentence_data = result.get_sentence()  # Corresponds to payload.output.sentence
+        request_id = result.get_request_id() # Corresponds to header.task_id
+        # Usage might be derived differently by the SDK or always null as per docs
+        usage = result.get_usage(sentence_data)
+
+        self.logger.debug(
+            f"ParaformerCallback.on_event (result-generated) in Thread ID: {threading.current_thread().ident}"
+        )
+        self.logger.debug(
+            f"Dashscope Paraformer Event: ID={request_id}, Usage={usage}, Sentence={sentence_data}"
+        )
+
+        # --- Check for valid sentence data and text ---
+        if not sentence_data or not sentence_data.get("text"):
+            # Handle potential heartbeat or empty results if necessary
+            if sentence_data and sentence_data.get("heartbeat") is True:
+                 self.logger.debug("Paraformer heartbeat received, skipping.")
+            else:
+                 self.logger.debug("Paraformer 事件无有效文本或句子数据。")
             return
+
+        text_to_process = sentence_data["text"]
+
+        # --- Determine if the result is final ---
+        # According to docs, end_time is null for intermediate results.
+        is_final = sentence_data.get("end_time") is not None
 
         # --- Handle Final Result ---
         if is_final:
-            log_prefix = "最终识别"
-            self.logger.info(f"{log_prefix}: {text_to_process}")
-            # INFO: Log final text before potential LLM processing
-            self.logger.info(f"STT_PARA: Final text received: '{text_to_process}'")
+            log_prefix = "最终识别 (Final)"
+            self.logger.info(f"STT_PARA: {log_prefix}: '{text_to_process}'")
 
             # --- Log LLM processing intent ---
             if self.llm_client and self.llm_client.enabled:
@@ -254,25 +266,26 @@ class ParaformerCallback(RecognitionCallback):
             )
 
         # --- Handle Intermediate Result ---
-        else:  # Not final (Intermediate result from Paraformer)
+        else:  # Not final (Intermediate result)
+            log_prefix = "中间结果 (Intermediate)"
             # Log the intermediate text regardless of behavior setting
             self.logger.info(
-                f"STT_PARA: Intermediate text received: '{text_to_process}'"
-            )  # <-- Added log line
+                f"STT_PARA: {log_prefix}: '{text_to_process}'"
+            )
 
             if self.intermediate_behavior == "show_typing":
-                # Send "Typing..." status periodically via dispatcher
+                # Send "Typing..." status periodically via VRC OSC if enabled
                 current_time = time.monotonic()
                 if current_time - self._last_typing_send_time >= self._typing_interval:
-                    log_prefix = "中间状态 (Typing...)"
                     # Send "Typing..." only via VRC OSC if enabled
                     if (
                         self.vrc_osc_intermediate_enabled
                         and self.vrc_client_for_intermediate
                     ):
                         self.logger.debug(
-                            f"STT_PARA: Preparing background thread for intermediate VRC OSC: '{log_prefix}'"
+                            f"STT_PARA: Sending intermediate VRC OSC: 'Typing...'"
                         )
+                        # Use the existing thread-based OSC sender
                         osc_thread = threading.Thread(
                             target=self._send_osc_intermediate,
                             args=("Typing...",),
@@ -285,18 +298,15 @@ class ParaformerCallback(RecognitionCallback):
                         )
                     else:
                         self.logger.debug(
-                            f"Intermediate result '{log_prefix}' generated but VRC OSC sending disabled/unavailable."
+                            "Intermediate result 'Typing...' generated but VRC OSC sending disabled/unavailable."
                         )
                 # else: # Suppress frequent typing updates
-                #    self.logger.debug("Typing... 状态更新已抑制 (过于频繁)")
+                #    self.logger.debug("Typing... status update suppressed (too frequent)")
 
             elif self.intermediate_behavior == "show_partial":
-                # Paraformer doesn't really give partials like Gummy.
-                # We could send the latest non-final sentence, but it might be confusing.
-                # Paraformer doesn't provide granular partial results like Gummy.
-                # We will send the latest non-final sentence as the partial result via VRC OSC if enabled.
-                log_prefix = "中间结果 (部分)"
-                self.logger.debug(f"STT_PARA: {log_prefix}: {text_to_process}")
+                # Send the intermediate text via VRC OSC if enabled
+                log_prefix = "中间结果 (Partial)" # Corrected log prefix variable name
+                self.logger.debug(f"STT_PARA: {log_prefix}: '{text_to_process}'") # Use corrected variable
                 # Send partial text only via VRC OSC if enabled
                 if (
                     self.vrc_osc_intermediate_enabled
