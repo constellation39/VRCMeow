@@ -1,14 +1,13 @@
 import flet as ft
-from typing import Dict, Any, Optional, Callable, TYPE_CHECKING, List
+from typing import Dict, Any, Optional, Callable, TYPE_CHECKING
 import logging
 import asyncio
-import sounddevice as sd # Import sounddevice
 import copy
 import gui_utils  # Import for close_banner
-from audio_recorder import get_input_devices # Import device getter
-import sys
-import os
-from typing import Dict, Any, Optional, Callable, TYPE_CHECKING, List, Awaitable # Added Awaitable
+from audio_recorder import get_input_devices  # Import device getter
+from typing import (
+    Awaitable,
+)  # Added Awaitable
 
 
 # Use standard logging; setup happens elsewhere
@@ -16,8 +15,9 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from config import Config  # Type hint only
+
     # Avoid circular import for Config singleton instance, pass it as arg
-    from gui import AppState # Import AppState for type hinting
+    from gui import AppState  # Import AppState for type hinting
 
 # --- Configuration UI Element Definitions & Helpers ---
 
@@ -93,35 +93,51 @@ def create_audio_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Contro
 
     # --- Microphone Selection Dropdown ---
     device_options = []
-    selected_device_value = audio_conf.get("device", "Default") # Get configured value
+    selected_device_value = audio_conf.get("device", "Default")  # Get configured value
     try:
         available_devices = get_input_devices()
         # Add "Default" option first
-        device_options.append(ft.dropdown.Option(key="Default", text="Default Input Device"))
+        device_options.append(
+            ft.dropdown.Option(key="Default", text="Default Input Device")
+        )
         # Add other devices
         for device in available_devices:
-            if device.get("name") == "Error querying devices": # Handle error case from get_input_devices
-                 device_options.append(ft.dropdown.Option(key="error", text="Error querying devices", disabled=True))
-                 continue
+            if (
+                device.get("name") == "Error querying devices"
+            ):  # Handle error case from get_input_devices
+                device_options.append(
+                    ft.dropdown.Option(
+                        key="error", text="Error querying devices", disabled=True
+                    )
+                )
+                continue
             # Use the user-friendly name for display and also as the key to store in config
             device_name = device.get("name", "Unknown Device")
             option_text = f"{device_name}"
             if device.get("is_default"):
-                option_text += " (System Default)" # Indicate which one is the system default
+                option_text += (
+                    " (System Default)"  # Indicate which one is the system default
+                )
 
             device_options.append(ft.dropdown.Option(key=device_name, text=option_text))
 
         # Ensure the configured value is actually in the options list
-        if selected_device_value != "Default" and not any(opt.key == selected_device_value for opt in device_options):
-            logger.warning(f"Configured audio device '{selected_device_value}' not found in available devices. Falling back to Default.")
+        if selected_device_value != "Default" and not any(
+            opt.key == selected_device_value for opt in device_options
+        ):
+            logger.warning(
+                f"Configured audio device '{selected_device_value}' not found in available devices. Falling back to Default."
+            )
             # Add a temporary option for the missing device? Or just fallback? Fallback is safer.
             # device_options.append(ft.dropdown.Option(key=selected_device_value, text=f"{selected_device_value} (Not Found)", disabled=True))
-            selected_device_value = "Default" # Reset to default if not found
+            selected_device_value = "Default"  # Reset to default if not found
 
     except Exception as e:
         logger.error(f"Failed to populate microphone list: {e}", exc_info=True)
-        device_options.append(ft.dropdown.Option(key="error", text="Error loading devices", disabled=True))
-        selected_device_value = "Default" # Fallback
+        device_options.append(
+            ft.dropdown.Option(key="error", text="Error loading devices", disabled=True)
+        )
+        selected_device_value = "Default"  # Fallback
 
     controls["audio.device"] = ft.Dropdown(
         label="麦克风 (输入设备)",
@@ -134,7 +150,7 @@ def create_audio_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Contro
 
     controls["audio.sample_rate"] = ft.TextField(
         label="采样率 (Hz)",
-        value=str(audio_conf.get("sample_rate") or ""), # Keep existing logic
+        value=str(audio_conf.get("sample_rate") or ""),  # Keep existing logic
         hint_text="留空则使用设备默认值 (例如 16000)",
         keyboard_type=ft.KeyboardType.NUMBER,
         tooltip="音频输入采样率。需要与所选 STT 模型兼容",
@@ -241,7 +257,7 @@ def create_vrc_osc_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
     )
     controls["outputs.vrc_osc.format"] = ft.TextField(
         label="VRC OSC 消息格式",
-        value=vrc_conf.get("format", "{text}"), # Default format from example
+        value=vrc_conf.get("format", "{text}"),  # Default format from example
         tooltip="发送到 VRChat 的消息格式。可用占位符: {text}",
     )
     return controls
@@ -305,7 +321,7 @@ def create_logging_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
         tooltip="控制应用程序记录信息的详细程度",
     )
     # Add controls for application log file
-    log_file_conf = log_conf.get("file", {}) # Get file sub-dict
+    log_file_conf = log_conf.get("file", {})  # Get file sub-dict
     controls["logging.file.enabled"] = ft.Switch(
         label="启用应用程序日志文件",
         value=log_file_conf.get("enabled", False),
@@ -353,7 +369,7 @@ def create_config_tab_content(
             get_ctrl("dashscope.stt.intermediate_result_behavior"),
             ft.Divider(height=5),
             ft.Text("音频输入", style=ft.TextThemeStyle.TITLE_SMALL),
-            get_ctrl("audio.device"), # Add device dropdown here
+            get_ctrl("audio.device"),  # Add device dropdown here
             get_ctrl("audio.sample_rate"),
             get_ctrl("audio.channels"),
             get_ctrl("audio.dtype"),
@@ -386,7 +402,7 @@ def create_config_tab_content(
             get_ctrl("outputs.vrc_osc.address"),
             get_ctrl("outputs.vrc_osc.port"),
             get_ctrl("outputs.vrc_osc.message_interval"),
-            get_ctrl("outputs.vrc_osc.format"), # Add the format control here
+            get_ctrl("outputs.vrc_osc.format"),  # Add the format control here
         ],
     )
 
@@ -412,8 +428,8 @@ def create_config_tab_content(
         [
             get_ctrl("logging.level"),
             ft.Divider(height=5),
-            get_ctrl("logging.file.enabled"), # Add file logging enabled switch
-            get_ctrl("logging.file.path"),    # Add file logging path field
+            get_ctrl("logging.file.enabled"),  # Add file logging enabled switch
+            get_ctrl("logging.file.path"),  # Add file logging path field
         ],
     )
 
@@ -445,7 +461,7 @@ def create_config_tab_content(
 
     scrollable_column = ft.Column(
         controls=valid_scrollable_sections,
-        expand=True, # Make this column take available vertical space
+        expand=True,  # Make this column take available vertical space
         scroll=ft.ScrollMode.ADAPTIVE,
         spacing=15,
     )
@@ -454,11 +470,11 @@ def create_config_tab_content(
     return ft.Column(
         controls=[
             button_row,
-            ft.Divider(height=10), # Separator between buttons and content
+            ft.Divider(height=10),  # Separator between buttons and content
             scrollable_column,
         ],
-        expand=True, # Ensure the outer column also expands
-        spacing=0, # Adjust spacing if needed
+        expand=True,  # Ensure the outer column also expands
+        spacing=0,  # Adjust spacing if needed
     )
 
 
@@ -541,11 +557,13 @@ async def save_config_handler(
     page: ft.Page,  # Need page for banner
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
-    create_example_row_func: Callable, # Function to create few-shot rows for reload
-    dashboard_update_callback: Optional[Callable[[], None]], # Dashboard update callback (now synchronous call via run_thread)
-    app_state: "AppState", # Add AppState for cleanup before restart
-    restart_callback: Callable[[], Awaitable[None]], # Add restart callback
-    e: Optional[ft.ControlEvent] = None, # Add optional event argument
+    create_example_row_func: Callable,  # Function to create few-shot rows for reload
+    dashboard_update_callback: Optional[
+        Callable[[], None]
+    ],  # Dashboard update callback (now synchronous call via run_thread)
+    app_state: "AppState",  # Add AppState for cleanup before restart
+    restart_callback: Callable[[], Awaitable[None]],  # Add restart callback
+    e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
     """
     保存按钮点击事件处理程序 (配置选项卡)。
@@ -613,7 +631,7 @@ async def save_config_handler(
 
         update_nested_dict(
             new_config_data,
-            "audio.device", # Save selected device
+            "audio.device",  # Save selected device
             get_control_value(all_config_controls, "audio.device", str, "Default"),
         )
         update_nested_dict(
@@ -710,7 +728,10 @@ async def save_config_handler(
             new_config_data,
             "outputs.vrc_osc.format",
             get_control_value(
-                all_config_controls, "outputs.vrc_osc.format", str, "{text}" # Match default
+                all_config_controls,
+                "outputs.vrc_osc.format",
+                str,
+                "{text}",  # Match default
             ),
         )
 
@@ -756,13 +777,15 @@ async def save_config_handler(
         )
         update_nested_dict(
             new_config_data,
-            "logging.file.enabled", # Save app log file enabled state
+            "logging.file.enabled",  # Save app log file enabled state
             get_control_value(all_config_controls, "logging.file.enabled", bool, False),
         )
         update_nested_dict(
             new_config_data,
-            "logging.file.path", # Save app log file path
-            get_control_value(all_config_controls, "logging.file.path", str, "vrcmeow_app.log"),
+            "logging.file.path",  # Save app log file path
+            get_control_value(
+                all_config_controls, "logging.file.path", str, "vrcmeow_app.log"
+            ),
         )
         # --- End updating from controls ---
 
@@ -855,9 +878,14 @@ async def save_config_handler(
                 # Remove await: update_dashboard_info_display uses page.run_thread internally
                 dashboard_update_callback()
             except Exception as cb_ex:
-                logger.error(f"Error executing dashboard update callback after save: {cb_ex}", exc_info=True)
+                logger.error(
+                    f"Error executing dashboard update callback after save: {cb_ex}",
+                    exc_info=True,
+                )
         else:
-            logger.warning("Dashboard update callback not provided to save_config_handler.")
+            logger.warning(
+                "Dashboard update callback not provided to save_config_handler."
+            )
 
         # Show banner and update page BEFORE initiating restart
         page.update()
@@ -866,18 +894,24 @@ async def save_config_handler(
         await asyncio.sleep(1.0)
 
         # --- Trigger Application Restart ---
-        logger.info("Configuration saved and UI updated. Triggering application restart...")
+        logger.info(
+            "Configuration saved and UI updated. Triggering application restart..."
+        )
         try:
             await restart_callback()
             # If restart_callback returns (e.g., os.execv failed), log it.
-            logger.error("Restart callback returned unexpectedly. Restart may have failed.")
+            logger.error(
+                "Restart callback returned unexpectedly. Restart may have failed."
+            )
             gui_utils.show_error_banner(page, "应用程序重启失败。请查看日志。")
         except Exception as restart_ex:
-            logger.critical(f"Error calling restart callback: {restart_ex}", exc_info=True)
+            logger.critical(
+                f"Error calling restart callback: {restart_ex}", exc_info=True
+            )
             gui_utils.show_error_banner(page, f"调用重启时出错: {restart_ex}")
 
     except Exception as ex:
-        error_msg = f"保存配置时出错: {ex}" # Updated error message context
+        error_msg = f"保存配置时出错: {ex}"  # Updated error message context
         logger.critical(error_msg, exc_info=True)
         # Show error banner
         gui_utils.show_error_banner(page, error_msg)
@@ -917,14 +951,14 @@ def reload_config_controls(
                     logger.debug(
                         f"Config path for '{key}' invalid at '{k}': parent is not a dictionary. Skipping reload for this control."
                     )
-                    logger.warning( # Changed to WARNING
+                    logger.warning(  # Changed to WARNING
                         f"Config path for '{key}' invalid at '{k}': parent is not a dictionary. Skipping reload for this control."
                     )
                     current_value = None  # Indicate value not found
                     valid_path = False
                     break
             except (KeyError, TypeError, IndexError):
-                logger.warning( # Changed to WARNING
+                logger.warning(  # Changed to WARNING
                     f"Key '{key}' path invalid or key missing at '{k}' in reloaded config data. Skipping reload for this control."
                 )
                 current_value = None  # Indicate value not found
@@ -965,17 +999,21 @@ def reload_config_controls(
                     # Optionally set to None or a default if value is invalid? For now, keep existing.
                     # control.value = None # Or some default?
             elif isinstance(control, ft.Dropdown) and key == "audio.device":
-                 # Special handling for device dropdown reload
-                 # Refresh options in case devices changed? No, keep it simple for now.
-                 # Just set the value if it exists in the current options.
-                 current_options = control.options or []
-                 if value is not None and any(opt.key == value for opt in current_options):
-                     control.value = value
-                 elif value == "Default": # Always allow Default
-                     control.value = "Default"
-                 else:
-                     logger.warning(f"Reload: Configured audio device '{value}' not found in dropdown options. Setting to Default.")
-                     control.value = "Default" # Fallback if saved device not in list
+                # Special handling for device dropdown reload
+                # Refresh options in case devices changed? No, keep it simple for now.
+                # Just set the value if it exists in the current options.
+                current_options = control.options or []
+                if value is not None and any(
+                    opt.key == value for opt in current_options
+                ):
+                    control.value = value
+                elif value == "Default":  # Always allow Default
+                    control.value = "Default"
+                else:
+                    logger.warning(
+                        f"Reload: Configured audio device '{value}' not found in dropdown options. Setting to Default."
+                    )
+                    control.value = "Default"  # Fallback if saved device not in list
             elif isinstance(control, ft.TextField):
                 # Handle keys where None should be represented as empty string
                 if (
@@ -1064,8 +1102,10 @@ async def reload_config_handler(
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
     create_example_row_func: Callable,  # Need row creation func
-    dashboard_update_callback: Optional[Callable[[], Awaitable[None]]] = None, # Add dashboard update callback
-    e: Optional[ft.ControlEvent] = None, # Add optional event argument
+    dashboard_update_callback: Optional[
+        Callable[[], Awaitable[None]]
+    ] = None,  # Add dashboard update callback
+    e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
     """Reloads configuration from file and updates the GUI."""
     logger.info("Reload configuration button clicked.")
@@ -1087,13 +1127,18 @@ async def reload_config_handler(
         if dashboard_update_callback:
             logger.info("Calling dashboard update callback after reload.")
             try:
-                 # Ensure the callback uses the *latest* config data
-                 # Remove await: update_dashboard_info_display uses page.run_thread internally
+                # Ensure the callback uses the *latest* config data
+                # Remove await: update_dashboard_info_display uses page.run_thread internally
                 dashboard_update_callback()
             except Exception as cb_ex:
-                logger.error(f"Error executing dashboard update callback after reload: {cb_ex}", exc_info=True)
+                logger.error(
+                    f"Error executing dashboard update callback after reload: {cb_ex}",
+                    exc_info=True,
+                )
         else:
-            logger.warning("Dashboard update callback not provided to reload_config_handler.")
+            logger.warning(
+                "Dashboard update callback not provided to reload_config_handler."
+            )
 
         # Update the page once after all changes (banner, controls, dashboard)
         page.update()
@@ -1175,7 +1220,7 @@ def create_config_example_row(
 async def add_example_handler(
     page: ft.Page,  # Need page for update and row creation
     all_config_controls: Dict[str, ft.Control],  # Need controls dict to find column
-    e: Optional[ft.ControlEvent] = None, # Add optional event argument
+    e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
     """Adds a new, empty example row to the column."""
     few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
