@@ -51,7 +51,10 @@ from gui_config import (
     add_example_handler,
     reload_config_handler,
     save_config_handler,
+    update_llm_config_ui, # Import the missing function
 )
+# --- New Preset UI Import ---
+import gui_presets # Keep this import
 from gui_dashboard import (
     create_dashboard_elements,
     create_dashboard_tab_content,
