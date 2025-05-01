@@ -156,7 +156,7 @@ class ParaformerCallback(RecognitionCallback):
         # It might correspond to receiving a 'task-finished' type event internally.
         self.logger.info(
             "Dashscope Paraformer task completed (on_complete received)."
-        ) # Keep as INFO, updated message
+        )  # Keep as INFO, updated message
 
     def on_error(self, message) -> None:
         # Paraformer error structure might contain request_id and message
@@ -167,9 +167,15 @@ class ParaformerCallback(RecognitionCallback):
             f"ID={message.request_id}" if hasattr(message, "request_id") else ""
         )
         # Attempt to extract details similar to the 'task-failed' event structure
-        error_code = getattr(message, 'error_code', 'UNKNOWN_CODE') # Check if SDK provides error_code
-        error_message = getattr(message, 'error_message', str(message)) # Check for error_message, fallback to str()
-        request_id = getattr(message, 'request_id', 'UNKNOWN_ID') # Check for request_id
+        error_code = getattr(
+            message, "error_code", "UNKNOWN_CODE"
+        )  # Check if SDK provides error_code
+        error_message = getattr(
+            message, "error_message", str(message)
+        )  # Check for error_message, fallback to str()
+        request_id = getattr(
+            message, "request_id", "UNKNOWN_ID"
+        )  # Check for request_id
 
         self.logger.error(
             f"Dashscope Paraformer 错误 (task-failed): ID={request_id}, Code={error_code}, Message={error_message}"
