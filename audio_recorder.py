@@ -140,27 +140,53 @@ class AudioManager:
 
     def _determine_sample_rate(self) -> int:
         """Queries device info to determine sample rate if not set in config, considering the selected device."""
-        device_to_query = None
-        log_prefix = "default input"
+        device_index_to_query: Optional[int] = None
+        log_device_description = "default input device"
         try:
-            # Try to query the specific selected device if it's not "Default"
-            if self.device and self.device != "Default":
-                 # sounddevice can accept device names or indices
-                 device_to_query = self.device
-                 log_prefix = f"selected device '{self.device}'"
+            # Try to find the index of the specific selected device if it's not "Default"
+            configured_device_name = self.device
+            if configured_device_name and configured_device_name != "Default":
+                log_device_description = f"configured device '{configured_device_name}'"
+                logger.debug(f"Attempting to find index for {log_device_description} to determine sample rate.")
+                available_devices = get_input_devices() # Get list of dicts {id, name, ...}
+                found_device = False
+                for device_info_dict in available_devices:
+                    if device_info_dict.get("name") == configured_device_name:
+                        found_index = device_info_dict.get("id")
+                        if found_index is not None and found_index >= 0:
+                            device_index_to_query = found_index
+                            logger.debug(f"Found index {device_index_to_query} for {log_device_description}.")
+                            found_device = True
+                            break
+                        else:
+                            logger.warning(f"Found matching device '{configured_device_name}' but its index '{found_index}' is invalid. Will use default.")
+                if not found_device:
+                    logger.warning(f"{log_device_description} not found among available MME devices. Will query default device for sample rate.")
+                    # Keep device_index_to_query as None to use default
+            else:
+                 logger.debug("Configured device is 'Default'. Querying default device for sample rate.")
+                 # Keep device_index_to_query as None to use default
 
-            device_info = sd.query_devices(device=device_to_query, kind="input")
+            # Query sounddevice using the found index (or None for default)
+            device_info = sd.query_devices(device=device_index_to_query, kind="input")
 
             if device_info and "default_samplerate" in device_info:
                 rate = int(device_info["default_samplerate"])
+                # Use the more descriptive log_device_description
                 logger.info(f"Using {log_prefix} device sample rate: {rate} Hz")
                 return rate
             else:
                 logger.warning(
-                    f"Could not determine sample rate for {log_prefix} device, falling back to 16000 Hz."
+                    f"Could not determine sample rate for {log_device_description}, falling back to 16000 Hz."
                 )
                 return 16000
-        except Exception as e:
+        except ValueError as e: # Catch specific ValueError for device not found by index/default
+             logger.error(
+                f"Error querying {log_device_description} (index: {device_index_to_query}) for sample rate: {e}", exc_info=False # Keep log concise
+            )
+             logger.warning("Falling back to 16000 Hz sample rate due to query error.")
+             return 16000
+        except Exception as e: # Catch other potential errors
             logger.error(
                 f"Error querying audio devices for sample rate: {e}", exc_info=True
             )
