@@ -205,15 +205,9 @@ def main(page: ft.Page):
         # 2. VRCClient (if enabled) - Defer initialization and start
         # We will initialize and start it in initialize_async_components below
 
-        # 3. OutputDispatcher (pass VRC client placeholder and GUI output callback)
-        # Initialize OutputDispatcher, VRCClient will be set later if enabled
-        app_state.output_dispatcher = OutputDispatcher(
-            vrc_client_instance=app_state.vrc_client,  # VRCClient instance will be set later
-            gui_output_callback=update_output_callback,  # Pass the partial callback
-        )
-        logger.info("OutputDispatcher initialized (VRCClient pending).")
+        # 3. OutputDispatcher will be initialized asynchronously below.
 
-        # 4. AudioManager (pass LLM client, dispatcher, and status/audio callbacks)
+        # 4. AudioManager will be initialized asynchronously below.
         app_state.audio_manager = AudioManager(
             llm_client=app_state.llm_client,
             output_dispatcher=app_state.output_dispatcher,
@@ -759,8 +753,37 @@ def main(page: ft.Page):
             logger.info("VRC OSC output disabled, skipping VRCClient initialization.")
             app_state.vrc_client = None
             # Ensure dispatcher doesn't hold a reference
-            if app_state.output_dispatcher:
+            if app_state.output_dispatcher: # Check if dispatcher exists before assigning None
                 app_state.output_dispatcher.vrc_client_instance = None
+
+        # --- Initialize OutputDispatcher (now that VRCClient is potentially ready) ---
+        try:
+            logger.info("Initializing OutputDispatcher asynchronously...")
+            app_state.output_dispatcher = OutputDispatcher(
+                vrc_client_instance=app_state.vrc_client, # Pass the actual client instance (or None)
+                gui_output_callback=update_output_callback,
+            )
+            logger.info("OutputDispatcher initialized.")
+        except Exception as disp_err:
+            logger.critical(f"CRITICAL ERROR initializing OutputDispatcher: {disp_err}", exc_info=True)
+            gui_utils.show_error_banner(page, f"OutputDispatcher 初始化失败: {disp_err}")
+            # Cannot proceed without dispatcher for audio/text input
+            return # Stop further async initialization
+
+        # --- Initialize AudioManager (now that Dispatcher is ready) ---
+        try:
+            logger.info("Initializing AudioManager asynchronously...")
+            app_state.audio_manager = AudioManager(
+                llm_client=app_state.llm_client, # LLM client was initialized synchronously
+                output_dispatcher=app_state.output_dispatcher, # Pass the newly created dispatcher
+                status_callback=update_status_callback,
+                audio_level_callback=update_audio_level_callback,
+            )
+            logger.info("AudioManager initialized.")
+        except Exception as am_err:
+            logger.critical(f"CRITICAL ERROR initializing AudioManager: {am_err}", exc_info=True)
+            gui_utils.show_error_banner(page, f"AudioManager 初始化失败: {am_err}")
+            # Audio input will not work, but text input might still function
 
         logger.info("Async component initialization finished.")
 
