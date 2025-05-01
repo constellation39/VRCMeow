@@ -27,14 +27,18 @@ dashscope:
     # 每个模型的键是模型的名称，值是一个包含其属性的字典。
     # - `sample_rate` (必需): 模型所需的音频采样率 (Hz)。
     # - `supports_translation` (必需): 模型是否支持翻译功能。
+    # - `type` (必需): 模型的类型，用于选择正确的识别器实现 ("gummy" 或 "paraformer")。
     models:
       gummy-realtime-v1:
+        type: "gummy"
         sample_rate: 16000
         supports_translation: true
       paraformer-realtime-v2:
+        type: "paraformer"
         sample_rate: 16000
         supports_translation: false
       # paraformer-realtime-v1: # 如果需要，可以添加其他模型
+      #   type: "paraformer"
       #   sample_rate: 16000
       #   supports_translation: false
 

@@ -49,10 +49,12 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
             # 定义可用的 Dashscope STT 模型及其配置 (必需)
             "models": {
                 "gummy-realtime-v1": {
+                    "type": "gummy", # 添加类型字段
                     "sample_rate": 16000,
                     "supports_translation": True,
                 },
                 "paraformer-realtime-v2": {
+                    "type": "paraformer", # 添加类型字段
                     "sample_rate": 16000,
                     "supports_translation": False,
                 },

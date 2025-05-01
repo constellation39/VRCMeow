@@ -266,19 +266,16 @@ class AudioManager:
                 current_model = self.stt_model # Get model name from instance var
                 stt_models_config = config.get("dashscope.stt.models", {}) # Reload models dict in case config changed
                 model_info = stt_models_config.get(current_model, {}) # Get current model's info
+                model_type = model_info.get("type") # 获取模型类型
 
                 target_language = config.get("dashscope.stt.translation_target_language")
-                # Determine translation support based on config, not just model name prefix
+                # Determine translation support based on config
                 model_supports_translation = model_info.get("supports_translation", False)
                 enable_translation = bool(target_language) and model_supports_translation
 
-                # Check if model name seems valid (basic check)
-                is_gummy_model = current_model.startswith("gummy-")
-                is_paraformer_model = current_model.startswith("paraformer-")
-
-                if not is_gummy_model and not is_paraformer_model:
-                    # This check might be redundant if config validation is robust, but keep for safety
-                    error_msg = f"配置中选择的 STT 模型名称 '{current_model}' 似乎无效。请检查 config.yaml。"
+                # --- Validate Model Type ---
+                if not model_type or model_type not in ["gummy", "paraformer"]:
+                    error_msg = f"配置中为模型 '{current_model}' 指定的类型 '{model_type}' 无效或缺失。请在 config.yaml 中设置 'type' 为 'gummy' 或 'paraformer'。"
                     logger.error(error_msg)
                     if self.status_callback:
                         self._update_status(
@@ -295,48 +292,48 @@ class AudioManager:
                     )
                      enable_translation = False # Ensure translation is off
 
-                # --- Select and create recognizer ---
+                # --- Select and create recognizer based on type from config ---
                 # Indicate processing (connecting) state
                 if self.status_callback:
                     self._update_status(
-                        f"连接 STT (模型: {current_model}, 尝试 {retry_count + 1}/{max_retries})...",
+                        f"连接 STT (模型: {current_model}, 类型: {model_type}, 尝试 {retry_count + 1}/{max_retries})...",
                         is_processing=True,
                     )
                 logger.info(
-                    f"Attempting to connect STT service (Model: {current_model}, Attempt {retry_count + 1}/{max_retries})..."
+                    f"Attempting to connect STT service (Model: {current_model}, Type: {model_type}, Attempt {retry_count + 1}/{max_retries})..."
                 )
 
-                # Use model type flags determined earlier
-                if is_gummy_model:
+                # Use model_type read from config
+                if model_type == "gummy":
                     if create_gummy_recognizer is None:
-                        raise RuntimeError("Gummy STT module failed to load.")
+                        raise RuntimeError("Gummy STT module (stt_gummy.py) failed to load.")
                     engine_type = "Gummy" # Keep track of engine type for logging
                     logger.info(f"Creating Gummy Recognizer (translation enabled: {enable_translation})...")
-                    # Pass the sample rate determined in __init__
                     recognizer = create_gummy_recognizer(
                         sample_rate=self.sample_rate,
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
-                        # Pass translation setting based on config and model capability
                         enable_translation=enable_translation,
                         target_language=target_language if enable_translation else None,
                     )
-                elif is_paraformer_model:
+                elif model_type == "paraformer":
                     if create_paraformer_recognizer is None:
-                        raise RuntimeError("Paraformer STT module failed to load.")
+                        raise RuntimeError("Paraformer STT module (stt_paraformer.py) failed to load.")
                     engine_type = "Paraformer" # Keep track of engine type
                     logger.info("Creating Paraformer Recognizer...")
-                     # Pass the sample rate determined in __init__
                     recognizer = create_paraformer_recognizer(
                         sample_rate=self.sample_rate,
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
                     )
-                # Removed the 'else' block as the initial check should catch invalid model types
+                else:
+                    # This case should be caught by the validation above, but handle defensively
+                    raise RuntimeError(f"未知的模型类型 '{model_type}' 在配置中为模型 '{current_model}' 指定。")
 
+                # Check if recognizer creation succeeded (it should have if no exception)
                 if not recognizer:
-                    # This case should ideally not be reached if model selection logic is sound
-                    raise RuntimeError(f"未能为模型 '{current_model}' 创建识别器实例。")
+                     # This path might be less likely now, but keep for robustness
+                     raise RuntimeError(f"未能为模型 '{current_model}' (类型: {model_type}) 创建识别器实例。")
 
                 # --- Start Recognizer ---
                 recognizer.start()
