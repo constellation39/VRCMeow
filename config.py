@@ -112,6 +112,10 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
         "max_tokens": 256,  # 之前是 150，与 YAML 示例同步为 256
         # Few-shot 示例 (可选) - 提供输入/输出对指导 LLM。
         "few_shot_examples": [],  # 示例: [{"user": "你好", "assistant": "你好呀！"}]
+        # 是否尝试从 LLM 输出中提取最终答案 (可选)
+        "extract_final_answer": False,
+        # 用于标识最终答案开始的标记 (可选, 仅当 extract_final_answer 为 true 时有效)
+        "final_answer_marker": "Final Answer:",
     },
     # -------------------------------------------------------------------------
     # 输出目标设置

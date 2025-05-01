@@ -23,8 +23,10 @@ class LLMClient:
             "llm.system_prompt", "You are a helpful assistant."
         )  # Fallback default
         self.temperature = config.get("llm.temperature", 0.7)
-        self.max_tokens = config.get("llm.max_tokens", 150)
+        self.max_tokens = config.get("llm.max_tokens", 256) # Default updated to 256 to match config.py
         self.few_shot_examples = config.get("llm.few_shot_examples", [])
+        self.extract_final_answer = config.get("llm.extract_final_answer", False)
+        self.final_answer_marker = config.get("llm.final_answer_marker", "Final Answer:")
 
         self.client: Optional[AsyncOpenAI] = None
 
@@ -125,17 +127,37 @@ class LLMClient:
             )
 
             # Extract the response content
-            if response.choices and response.choices[0].message:
-                processed_text = response.choices[0].message.content
-                if processed_text:
-                    processed_text = processed_text.strip()
+            if response.choices and response.choices[0].message and response.choices[0].message.content:
+                raw_processed_text = response.choices[0].message.content.strip()
+                logger.debug(f"LLMClient: Raw response: '{raw_processed_text[:100]}...'") # Log raw response for debug
+
+                final_text = raw_processed_text # Default to raw text
+
+                # Attempt to extract final answer if enabled and marker is set
+                if self.extract_final_answer and self.final_answer_marker:
+                    logger.debug(f"Attempting to extract final answer using marker: '{self.final_answer_marker}'")
+                    marker_pos = raw_processed_text.rfind(self.final_answer_marker) # Use rfind to find the last occurrence
+
+                    if marker_pos != -1:
+                        # Extract text *after* the marker
+                        final_text = raw_processed_text[marker_pos + len(self.final_answer_marker):].strip()
+                        logger.info(f"LLMClient: Extracted final answer after marker: '{final_text[:50]}...'")
+                    else:
+                        # Marker not found, use the full response but log a warning
+                        logger.warning(
+                            f"LLMClient: 'extract_final_answer' is enabled, but marker '{self.final_answer_marker}' not found in the response. Returning full response."
+                        )
+                        # final_text remains raw_processed_text
+
+                if final_text:
                     logger.info(
-                        f"LLMClient: Received processed text: '{processed_text[:50]}...'"
+                        f"LLMClient: Returning processed text: '{final_text[:50]}...'"
                     )
-                    return processed_text
+                    return final_text
                 else:
+                    # This case handles if extraction resulted in empty string or original response was empty
                     logger.warning(
-                        "LLMClient: Received empty response content from LLM."
+                        "LLMClient: Processed text is empty after potential extraction."
                     )
                     return None  # Treat empty response as failure
             else:
