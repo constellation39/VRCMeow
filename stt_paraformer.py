@@ -166,7 +166,14 @@ class ParaformerCallback(RecognitionCallback):
         request_id = (
             f"ID={message.request_id}" if hasattr(message, "request_id") else ""
         )
-        self.logger.error(f"Dashscope Paraformer 错误: {request_id} {error_msg}")
+        # Attempt to extract details similar to the 'task-failed' event structure
+        error_code = getattr(message, 'error_code', 'UNKNOWN_CODE') # Check if SDK provides error_code
+        error_message = getattr(message, 'error_message', str(message)) # Check for error_message, fallback to str()
+        request_id = getattr(message, 'request_id', 'UNKNOWN_ID') # Check for request_id
+
+        self.logger.error(
+            f"Dashscope Paraformer 错误 (task-failed): ID={request_id}, Code={error_code}, Message={error_message}"
+        )
         # Consider triggering stop_event here if needed
         # self.loop.call_soon_threadsafe(stop_event.set) # Requires passing stop_event
 
