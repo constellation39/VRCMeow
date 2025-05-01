@@ -28,69 +28,113 @@ DEFAULT_CONFIG_PATH = CWD / DEFAULT_CONFIG_FILENAME
 DEFAULT_EXAMPLE_CONFIG_PATH = CWD / DEFAULT_EXAMPLE_CONFIG_FILENAME
 
 
-# --- Default Config (kept private for clarity) ---
+# --- 默认配置字典 ---
+# 这个字典定义了所有配置项的默认值。
+# 它应该与 `config.example.yaml` 中的结构和默认值保持一致。
 _DEFAULT_CONFIG: Dict[str, Any] = {
+    # -------------------------------------------------------------------------
+    # Dashscope (阿里云灵积) 服务设置
+    # -------------------------------------------------------------------------
     "dashscope": {
-        "api_key": "", # Strongly recommend setting via environment variable (DASHSCOPE_API_KEY)
-        "stt": { # STT settings moved under Dashscope
-            # If set, enables translation (only for supported models like Gummy)
-            "translation_target_language": None,  # e.g., "en", "ja", "ko"
-            # Available models: "gummy-realtime-v1" (supports translation), "paraformer-realtime-v2", "paraformer-realtime-v1" (recognition only)
-            "model": "gummy-realtime-v1",
-            # How to handle intermediate (non-final) STT results
-            # "ignore": Ignore intermediate results.
-            # "show_typing": Send a fixed "Typing..." message (VRC OSC only).
-            # "show_partial": Send the incomplete recognized text (VRC OSC only).
-            "intermediate_result_behavior": "ignore",
+        # API 密钥 (必需) - 强烈建议通过环境变量 `DASHSCOPE_API_KEY` 设置。
+        "api_key": "",
+        # --- 语音转文本 (STT) / 语音翻译 (STT+Translation) 设置 ---
+        "stt": {
+            # 翻译的目标语言 (可选) - `None` 或空字符串 `""` 表示禁用翻译。
+            "translation_target_language": None,  # 示例: "en", "ja", "ko"
+            # 使用的 Dashscope 模型 (必需)
+            "model": "gummy-realtime-v1", # 示例: "paraformer-realtime-v2"
+            # 中间结果处理方式 (可选, 仅影响 VRChat OSC 输出)
+            "intermediate_result_behavior": "ignore", # 可选: "show_typing", "show_partial"
         }
     },
-    # "stt": { ... } # REMOVED old top-level stt block
-    # --- (Removed duplicate audio block that contained model and intermediate_result_behavior) ---
+    # -------------------------------------------------------------------------
+    # 音频输入设置
+    # -------------------------------------------------------------------------
     "audio": {
-        "device": "Default",  # Name of the input device, or "Default"
-        "sample_rate": None,  # None means use device default (e.g., 16000 for Gummy)
-        "channels": 1,        # (e.g., 1 for Gummy)
-        "dtype": "int16",     # (e.g., "int16" for Gummy)
+        # 音频输入设备名称 (可选) - `None` 或 "Default" 表示使用系统默认设备。
+        "device": None, # 示例: "麦克风 (Realtek High Definition Audio)"
+        # 音频采样率 (Hz) (可选) - `None` 表示尝试自动检测，失败则回退到 16000。
+        "sample_rate": None,  # 示例: 16000
+        # 音频通道数 (可选) - Gummy 模型通常需要 1。
+        "channels": 1,
+        # 音频数据类型 (可选) - Gummy 模型通常需要 'int16'。
+        "dtype": "int16",
+        # 调试回声模式 (可选) - 将麦克风输入直接发送到扬声器。
         "debug_echo_mode": False,
     },
+    # -------------------------------------------------------------------------
+    # 大型语言模型 (LLM) 处理设置
+    # -------------------------------------------------------------------------
     "llm": {
+        # 是否启用 LLM 处理 (必需)
         "enabled": False,
-        "api_key": "", # Strongly recommend setting via environment variable (OPENAI_API_KEY)
-        "base_url": None, # Optional: e.g., for local LLMs or proxies like "http://localhost:11434/v1"
-        "model": "gpt-3.5-turbo", # Or any OpenAI compatible model name
-        # "system_prompt_path": "prompts/default_system_prompt.txt", # REMOVED: Path is no longer used
-        "system_prompt": "You are a helpful assistant.", # Default prompt if not set in config.yaml
-        "temperature": 0.7, # Controls randomness (0.0 to 2.0)
-        "max_tokens": 150, # Max response length
-        # Few-shot examples: List of {"user": "...", "assistant": "..."} dictionaries
-        "few_shot_examples": [],
+        # OpenAI 兼容 API 密钥 (必需, 如果 enabled 为 true) - 强烈建议通过环境变量 `OPENAI_API_KEY` 设置。
+        "api_key": "",
+        # API 基础 URL (可选) - `None` 表示使用默认 OpenAI URL 或服务特定 URL。
+        "base_url": None, # 示例: "http://localhost:11434/v1" (本地 Ollama)
+        # 使用的 LLM 模型名称 (必需, 如果 enabled 为 true)
+        "model": "gpt-3.5-turbo", # 示例: "gpt-4", "llama3"
+        # 系统提示 (必需, 如果 enabled 为 true) - 指导 LLM 如何处理文本。
+        "system_prompt": "You are a helpful assistant.", # 默认提示
+        # 温度 (可选) - 控制输出随机性 (0.0-2.0)。
+        "temperature": 0.7,
+        # 最大 Token 数 (可选) - 限制 LLM 响应长度。
+        "max_tokens": 256, # 之前是 150，与 YAML 示例同步为 256
+        # Few-shot 示例 (可选) - 提供输入/输出对指导 LLM。
+        "few_shot_examples": [], # 示例: [{"user": "你好", "assistant": "你好呀！"}]
     },
+    # -------------------------------------------------------------------------
+    # 输出目标设置
+    # -------------------------------------------------------------------------
     "outputs": {
+        # --- VRChat OSC 输出 ---
         "vrc_osc": {
-            "enabled": True, # Enable/disable sending to VRChat OSC
+            # 是否启用 VRChat OSC 输出 (必需)
+            "enabled": True,
+            # VRChat 客户端 IP 地址 (必需)
             "address": "127.0.0.1",
+            # VRChat OSC 输入端口 (必需)
             "port": 9000,
-            "message_interval": 1.333, # Minimum interval between messages (seconds)
-            "format": "{text}", # Format string for VRChat output ({text})
-            "send_immediately": True, # Send immediately (True) or populate keyboard (False)
-            "play_notification_sound": True, # Play notification sound (True) or not (False)
+            # 消息发送最小间隔 (秒) (可选) - 建议 >= 1.333。
+            "message_interval": 1.333,
+            # 消息格式字符串 (可选) - `{text}` 会被替换。
+            "format": "{text}", # 与 YAML 示例同步，移除前后制表符
+            # 是否立即发送 (可选) - `True` 直接显示, `False` 填充输入框。
+            "send_immediately": True,
+            # 是否播放通知音 (可选) - 仅当 `send_immediately` 为 `True` 时有效。
+            "play_notification_sound": True,
         },
+        # --- 控制台输出 ---
         "console": {
-            "enabled": True, # Print final results to console
-            "prefix": "[Final Text]" # Optional prefix for console output
+            # 是否启用控制台输出 (必需)
+            "enabled": True, # 之前是 False，与 YAML 示例同步为 True
+            # 输出前缀 (可选)
+            "prefix": "[VRCMeow Output]" # 与 YAML 示例同步
         },
+        # --- 文件输出 ---
         "file": {
-            "enabled": False, # Append final results to a file
-            "path": "output_log.txt", # Path to the output file
-            "format": "{timestamp} - {text}", # Format string ({timestamp}, {text})
+            # 是否启用文件输出 (必需)
+            "enabled": False,
+            # 输出文件路径 (必需, 如果 enabled 为 true)
+            "path": "vrcmeow_output.log", # 与 YAML 示例同步
+            # 文件记录格式字符串 (可选) - 可用 `{timestamp}`, `{text}`。
+            "format": "{timestamp} - {text}",
         }
-        # Add more output types here later (e.g., websocket, http_post)
+        # 在此添加其他输出类型 (未来扩展)
     },
+    # -------------------------------------------------------------------------
+    # 日志记录设置
+    # -------------------------------------------------------------------------
     "logging": {
-        "level": "INFO", # DEBUG, INFO, WARNING, ERROR, CRITICAL
-        "file": { # New section for application log file
-            "enabled": True, # Default to disabled
-            "path": "vrcmeow_app.log" # Default path for application log
+        # 控制台和文件日志的级别 (必需)
+        "level": "INFO", # 可选: "DEBUG", "WARNING", "ERROR", "CRITICAL"
+        # --- 应用程序日志文件设置 ---
+        "file": {
+            # 是否启用应用程序日志文件 (必需) - 记录详细运行日志。
+            "enabled": True,
+            # 应用程序日志文件路径 (必需, 如果 enabled 为 true)
+            "path": "vrcmeow_app.log"
         }
     },
 }
@@ -431,12 +475,13 @@ if __name__ == '__main__':
     try:
         print(f"\nLogging Level (dict access): {config['logging']['level']}") # Direct dict access
         print(f"Logging Level (dot notation __getitem__): {config['logging.level']}") # Dot notation via __getitem__
-        print(f"STT Model (nested get): {config.get('dashscope.stt.model')}") # Use new nested key
-        print(f"STT Translation Lang (nested __getitem__): {config['dashscope.stt.translation_target_language']}") # Use new nested key
+        print(f"STT Model (nested get): {config.get('dashscope.stt.model', 'NOT_FOUND')}") # Use new nested key
+        print(f"STT Translation Lang (nested get): {config.get('dashscope.stt.translation_target_language', 'NOT_FOUND')}") # Use new nested key, use get for safety
         print(f"OSC Address (get method): {config.get('outputs.vrc_osc.address', 'default_ip')}") # Dot notation via get()
         print(f"OSC Port (get method): {config.get('outputs.vrc_osc.port', 9999)}") # Dot notation via get()
         print(f"Dashscope API Key (get method): {config.get('dashscope.api_key', 'NOT_SET')}")
         print(f"LLM API Key (get method): {config.get('llm.api_key', 'NOT_SET')}")
+        print(f"LLM System Prompt (get method): {config.get('llm.system_prompt', 'DEFAULT_PROMPT')[:50]}...") # Get beginning of prompt
 
         # Test non-existent key with get
         print(f"Non-existent key (get): {config.get('invalid.key', 'MISSING')}")
