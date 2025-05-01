@@ -332,30 +332,42 @@ def main(page: ft.Page):
 
         # Ensure audio processes are stopped
         if app_state.is_running:  # is_running now refers to audio state
-            logger.info("Stopping active audio recording before restart...")
-            await _stop_recording_internal()  # Stop AudioManager if running
-            # Add a small delay to allow AudioManager's threads to potentially finish cleanup
-            await asyncio.sleep(0.2)
+            logger.info("Restart: Stopping active audio recording...")
+            try:
+                await _stop_recording_internal()  # Stop AudioManager if running
+                logger.info("Restart: AudioManager stop requested (callback will confirm final state).")
+                # Add a slightly longer delay to allow AudioManager's threads to potentially finish cleanup
+                logger.info("Restart: Waiting briefly for audio cleanup...")
+                await asyncio.sleep(0.5) # Increased from 0.2
+                logger.info("Restart: Finished waiting after audio stop request.")
+            except Exception as audio_stop_err:
+                 logger.error(f"Restart: Error during _stop_recording_internal: {audio_stop_err}", exc_info=True)
         else:
-            logger.info("Audio recording not active.")
+            logger.info("Restart: Audio recording not active, skipping audio stop.")
 
         # Stop VRCClient if it exists and is running
         if app_state.vrc_client:
-            logger.info("Stopping VRCClient before restart...")
+            logger.info("Restart: Stopping VRCClient...")
             try:
                 await app_state.vrc_client.stop()
-                logger.info("VRCClient stopped.")
+                logger.info("Restart: VRCClient stopped successfully.")
             except Exception as vrc_stop_err:
                 logger.error(
-                    f"Error stopping VRCClient during restart: {vrc_stop_err}",
+                    f"Restart: Error stopping VRCClient: {vrc_stop_err}",
                     exc_info=True,
                 )
-            app_state.vrc_client = None  # Clear reference
+            # Still clear reference even if stop failed
+            app_state.vrc_client = None
+        else:
+            logger.info("Restart: VRCClient not active, skipping VRC stop.")
+
 
         # Attempt restart
-        logger.info("Attempting application restart via os.execv...")
+        logger.critical(">>> Preparing to restart application via os.execv <<<") # Make this log stand out
         try:
             # Ensure sys.executable and sys.argv are valid
+            logger.debug(f"Restart: Using executable: {sys.executable}")
+            logger.debug(f"Restart: Using arguments: {[sys.executable] + sys.argv}")
             if not sys.executable or not sys.argv:
                 raise RuntimeError(
                     "sys.executable or sys.argv is not available for restart."
