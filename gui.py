@@ -325,6 +325,55 @@ def main(page: ft.Page):
     # REMOVED: Definitions of save_config_handler, reload_config_controls, reload_config_handler
     # REMOVED: Definitions of _create_example_row_internal, add_example_handler
 
+    # --- Application Restart Logic ---
+    async def restart_application(page: ft.Page, app_state: AppState):
+        """Performs cleanup and restarts the application."""
+        logger.info("Initiating application restart sequence...")
+
+        # Ensure audio processes are stopped
+        if app_state.is_running:  # is_running now refers to audio state
+            logger.info("Stopping active audio recording before restart...")
+            await _stop_recording_internal()  # Stop AudioManager if running
+            # Add a small delay to allow AudioManager's threads to potentially finish cleanup
+            await asyncio.sleep(0.2)
+        else:
+            logger.info("Audio recording not active.")
+
+        # Stop VRCClient if it exists and is running
+        if app_state.vrc_client:
+            logger.info("Stopping VRCClient before restart...")
+            try:
+                await app_state.vrc_client.stop()
+                logger.info("VRCClient stopped.")
+            except Exception as vrc_stop_err:
+                logger.error(
+                    f"Error stopping VRCClient during restart: {vrc_stop_err}",
+                    exc_info=True,
+                )
+            app_state.vrc_client = None  # Clear reference
+
+        # Attempt restart
+        logger.info("Attempting application restart via os.execv...")
+        try:
+            # Ensure sys.executable and sys.argv are valid
+            if not sys.executable or not sys.argv:
+                raise RuntimeError(
+                    "sys.executable or sys.argv is not available for restart."
+                )
+            # Use os.execv to replace the current process
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        except Exception as restart_ex:
+            # If restart fails, log critical error and maybe destroy window as fallback?
+            logger.critical(f"重启应用程序时出错: {restart_ex}", exc_info=True)
+            gui_utils.show_error_banner(page, f"重启失败: {restart_ex}")
+            # Fallback: Destroy the window if restart fails to prevent hanging
+            try:
+                page.window_destroy()
+            except Exception as destroy_ex:
+                logger.error(
+                    f"Error destroying window after failed restart: {destroy_ex}"
+                )
+
     # --- Log Tab Handlers ---
     async def clear_log_handler(e: ft.ControlEvent):
         """Handles clicks on the clear log button."""
