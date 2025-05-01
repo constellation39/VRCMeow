@@ -68,12 +68,14 @@ class OutputDispatcher:
         )  # Default to just text
 
         if self.vrc_osc_enabled and not self.vrc_client:
+            # Log a warning if enabled but client missing *at init time*, but DON'T disable it permanently.
             logger.warning(
-                "OutputDispatcher: VRC OSC output is enabled, but VRCClient instance was not provided. OSC output will be skipped."
+                "OutputDispatcher: VRC OSC output is enabled in config, but VRCClient instance was not provided during initialization. Dispatch will depend on client being assigned later."
             )
-            self.vrc_osc_enabled = False  # Disable if client missing
+            # REMOVED: self.vrc_osc_enabled = False
         elif self.vrc_osc_enabled:
-            logger.info(f"VRC OSC output enabled. Format: '{self.vrc_osc_format}'")
+            # Log that it's enabled based on config, client check happens at dispatch time.
+            logger.info(f"VRC OSC output enabled per config. Format: '{self.vrc_osc_format}'")
 
     async def dispatch(self, text: str):
         """
