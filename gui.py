@@ -478,6 +478,12 @@ def main(page: ft.Page):
         # should come from the AudioManager's status_callback when its threads fully exit.
         # If AudioManager fails to send a final status, the UI might remain in "Stopping...".
 
+        # --- Clear the AudioManager instance ---
+        # Do this AFTER attempting to stop it, regardless of success/failure/timeout.
+        # This ensures the next start creates a fresh instance.
+        logger.info("Clearing AudioManager instance reference.")
+        app_state.audio_manager = None
+
     async def toggle_recording(e: ft.ControlEvent):
         """Handles clicks on the combined Start/Stop button."""
         # Prevent rapid clicking if already processing
