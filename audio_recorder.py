@@ -14,6 +14,8 @@ from logger_config import get_logger
 
 # Import Dashscope base recognizer types for type hinting
 from dashscope.audio.asr import TranslationRecognizerRealtime, Recognition
+# Import specific error type
+from dashscope.common.error import InvalidParameter
 
 # Local STT implementation imports
 from stt_gummy import create_gummy_recognizer
