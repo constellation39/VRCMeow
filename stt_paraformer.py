@@ -10,8 +10,8 @@ from config import config
 
 # Import LLMClient and OutputDispatcher for type hinting and usage
 from llm_client import LLMClient
-
 from output_dispatcher import OutputDispatcher
+from osc_client import VRCClient # <-- Add this import
 
 
 # --- Callback for Paraformer API (Recognition only) ---
@@ -40,9 +40,34 @@ class ParaformerCallback(RecognitionCallback):
         self.logger.debug(
             f"  - 中间结果处理: {self.intermediate_behavior}"
         )  # Changed to DEBUG
+
+        # --- VRC Client for Intermediate Messages (similar to Gummy) ---
+        outputs_config = config.get("outputs", {})
+        vrc_osc_config = outputs_config.get("vrc_osc", {})
+        self.vrc_client_for_intermediate: Optional[VRCClient] = None # Import VRCClient if not already
+        self.vrc_osc_intermediate_enabled = (
+            vrc_osc_config.get("enabled", True)
+            and self.intermediate_behavior != "ignore"
+        )
+        if self.vrc_osc_intermediate_enabled:
+            # We need the VRCClient instance from the OutputDispatcher
+            self.vrc_client_for_intermediate = (
+                self.output_dispatcher.vrc_client
+            ) # May be None
+            if not self.vrc_client_for_intermediate:
+                self.logger.warning(
+                    "Intermediate VRC OSC messages enabled in config, but no VRCClient available in OutputDispatcher."
+                )
+                self.vrc_osc_intermediate_enabled = (
+                    False # Disable if client is missing
+                )
+
         self._last_typing_send_time = 0  # Track typing status send time
         self._typing_interval = (
             1.0  # Minimum interval between typing status updates (seconds)
+        )
+        self.logger.debug(
+             f"  - VRC 中间 OSC: {'启用' if self.vrc_osc_intermediate_enabled else '禁用'}"
         )
 
     def _dispatch_in_background(self, text: str):
@@ -115,28 +140,8 @@ class ParaformerCallback(RecognitionCallback):
             f"[Thread-{thread_id}] STT_PARA_BG: Background dispatch thread finished."
         )
 
-    def _dispatch_intermediate_in_background(self, text: str):
-        """Dispatches intermediate messages ('Typing...' or partial) using asyncio.run in a thread."""
-        thread_id = threading.current_thread().ident
-        if self.output_dispatcher:
-            self.logger.debug(
-                f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Dispatching intermediate: {text}"
-            )
-            try:
-                # Dispatch intermediate messages through the full dispatcher
-                asyncio.run(self.output_dispatcher.dispatch(text))
-                self.logger.debug(
-                    f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Intermediate dispatch successful."
-                )
-            except Exception as e:
-                self.logger.error(
-                    f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: Error dispatching intermediate: {e}",
-                    exc_info=True,
-                )
-        else:
-            self.logger.error(
-                f"[Thread-{thread_id}] STT_PARA_INTERMEDIATE_BG: OutputDispatcher missing for intermediate dispatch."
-            )
+    # Removed _dispatch_intermediate_in_background method
+    # Intermediate messages are now handled by _send_osc_intermediate if enabled
 
     def on_open(self) -> None:
         self.logger.info("Dashscope Paraformer 连接已打开。")  # Keep as INFO
@@ -224,18 +229,21 @@ class ParaformerCallback(RecognitionCallback):
                 current_time = time.monotonic()
                 if current_time - self._last_typing_send_time >= self._typing_interval:
                     log_prefix = "中间状态 (Typing...)"
-                    # Dispatch "Typing..." in background thread
-                    self.logger.debug(
-                        f"STT_PARA: Preparing background thread for intermediate dispatch: '{log_prefix}'"
-                    )
-                    intermediate_thread = threading.Thread(
-                        target=self._dispatch_intermediate_in_background,
-                        args=("Typing...",),  # Send fixed message
-                        name="ParaformerIntermediateThread-Typing",
-                        daemon=True,
-                    )
-                    intermediate_thread.start()
-                    self._last_typing_send_time = current_time  # Update last send time
+                    # Send "Typing..." only via VRC OSC if enabled
+                    if self.vrc_osc_intermediate_enabled and self.vrc_client_for_intermediate:
+                        self.logger.debug(
+                            f"STT_PARA: Preparing background thread for intermediate VRC OSC: '{log_prefix}'"
+                        )
+                        osc_thread = threading.Thread(
+                            target=self._send_osc_intermediate,
+                            args=("Typing...",),
+                            name="ParaformerOscIntermediateThread-Typing",
+                            daemon=True,
+                        )
+                        osc_thread.start()
+                        self._last_typing_send_time = current_time # Update last send time
+                    else:
+                        self.logger.debug(f"Intermediate result '{log_prefix}' generated but VRC OSC sending disabled/unavailable.")
                 # else: # Suppress frequent typing updates
                 #    self.logger.debug("Typing... 状态更新已抑制 (过于频繁)")
 
@@ -243,23 +251,50 @@ class ParaformerCallback(RecognitionCallback):
                 # Paraformer doesn't really give partials like Gummy.
                 # We could send the latest non-final sentence, but it might be confusing.
                 # Paraformer doesn't provide granular partial results like Gummy.
-                # We will send the latest non-final sentence as the partial result.
+                # We will send the latest non-final sentence as the partial result via VRC OSC if enabled.
                 log_prefix = "中间结果 (部分)"
                 self.logger.debug(f"STT_PARA: {log_prefix}: {text_to_process}")
-                # Dispatch the partial text in background thread
-                self.logger.debug(
-                    f"STT_PARA: Preparing background thread for intermediate dispatch: '{log_prefix}'"
-                )
-                intermediate_thread = threading.Thread(
-                    target=self._dispatch_intermediate_in_background,
-                    args=(text_to_process,),  # Send actual partial text
-                    name="ParaformerIntermediateThread-Partial",
-                    daemon=True,
-                )
-                intermediate_thread.start()
-                # Note: We don't use _last_typing_send_time here as we dispatch every partial result.
+                # Send partial text only via VRC OSC if enabled
+                if self.vrc_osc_intermediate_enabled and self.vrc_client_for_intermediate:
+                    self.logger.debug(
+                        f"STT_PARA: Preparing background thread for intermediate VRC OSC: '{text_to_process[:20]}...'"
+                    )
+                    osc_thread = threading.Thread(
+                        target=self._send_osc_intermediate,
+                        args=(text_to_process,),
+                        name="ParaformerOscIntermediateThread-Partial",
+                        daemon=True,
+                    )
+                    osc_thread.start()
+                else:
+                    self.logger.debug(f"Intermediate result '{log_prefix}' generated but VRC OSC sending disabled/unavailable.")
+                # Note: We don't use _last_typing_send_time here as we dispatch every partial result if enabled.
 
             # If behavior is "ignore", do nothing for intermediate results.
+
+    def _send_osc_intermediate(self, text: str):
+        """Sends intermediate OSC message using asyncio.run in a thread."""
+        thread_id = threading.current_thread().ident
+        if self.vrc_client_for_intermediate:
+            self.logger.debug(
+                f"[Thread-{thread_id}] STT_PARA_OSC_BG: Sending intermediate OSC: {text}"
+            )
+            try:
+                # Ensure VRCClient is imported at the top
+                asyncio.run(self.vrc_client_for_intermediate.send_chatbox(text))
+                self.logger.debug(
+                    f"[Thread-{thread_id}] STT_PARA_OSC_BG: Intermediate OSC sent successfully."
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"[Thread-{thread_id}] STT_PARA_OSC_BG: Error sending intermediate OSC: {e}",
+                    exc_info=True,
+                )
+        else:
+            # This case should ideally be prevented by the vrc_osc_intermediate_enabled check before calling
+            self.logger.error(
+                f"[Thread-{thread_id}] STT_PARA_OSC_BG: VRC client missing for intermediate OSC."
+            )
 
     # Remove _process_with_llm_and_dispatch method
 
@@ -286,11 +321,16 @@ def create_paraformer_recognizer(
 
     # --- 直接从 config 实例获取配置 ---
     # --- Directly access config for elements NOT passed as arguments ---
-    # Note: config instance is imported at the top of the module
-    api_key = config["dashscope_api_key"]
-    model = config["stt.model"]
+    # Use nested keys with .get() for safety
+    api_key = config.get("dashscope.api_key")
+    if not api_key:
+        # Log a critical error or raise if API key is essential
+        logger.error("Dashscope API Key not found in configuration (dashscope.api_key). Cannot create recognizer.")
+        raise ValueError("Missing Dashscope API Key in configuration.")
+
+    model = config.get("dashscope.stt.model", "paraformer-realtime-v1") # Use nested key and provide default
     # sample_rate is now passed as an argument
-    channels = config["audio.channels"]
+    channels = config.get("audio.channels", 1) # Use get() for robustness
 
     # Create the callback instance, passing dispatcher and llm client
     callback = ParaformerCallback(
