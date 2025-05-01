@@ -87,7 +87,7 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
     "logging": {
         "level": "INFO", # DEBUG, INFO, WARNING, ERROR, CRITICAL
         "file": { # New section for application log file
-            "enabled": False, # Default to disabled
+            "enabled": True, # Default to disabled
             "path": "vrcmeow_app.log" # Default path for application log
         }
     },
