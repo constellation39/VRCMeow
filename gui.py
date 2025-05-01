@@ -193,27 +193,11 @@ def main(page: ft.Page):
             logger.info("LLM processing disabled by config.")
             app_state.llm_client = None
 
-        # 2. VRCClient (if enabled) - Initialize and start
-        if config.get("outputs.vrc_osc.enabled", False):
-            osc_address = config.get("outputs.vrc_osc.address", "127.0.0.1")
-            osc_port = config.get("outputs.vrc_osc.port", 9000)
-            osc_interval = config.get("outputs.vrc_osc.message_interval", 1.333)
-            try:
-                app_state.vrc_client = VRCClient(address=osc_address, port=osc_port, interval=osc_interval)
-                # Start VRCClient in background task
-                asyncio.create_task(app_state.vrc_client.start())
-                logger.info("VRCClient initialized and start requested.")
-            except Exception as vrc_err:
-                error_msg = f"Error initializing or starting VRCClient: {vrc_err}"
-                logger.error(error_msg, exc_info=True)
-                gui_utils.show_error_banner(page, error_msg) # Show error but continue setup
-                app_state.vrc_client = None # Ensure it's None on error
-        else:
-            logger.info("VRC OSC output disabled, skipping VRCClient initialization.")
-            app_state.vrc_client = None
+        # 2. VRCClient (if enabled) - Defer initialization and start
+        # We will initialize and start it in initialize_async_components below
 
-        # 3. OutputDispatcher (pass VRC client and GUI output callback)
-        # Initialize OutputDispatcher regardless of VRCClient state
+        # 3. OutputDispatcher (pass VRC client placeholder and GUI output callback)
+        # Initialize OutputDispatcher, VRCClient will be set later if enabled
         app_state.output_dispatcher = OutputDispatcher(
             vrc_client_instance=app_state.vrc_client, # Pass VRC client (or None)
             gui_output_callback=update_output_callback, # Pass the partial callback
@@ -708,6 +692,48 @@ def main(page: ft.Page):
     except Exception as e:
         logger.error(f"Error scheduling initial dashboard update: {e}", exc_info=True)
 
+
+    # --- Async Component Initialization ---
+    async def initialize_async_components():
+        """Initialize and start components that require a running event loop."""
+        logger.info("Starting async component initialization...")
+
+        # Initialize and start VRCClient if enabled
+        if config.get("outputs.vrc_osc.enabled", False):
+            osc_address = config.get("outputs.vrc_osc.address", "127.0.0.1")
+            osc_port = config.get("outputs.vrc_osc.port", 9000)
+            osc_interval = config.get("outputs.vrc_osc.message_interval", 1.333)
+            try:
+                app_state.vrc_client = VRCClient(address=osc_address, port=osc_port, interval=osc_interval)
+                # Assign the created client to the dispatcher
+                if app_state.output_dispatcher:
+                    app_state.output_dispatcher.vrc_client_instance = app_state.vrc_client
+                    logger.info("VRCClient instance assigned to OutputDispatcher.")
+                else:
+                     logger.warning("OutputDispatcher not available when VRCClient initialized.")
+
+                # Start VRCClient using asyncio.create_task now that loop is running
+                asyncio.create_task(app_state.vrc_client.start())
+                logger.info("VRCClient initialized and start task created.")
+            except Exception as vrc_err:
+                error_msg = f"Error initializing or starting VRCClient: {vrc_err}"
+                logger.error(error_msg, exc_info=True)
+                gui_utils.show_error_banner(page, error_msg)
+                app_state.vrc_client = None # Ensure it's None on error
+                # Ensure dispatcher doesn't hold a reference if init failed
+                if app_state.output_dispatcher:
+                    app_state.output_dispatcher.vrc_client_instance = None
+        else:
+            logger.info("VRC OSC output disabled, skipping VRCClient initialization.")
+            app_state.vrc_client = None
+            # Ensure dispatcher doesn't hold a reference
+            if app_state.output_dispatcher:
+                app_state.output_dispatcher.vrc_client_instance = None
+
+        logger.info("Async component initialization finished.")
+
+    # Schedule the async initialization task to run
+    page.run_task(initialize_async_components)
 
     # --- Final Page Update ---
     page.update()
