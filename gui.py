@@ -593,10 +593,11 @@ def main(page: ft.Page):
     text_input_field = ft.TextField(
         label="在此输入文本",
         multiline=True,
-        min_lines=3,
-        max_lines=5,
-        expand=True,  # Allow vertical expansion
+        min_lines=1, # Reduced min lines
+        max_lines=3, # Reduced max lines
+        expand=True,  # Allow horizontal expansion within the Row
         border_color=ft.colors.OUTLINE,
+        dense=True, # Make the text field more compact vertically
     )
     text_input_progress = ft.ProgressRing(
         visible=False, width=16, height=16, stroke_width=2
@@ -673,15 +674,21 @@ def main(page: ft.Page):
     text_input_tab_content = ft.Column(
         [
             ft.Text(
-                "手动输入文本并发送，将通过与语音输入相同的处理流程（LLM -> 输出）。"
+                "手动输入文本并发送，将通过与语音输入相同的处理流程（LLM -> 输出）。",
+                size=12, # Slightly smaller text
             ),
-            text_input_field,
-            ft.Row(
-                [submit_text_button, text_input_progress],
-                alignment=ft.MainAxisAlignment.END,
+            ft.Row( # Put text field, button, and progress in a row
+                [
+                    text_input_field, # Takes available horizontal space
+                    submit_text_button,
+                    text_input_progress,
+                ],
+                alignment=ft.MainAxisAlignment.START,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER, # Align items vertically
+                spacing=5, # Reduce spacing within the row
             ),
         ],
-        spacing=10,
+        spacing=5, # Reduce spacing between the text and the input row
         # Add scroll if content might overflow, though unlikely with max_lines
         # scroll=ft.ScrollMode.ADAPTIVE,
     )
