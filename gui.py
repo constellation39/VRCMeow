@@ -715,15 +715,14 @@ def main(page: ft.Page):
     # Schedule a task to periodically check the log queue and update the UI
     async def periodic_log_update():
         while True:
-            # Check if the page still exists and the window hasn't been destroyed
-            if page and not page.window_destroyed: # Check if window is still active
-                 try:
-                    log_update_callback() # Call the partial function
-                 except Exception as log_update_err:
-                     print(f"Error in periodic log update: {log_update_err}") # Print error directly
-            else:
-                logger.info("Page closed or connection lost, stopping periodic log update.")
-                break # Exit the loop if page is gone
+            try:
+                # Attempt to update the log display
+                log_update_callback() # Call the partial function
+            except Exception as log_update_err:
+                # If any error occurs during update (e.g., page closed), log it and stop the loop.
+                logger.warning(f"Error during periodic log update (likely page closed), stopping task: {log_update_err}")
+                break # Exit the loop
+            # If update succeeds, wait and continue
             await asyncio.sleep(0.5) # Check every 500ms
 
     page.run_task(periodic_log_update)
