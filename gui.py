@@ -737,6 +737,77 @@ def main(page: ft.Page):
     )
     reload_config_button.on_click = reload_handler_partial
 
+
+    # --- Create Preset Management Dialog ---
+    preset_dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("管理 LLM 提示预设"),
+        content=None, # Content created by gui_presets
+        actions=[ft.TextButton("关闭", on_click=lambda _: close_dialog(preset_dialog))],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+
+    # Create dialog content using the function from gui_presets
+    # Pass the necessary arguments, including the UI update callback
+    preset_dialog_content = gui_presets.create_preset_management_dialog_content(
+        page=page,
+        all_config_controls=all_config_controls,
+        update_config_ui_callback=update_llm_ui_partial, # Pass the partial callback
+        dialog_ref=preset_dialog, # Pass dialog reference for closing/updating
+    )
+    preset_dialog.content = preset_dialog_content # Assign content to dialog
+
+    # --- Dialog Open/Close Handlers (Defined BEFORE assignment) ---
+    async def open_preset_dialog(e: ft.ControlEvent):
+        logger.info("Manage Presets button clicked, executing open_preset_dialog...") # Add log here
+        # Refresh dropdown before opening? Optional, but good practice.
+        try:
+            # Access the dropdown within the dialog content to update it
+            # Let's make indexing safer by searching for the control type
+            preset_select_dd = None
+            if isinstance(preset_dialog.content, ft.Column):
+                for ctrl in preset_dialog.content.controls:
+                     # Find the Row containing the dropdown
+                     # Check if the first element in the row is the dropdown
+                     if isinstance(ctrl, ft.Row) and len(ctrl.controls) > 0 and isinstance(ctrl.controls[0], ft.Dropdown):
+                         preset_select_dd = ctrl.controls[0]
+                         logger.debug("Found preset dropdown in dialog content.")
+                         break # Found it
+
+            # preset_select_dd = preset_dialog.content.controls[1].controls[0] # Original fragile indexing
+
+            if preset_select_dd:
+                 presets_data = prompt_presets.load_presets()
+                 preset_names = sorted(list(presets_data.keys()))
+                 preset_select_dd.options = [ft.dropdown.Option(name) for name in preset_names]
+                 # Try to select the currently active preset shown in the label
+                 current_active_name = "Default"
+                 if active_preset_name_label and active_preset_name_label.value.startswith("当前预设: "):
+                     current_active_name = active_preset_name_label.value.split(": ")[1]
+                 if current_active_name in preset_names:
+                     preset_select_dd.value = current_active_name
+                 else:
+                     preset_select_dd.value = None # Reset if active name not in presets
+                 logger.debug(f"Preset dialog dropdown refreshed. Selected: {preset_select_dd.value}")
+            else:
+                 logger.error("Could not find preset dropdown to refresh in dialog.")
+        except Exception as refresh_err:
+            logger.error(f"Error refreshing preset dropdown: {refresh_err}", exc_info=True)
+
+        logger.debug("Setting page.dialog and opening preset dialog...")
+        page.dialog = preset_dialog
+        preset_dialog.open = True
+        if page.window_exists():
+            logger.debug("Calling page.update() to show preset dialog.")
+            page.update()
+        else:
+            logger.warning("Page window does not exist, cannot update to show dialog.")
+
+
+    def close_dialog(dialog_instance: ft.AlertDialog):
+        dialog_instance.open = False
+        if page.window_exists(): page.update()
+
     # Assign handler to the manage presets button
     if manage_presets_button and isinstance(manage_presets_button, ft.ElevatedButton): # Add type check
         logger.info("Assigning open_preset_dialog handler to manage_presets_button.on_click")
