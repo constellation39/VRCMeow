@@ -56,18 +56,52 @@ def create_dashscope_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Co
         hint_text="从环境变量 DASHSCOPE_API_KEY 覆盖",
         tooltip="阿里云 Dashscope 服务所需的 API Key",
     )
-    controls["dashscope.stt.model"] = ft.Dropdown(
+
+    # --- Dynamically create STT Model Dropdown ---
+    stt_models_config = stt_conf.get("models", {})
+    model_options = []
+    selected_model_value = stt_conf.get("selected_model", None) # Get configured selected model
+
+    if not stt_models_config:
+        logger.warning("No STT models defined in config 'dashscope.stt.models'. Dropdown will be empty.")
+        model_options.append(ft.dropdown.Option(key="error", text="配置中未定义模型", disabled=True))
+        selected_model_value = "error" # Set value to error state
+    else:
+        for model_name, model_info in stt_models_config.items():
+            # Create display text, optionally add translation support info
+            display_text = model_name
+            supports_translation = model_info.get("supports_translation", False)
+            model_type = model_info.get("type", "unknown") # Get type for potential display
+            # Example: "gummy-realtime-v1 (Gummy, 支持翻译)"
+            display_text += f" ({model_type.capitalize()}"
+            if supports_translation:
+                display_text += ", 支持翻译"
+            display_text += ")"
+
+            model_options.append(ft.dropdown.Option(key=model_name, text=display_text))
+
+        # Validate if the configured selected_model exists in the options
+        if selected_model_value not in stt_models_config:
+             logger.warning(f"Configured 'selected_model' ('{selected_model_value}') not found in 'models' list. Falling back.")
+             # Fallback to the first available model key or None if empty
+             selected_model_value = next(iter(stt_models_config.keys()), None)
+             if selected_model_value is None:
+                 logger.error("Cannot select a fallback model, models list is empty.")
+                 model_options.append(ft.dropdown.Option(key="error", text="无可用模型", disabled=True))
+                 selected_model_value = "error"
+
+
+    # Use 'selected_model' as the key to match config structure
+    controls["dashscope.stt.selected_model"] = ft.Dropdown(
         label="STT 模型",
-        value=stt_conf.get("model", "gummy-realtime-v1"),
-        options=[
-            ft.dropdown.Option("gummy-realtime-v1", "Gummy (支持翻译)"),
-            ft.dropdown.Option("paraformer-realtime-v2", "Paraformer V2 (仅识别)"),
-            ft.dropdown.Option("paraformer-realtime-v1", "Paraformer V1 (仅识别)"),
-        ],
-        tooltip="选择 Dashscope 提供的语音识别模型",
+        value=selected_model_value, # Use validated or fallback value
+        options=model_options,
+        tooltip="选择要使用的 Dashscope STT 模型 (来自 config.yaml)",
     )
+    # --- End STT Model Dropdown ---
+
     controls["dashscope.stt.translation_target_language"] = ft.TextField(
-        label="翻译目标语言 (Gummy)",
+        label="翻译目标语言 (若模型支持)", # Clarify dependency
         value=stt_conf.get("translation_target_language") or "",  # Handle None
         hint_text="留空则禁用翻译 (例如: en, ja, ko)",
         tooltip="如果使用 Gummy 并希望翻译，在此处输入目标语言代码",
@@ -363,7 +397,7 @@ def create_config_tab_content(
         [
             get_ctrl("dashscope.api_key"),
             ft.Divider(height=5),
-            get_ctrl("dashscope.stt.model"),
+            get_ctrl("dashscope.stt.selected_model"), # Use updated key
             get_ctrl("dashscope.stt.translation_target_language"),
             get_ctrl("dashscope.stt.intermediate_result_behavior"),
             ft.Divider(height=5),
@@ -600,11 +634,12 @@ async def save_config_handler(
             "dashscope.api_key",
             get_control_value(all_config_controls, "dashscope.api_key", str, ""),
         )
+        # Use updated key for selected model
         update_nested_dict(
             new_config_data,
-            "dashscope.stt.model",
+            "dashscope.stt.selected_model",
             get_control_value(
-                all_config_controls, "dashscope.stt.model", str, "gummy-realtime-v1"
+                all_config_controls, "dashscope.stt.selected_model", str, None # Default to None if control missing
             ),
         )
         update_nested_dict(
@@ -963,23 +998,59 @@ def reload_config_controls(
             if isinstance(control, ft.Switch):
                 control.value = bool(value) if value is not None else False
             elif isinstance(control, ft.Dropdown):
-                # Ensure the value exists in options before setting
-                if (
-                    value is not None
-                    and hasattr(control, "options")
-                    and isinstance(control.options, list)
-                    and any(opt.key == value for opt in control.options)
-                ):
+                # --- Special handling for Dropdowns during reload ---
+                current_options = control.options or []
+                options_changed = False
+
+                # 1. Reload options for STT model dropdown specifically
+                if key == "dashscope.stt.selected_model":
+                    new_model_options = []
+                    stt_models_config = reloaded_config_data.get("dashscope", {}).get("stt", {}).get("models", {})
+                    if not stt_models_config:
+                         new_model_options.append(ft.dropdown.Option(key="error", text="配置中未定义模型", disabled=True))
+                    else:
+                        for model_name, model_info in stt_models_config.items():
+                            display_text = model_name
+                            supports_translation = model_info.get("supports_translation", False)
+                            model_type = model_info.get("type", "unknown")
+                            display_text += f" ({model_type.capitalize()}"
+                            if supports_translation:
+                                display_text += ", 支持翻译"
+                            display_text += ")"
+                            new_model_options.append(ft.dropdown.Option(key=model_name, text=display_text))
+                    # Check if options actually changed before updating
+                    if str(control.options) != str(new_model_options): # Simple string comparison
+                        logger.info(f"Reloading options for STT model dropdown ('{key}').")
+                        control.options = new_model_options
+                        options_changed = True
+
+                # 2. Set the value for *any* dropdown (including STT model and audio device)
+                # Ensure the value from the reloaded config exists in the (potentially updated) options
+                final_options = control.options or [] # Use updated options if they changed
+                if value is not None and any(opt.key == value for opt in final_options):
                     control.value = value
                 else:
-                    # If value from config is invalid for dropdown, log and keep current value
-                    if value is not None:  # Log only if there was a value expected
-                        logger.warning(
-                            f"Value '{value}' for dropdown '{key}' not in options or invalid. Keeping previous selection: {control.value}"
+                    # Handle invalid/missing value from config
+                    if value is not None: # Log only if a value was expected but invalid
+                         logger.warning(
+                            f"Value '{value}' for dropdown '{key}' not in available options. Attempting fallback."
                         )
-                    # Optionally set to None or a default if value is invalid? For now, keep existing.
-                    # control.value = None # Or some default?
-            elif isinstance(control, ft.Dropdown) and key == "audio.device":
+                    # Fallback logic:
+                    if key == "audio.device":
+                        control.value = "Default" # Specific fallback for audio device
+                    elif key == "dashscope.stt.selected_model":
+                         # Fallback to first available model in the (potentially new) options
+                         control.value = next((opt.key for opt in final_options if not getattr(opt, 'disabled', False)), None)
+                         if control.value is None: # If still no valid option (e.g., only error option)
+                             control.value = "error" if any(opt.key == "error" for opt in final_options) else None
+                    else:
+                         # Generic fallback: keep current value or set to None if options changed drastically
+                         if not options_changed:
+                             logger.warning(f"Keeping previous selection '{control.value}' for '{key}'.")
+                         else:
+                             control.value = None # Reset if options changed and value invalid
+
+            elif isinstance(control, ft.Dropdown) and key == "audio.device": # This block is now redundant due to above logic
                 # Special handling for device dropdown reload
                 # Refresh options in case devices changed? No, keep it simple for now.
                 # Just set the value if it exists in the current options.
