@@ -209,6 +209,8 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
     """Creates controls for the LLM section."""
     controls = {}
     llm_conf = initial_config.get("llm", {})
+
+    # --- Basic LLM Settings (API Key, Model, Temp, etc.) ---
     controls["llm.enabled"] = ft.Switch(
         label="启用 LLM 处理",
         value=llm_conf.get("enabled", False),
@@ -234,12 +236,13 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         tooltip="要使用的 OpenAI 兼容模型名称",
     )
     controls["llm.system_prompt"] = ft.TextField(
-        label="LLM 系统提示",
-        value=llm_conf.get("system_prompt", "You are a helpful assistant."),
+        label="系统提示 (来自当前预设)", # Clarify label
+        # Value will be loaded from the active preset by reload_config_controls or preset dialog
+        value="", # Start empty, will be populated
         multiline=True,
-        min_lines=3,
-        max_lines=5,
-        tooltip="指导 LLM 行为的系统消息",
+        min_lines=4, # Increase size slightly
+        max_lines=8, # Increase size slightly
+        tooltip="指导 LLM 如何回应 (内容来自当前选定预设)",
     )
     controls["llm.temperature"] = ft.TextField(
         label="LLM Temperature",
@@ -258,8 +261,67 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
     controls["llm.few_shot_examples_column"] = ft.Column(controls=[], spacing=5)
     controls["llm.add_example_button"] = ft.TextButton(
         "添加 Few-Shot 示例", icon=ft.icons.ADD
-    )
+    ) # Handler assigned in gui.py
+
     return controls
+
+
+# --- New Helper Function to Update LLM UI Section ---
+def update_llm_config_ui(
+    page: ft.Page, # Need page for update
+    all_config_controls: Dict[str, ft.Control],
+    system_prompt_value: str,
+    few_shot_examples_list: List[Dict[str, str]],
+    active_preset_name_value: str,
+    create_example_row_func: Callable[[str, str], ft.Row], # Need row creation func
+) -> None:
+    """Updates the LLM System Prompt and Few-Shot examples UI controls."""
+    logger.debug(f"Updating LLM config UI for preset: '{active_preset_name_value}'")
+
+    # Update System Prompt TextField
+    system_prompt_tf = all_config_controls.get("llm.system_prompt")
+    if isinstance(system_prompt_tf, ft.TextField):
+        system_prompt_tf.value = system_prompt_value
+    else:
+        logger.error("System prompt textfield not found in controls for UI update.")
+
+    # Update Active Preset Name Label
+    active_preset_label = all_config_controls.get("llm.active_preset_name_label")
+    if isinstance(active_preset_label, ft.Text):
+        active_preset_label.value = f"当前预设: {active_preset_name_value}"
+    else:
+        logger.error("Active preset name label not found in controls for UI update.")
+
+
+    # Update Few-Shot Examples Column
+    few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
+    if isinstance(few_shot_column, ft.Column):
+        few_shot_column.controls.clear() # Clear existing rows
+        if isinstance(few_shot_examples_list, list):
+            logger.debug(f"Populating UI with {len(few_shot_examples_list)} few-shot examples from preset '{active_preset_name_value}'.")
+            for example in few_shot_examples_list:
+                if isinstance(example, dict) and "user" in example and "assistant" in example:
+                    try:
+                        # Use the provided function to create rows correctly
+                        new_row = create_example_row_func(
+                            example.get("user", ""), example.get("assistant", "")
+                        )
+                        few_shot_column.controls.append(new_row)
+                    except Exception as row_ex:
+                        logger.error(f"Error creating few-shot row during UI update for example {example}: {row_ex}", exc_info=True)
+                else:
+                    logger.warning(f"Skipping invalid few-shot example during UI update: {example}")
+        else:
+            logger.warning(f"Preset '{active_preset_name_value}' has invalid 'few_shot_examples' (not a list) during UI update.")
+        # Ensure the column updates visually
+        # few_shot_column.update() # Updating the whole page is usually sufficient
+    else:
+        logger.error("Few-shot examples column not found in controls for UI update.")
+
+    # Update the page to reflect changes
+    # Consider if only specific controls need updating for performance
+    if page.window_exists():
+         page.update()
 
 
 def create_vrc_osc_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
@@ -600,11 +662,11 @@ async def save_config_handler(
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
     create_example_row_func: Callable,  # Function to create few-shot rows for reload
-    dashboard_update_callback: Optional[
-        Callable[[], None]
-    ],  # Dashboard update callback (now synchronous call via run_thread)
+    dashboard_update_callback: Optional[Callable[[], None]],  # Dashboard update callback
     # REMOVED: app_state: "AppState",
     # REMOVED: restart_callback: Callable[[], Awaitable[None]],
+    # Add active_preset_name_label reference
+    active_preset_name_label: Optional[ft.Text] = None,
     e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
     """
@@ -739,8 +801,53 @@ async def save_config_handler(
         update_nested_dict(
             new_config_data,
             "llm.max_tokens",
-            get_control_value(all_config_controls, "llm.max_tokens", int, 150),
+            get_control_value(all_config_controls, "llm.max_tokens", int, 256), # Match default
         )
+        # --- Include existing extract/marker logic in search ---
+        # Note: The following lines were likely added in a previous step and need to be part of the search
+        # update_nested_dict(
+        #     new_config_data,
+        #     "llm.extract_final_answer",
+        #     get_control_value(all_config_controls, "llm.extract_final_answer", bool, False),
+        # )
+        # update_nested_dict(
+        #     new_config_data,
+        #     "llm.final_answer_marker",
+        #     get_control_value(all_config_controls, "llm.final_answer_marker", str, "Final Answer:"),
+        # )
+        # --- End existing logic ---
+
+        # --- Save Active Preset Name ---
+        # Read the active preset name from the (potentially hidden) label updated by preset loading
+        active_preset_name = "Default" # Default if label not found
+        if active_preset_name_label and isinstance(active_preset_name_label, ft.Text):
+             # The label's value holds the name of the preset currently loaded in the UI
+             # Extract name after "当前预设: "
+             label_text = active_preset_name_label.value
+             prefix = "当前预设: "
+             if label_text and label_text.startswith(prefix):
+                 loaded_preset_name = label_text[len(prefix):].strip()
+                 if loaded_preset_name:
+                     active_preset_name = loaded_preset_name
+                 else:
+                     logger.warning("Active preset name label is empty after prefix, saving 'Default'.")
+             else:
+                 logger.warning(f"Active preset name label has unexpected format ('{label_text}'), saving 'Default'.")
+
+        else:
+             logger.warning("Active preset name label control not found or invalid, saving 'Default'.")
+
+        update_nested_dict(new_config_data, "llm.active_preset_name", active_preset_name)
+        logger.debug(f"Saving active_preset_name: {active_preset_name}")
+
+        # --- IMPORTANT: Do NOT save system_prompt or few_shot_examples to config.yaml ---
+        # These are now managed in prompt_presets.json
+        # Remove them from the dict before saving to config.yaml
+        if "llm" in new_config_data and isinstance(new_config_data["llm"], dict):
+            new_config_data["llm"].pop("system_prompt", None)
+            new_config_data["llm"].pop("few_shot_examples", None)
+            logger.debug("Removed system_prompt and few_shot_examples from data being saved to config.yaml")
+
 
         update_nested_dict(
             new_config_data,
@@ -947,8 +1054,10 @@ def reload_config_controls(
     page: ft.Page,  # Need page for update
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
-    # Need specific function ref for creating rows, including its remove handler logic
+    # Need specific function ref for creating rows
     create_example_row_func: Callable[[str, str], ft.Row],
+    # Need the callback to update the LLM UI section after reload based on preset
+    update_llm_ui_callback: Callable[[str, List[Dict[str, str]], str], None],
 ):
     """Updates the GUI controls with values from the reloaded config."""
     logger.info("Reloading config values into GUI controls.")
@@ -1334,7 +1443,7 @@ async def add_example_handler(
     page: ft.Page,  # Need page for update and row creation
     all_config_controls: Dict[str, ft.Control],  # Need controls dict to find column
     e: Optional[ft.ControlEvent] = None,  # Add optional event argument
-):
+) -> None: # Explicitly type return as None
     """Adds a new, empty example row to the column."""
     few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
     if few_shot_column and isinstance(few_shot_column, ft.Column):
