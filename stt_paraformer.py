@@ -156,7 +156,7 @@ class ParaformerCallback(RecognitionCallback):
         # corresponding to the 'task-finished' event from the server.
         self.logger.info(
             "Dashscope Paraformer task finished (on_complete received, corresponds to 'task-finished' event)."
-        ) # Keep as INFO, updated message
+        )  # Keep as INFO, updated message
 
     def on_error(self, message) -> None:
         # Paraformer error structure might contain request_id and message
@@ -206,7 +206,7 @@ class ParaformerCallback(RecognitionCallback):
         # are likely handled by on_open, on_complete, on_error respectively.
 
         sentence_data = result.get_sentence()  # Corresponds to payload.output.sentence
-        request_id = result.get_request_id() # Corresponds to header.task_id
+        request_id = result.get_request_id()  # Corresponds to header.task_id
         # Usage might be derived differently by the SDK or always null as per docs
         usage = result.get_usage(sentence_data)
 
@@ -221,9 +221,9 @@ class ParaformerCallback(RecognitionCallback):
         if not sentence_data or not sentence_data.get("text"):
             # Handle potential heartbeat or empty results if necessary
             if sentence_data and sentence_data.get("heartbeat") is True:
-                 self.logger.debug("Paraformer heartbeat received, skipping.")
+                self.logger.debug("Paraformer heartbeat received, skipping.")
             else:
-                 self.logger.debug("Paraformer 事件无有效文本或句子数据。")
+                self.logger.debug("Paraformer 事件无有效文本或句子数据。")
             return
 
         text_to_process = sentence_data["text"]
@@ -269,9 +269,7 @@ class ParaformerCallback(RecognitionCallback):
         else:  # Not final (Intermediate result)
             log_prefix = "中间结果 (Intermediate)"
             # Log the intermediate text regardless of behavior setting
-            self.logger.info(
-                f"STT_PARA: {log_prefix}: '{text_to_process}'"
-            )
+            self.logger.info(f"STT_PARA: {log_prefix}: '{text_to_process}'")
 
             if self.intermediate_behavior == "show_typing":
                 # Send "Typing..." status periodically via VRC OSC if enabled
@@ -283,7 +281,7 @@ class ParaformerCallback(RecognitionCallback):
                         and self.vrc_client_for_intermediate
                     ):
                         self.logger.debug(
-                            f"STT_PARA: Sending intermediate VRC OSC: 'Typing...'"
+                            "STT_PARA: Sending intermediate VRC OSC: 'Typing...'"
                         )
                         # Use the existing thread-based OSC sender
                         osc_thread = threading.Thread(
@@ -305,8 +303,10 @@ class ParaformerCallback(RecognitionCallback):
 
             elif self.intermediate_behavior == "show_partial":
                 # Send the intermediate text via VRC OSC if enabled
-                log_prefix = "中间结果 (Partial)" # Corrected log prefix variable name
-                self.logger.debug(f"STT_PARA: {log_prefix}: '{text_to_process}'") # Use corrected variable
+                log_prefix = "中间结果 (Partial)"  # Corrected log prefix variable name
+                self.logger.debug(
+                    f"STT_PARA: {log_prefix}: '{text_to_process}'"
+                )  # Use corrected variable
                 # Send partial text only via VRC OSC if enabled
                 if (
                     self.vrc_osc_intermediate_enabled
