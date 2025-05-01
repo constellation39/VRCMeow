@@ -58,6 +58,16 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
                     "sample_rate": 16000,
                     "supports_translation": False,
                 },
+                "paraformer-realtime-8k-v2": { # 新增 8k 模型
+                    "type": "paraformer",
+                    "sample_rate": 8000,
+                    "supports_translation": False,
+                },
+                "paraformer-mtl-v1": { # 新增 mtl 模型
+                    "type": "paraformer",
+                    "sample_rate": 16000,
+                    "supports_translation": False, # 实时 API 通常不支持翻译
+                },
             },
             # 中间结果处理方式 (可选, 仅影响 VRChat OSC 输出)
             "intermediate_result_behavior": "ignore",  # 可选: "show_typing", "show_partial"

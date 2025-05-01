@@ -37,10 +37,14 @@ dashscope:
         type: "paraformer"
         sample_rate: 16000
         supports_translation: false
-      # paraformer-realtime-v1: # 如果需要，可以添加其他模型
-      #   type: "paraformer"
-      #   sample_rate: 16000
-      #   supports_translation: false
+      paraformer-realtime-8k-v2: # 新增: Paraformer 8kHz 模型
+        type: "paraformer"
+        sample_rate: 8000
+        supports_translation: false
+      paraformer-mtl-v1: # 新增: Paraformer 多任务模型 (实时 API 通常仅识别)
+        type: "paraformer"
+        sample_rate: 16000
+        supports_translation: false
 
     # 中间结果处理方式 (可选, 仅影响 VRChat OSC 输出)
     # 定义如何处理 STT 引擎返回的非最终识别结果 (如果模型支持)。
