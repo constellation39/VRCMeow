@@ -763,8 +763,8 @@ def main(page: ft.Page):
     # Schedule a task to periodically check the log queue and update the UI
     async def periodic_log_update():
         while True:
-            # Check if the page still exists before trying to update
-            if page and page.client: # Check if connection is alive
+            # Check if the page still exists and the window hasn't been destroyed
+            if page and not page.window_destroyed: # Check if window is still active
                  try:
                     log_update_callback() # Call the partial function
                  except Exception as log_update_err:
