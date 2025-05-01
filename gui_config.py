@@ -244,6 +244,9 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         max_lines=8, # Increase size slightly
         tooltip="指导 LLM 如何回应 (内容来自当前选定预设)",
     )
+    # --- Add missing label creation ---
+    controls["llm.few_shot_examples_label"] = ft.Text("Few-Shot 示例 (来自当前预设)", style=ft.TextThemeStyle.BODY_MEDIUM) # Add label
+
     controls["llm.temperature"] = ft.TextField(
         label="LLM Temperature",
         value=str(llm_conf.get("temperature", 0.7)),
@@ -483,27 +486,31 @@ def create_config_tab_content(
     )  # Fallback
     add_example_btn = get_ctrl("llm.add_example_button") or ft.TextButton()  # Fallback
 
-    dashscope_section = create_config_section(
-        "Dashscope 设置",
-        [
+    # Filter None controls before passing to section
+    dashscope_controls = [
+        c for c in [
             get_ctrl("dashscope.api_key"),
             ft.Divider(height=5),
             get_ctrl("dashscope.stt.selected_model"), # Use updated key
             get_ctrl("dashscope.stt.translation_target_language"),
             get_ctrl("dashscope.stt.intermediate_result_behavior"),
             ft.Divider(height=5),
-            ft.Text("音频输入", style=ft.TextThemeStyle.TITLE_SMALL),
+            ft.Text("音频输入", style=ft.TextThemeStyle.TITLE_SMALL), # Keep static text
             get_ctrl("audio.device"),  # Add device dropdown here
             # REMOVED: get_ctrl("audio.sample_rate"),
             get_ctrl("audio.channels"), # Keep disabled field
             get_ctrl("audio.dtype"), # Keep disabled field
             get_ctrl("audio.debug_echo_mode"),
-        ],
+        ] if c is not None # Filter out None values
+    ]
+    dashscope_section = create_config_section(
+        "Dashscope 设置",
+        dashscope_controls,
     )
 
-    llm_section = create_config_section(
-        "语言模型 (LLM)",
-        [
+    # Filter None controls before passing to section
+    llm_controls = [
+        c for c in [
             get_ctrl("llm.enabled"),
             get_ctrl("llm.api_key"),
             get_ctrl("llm.base_url"),
@@ -514,10 +521,13 @@ def create_config_tab_content(
             get_ctrl("llm.extract_final_answer"), # Add missing controls
             get_ctrl("llm.final_answer_marker"), # Add missing controls
             ft.Divider(height=10),
-            ft.Row( # Row for preset management
+            # Handle Row separately to filter its contents
+            ft.Row(
                 [
-                    get_ctrl("llm.active_preset_name_label"),
-                    get_ctrl("llm.manage_presets_button"),
+                    c for c in [ # Filter controls inside the Row
+                        get_ctrl("llm.active_preset_name_label"),
+                        get_ctrl("llm.manage_presets_button"),
+                    ] if c is not None
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -525,47 +535,67 @@ def create_config_tab_content(
             ft.Divider(height=10),
             get_ctrl("llm.few_shot_examples_label"), # Add label for examples
             # ft.Text("这些示例指导 LLM 如何响应特定输入。", size=11, italic=True), # Remove redundant text
-            few_shot_column, # Now shows preset examples
-            add_example_btn, # Button to add to current UI view
-        ],
+            few_shot_column, # Now shows preset examples (already checked for None)
+            add_example_btn, # Button to add to current UI view (already checked for None)
+        ] if c is not None # Filter out None values from the main list
+    ]
+    llm_section = create_config_section(
+        "语言模型 (LLM)",
+        llm_controls,
     )
 
-    vrc_osc_output_section = create_config_section(
-        "输出: VRChat OSC",
-        [
+    # Filter None controls before passing to section
+    vrc_osc_controls = [
+        c for c in [
             get_ctrl("outputs.vrc_osc.enabled"),
             get_ctrl("outputs.vrc_osc.address"),
             get_ctrl("outputs.vrc_osc.port"),
             get_ctrl("outputs.vrc_osc.message_interval"),
             get_ctrl("outputs.vrc_osc.format"),  # Add the format control here
-        ],
+        ] if c is not None # Filter out None values
+    ]
+    vrc_osc_output_section = create_config_section(
+        "输出: VRChat OSC",
+        vrc_osc_controls,
     )
 
-    console_output_section = create_config_section(
-        "输出: 控制台",
-        [
+    # Filter None controls before passing to section
+    console_controls = [
+        c for c in [
             get_ctrl("outputs.console.enabled"),
             get_ctrl("outputs.console.prefix"),
-        ],
+        ] if c is not None # Filter out None values
+    ]
+    console_output_section = create_config_section(
+        "输出: 控制台",
+        console_controls,
     )
 
-    file_output_section = create_config_section(
-        "输出: 文件",
-        [
+    # Filter None controls before passing to section
+    file_controls = [
+        c for c in [
             get_ctrl("outputs.file.enabled"),
             get_ctrl("outputs.file.path"),
             get_ctrl("outputs.file.format"),
-        ],
+        ] if c is not None # Filter out None values
+    ]
+    file_output_section = create_config_section(
+        "输出: 文件",
+        file_controls,
     )
 
-    logging_section = create_config_section(
-        "日志记录",
-        [
+    # Filter None controls before passing to section
+    logging_controls = [
+        c for c in [
             get_ctrl("logging.level"),
             ft.Divider(height=5),
             get_ctrl("logging.file.enabled"),  # Add file logging enabled switch
             get_ctrl("logging.file.path"),  # Add file logging path field
-        ],
+        ] if c is not None # Filter out None values
+    ]
+    logging_section = create_config_section(
+        "日志记录",
+        logging_controls,
     )
 
     # --- Create the top button row ---
