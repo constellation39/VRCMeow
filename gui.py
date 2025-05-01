@@ -3,6 +3,7 @@ import asyncio
 import functools
 import os
 import pathlib
+import subprocess # <-- Import subprocess
 import sys
 from typing import Optional, Dict  # Added Callable here
 
@@ -362,29 +363,46 @@ def main(page: ft.Page):
             logger.info("Restart: VRCClient not active, skipping VRC stop.")
 
 
-        # Attempt restart
-        logger.critical(">>> Preparing to restart application via os.execv <<<") # Make this log stand out
+        # Attempt restart by launching a new detached process and exiting the current one
+        logger.critical(">>> Preparing to launch new application instance and exit <<<")
         try:
             # Ensure sys.executable and sys.argv are valid
-            logger.debug(f"Restart: Using executable: {sys.executable}")
-            logger.debug(f"Restart: Using arguments: {[sys.executable] + sys.argv}")
-            if not sys.executable or not sys.argv:
+            exec_path = sys.executable
+            exec_args = [exec_path] + sys.argv
+            logger.debug(f"Restart: Launching executable: {exec_path}")
+            logger.debug(f"Restart: Using arguments: {exec_args}")
+
+            if not exec_path or not exec_args:
                 raise RuntimeError(
                     "sys.executable or sys.argv is not available for restart."
                 )
-            # Use os.execv to replace the current process
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-        except Exception as restart_ex:
-            # If restart fails, log critical error and maybe destroy window as fallback?
-            logger.critical(f"重启应用程序时出错: {restart_ex}", exc_info=True)
-            gui_utils.show_error_banner(page, f"重启失败: {restart_ex}")
-            # Fallback: Destroy the window if restart fails to prevent hanging
+
+            # Platform-specific flags for detaching the process
+            creationflags = 0
+            if sys.platform == "win32":
+                creationflags = subprocess.DETACHED_PROCESS # Detach on Windows
+
+            # Launch the new process
+            logger.info(f"Launching new process: {exec_args} with creationflags={creationflags}")
+            subprocess.Popen(exec_args, creationflags=creationflags)
+
+            # Successfully launched, now exit the current process by closing the window
+            logger.info("New process launched. Closing current application window...")
             try:
                 page.window_destroy()
+                # Note: Code execution might stop here as the window closes.
+                logger.info("Window close requested.") # This log might not always appear
             except Exception as destroy_ex:
-                logger.error(
-                    f"Error destroying window after failed restart: {destroy_ex}"
-                )
+                 # This might happen if the page context is already invalid
+                logger.error(f"Error requesting window destroy during restart: {destroy_ex}")
+                logger.info("Attempting sys.exit(0) as fallback.")
+                sys.exit(0) # Force exit if window destroy fails
+
+        except Exception as launch_ex:
+            # If launching the new process fails
+            logger.critical(f"启动新应用程序实例时出错: {launch_ex}", exc_info=True)
+            gui_utils.show_error_banner(page, f"启动新实例失败: {launch_ex}")
+            # Do not destroy the window here, allow the current instance to continue running
 
     # --- Log Tab Handlers ---
     async def clear_log_handler(e: ft.ControlEvent):
