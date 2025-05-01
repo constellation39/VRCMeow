@@ -469,12 +469,21 @@ def main(page: ft.Page):
         if app_state.audio_manager:
             logger.info("Requesting AudioManager stop...")
             try:
-                # Run the potentially blocking stop() in a thread
-                # AudioManager's stop should handle its internal threads gracefully.
-                await asyncio.to_thread(app_state.audio_manager.stop)
-                logger.info("AudioManager stop request completed.")
+                # Run the potentially blocking stop() in a thread via asyncio.to_thread
+                # Wrap this await in asyncio.wait_for to prevent hangs during restart
+                stop_timeout = 10.0 # Seconds to wait for AudioManager.stop() to complete
+                logger.info(f"Waiting up to {stop_timeout}s for AudioManager.stop() to complete...")
+                await asyncio.wait_for(
+                    asyncio.to_thread(app_state.audio_manager.stop),
+                    timeout=stop_timeout
+                )
+                logger.info("AudioManager stop request completed within timeout.")
                 # The final status update ("Stopped", "Error") should come from
                 # the AudioManager's status_callback when its threads fully exit.
+            except asyncio.TimeoutError:
+                logger.warning(f"AudioManager.stop() did not complete within {stop_timeout}s timeout. Proceeding with stop/restart anyway.")
+                # Force UI update to indicate potential issue but still stopped state
+                update_status_callback("已停止 (超时)", is_running=False, is_processing=False)
             except Exception as am_stop_err:
                 logger.error(
                     f"Error requesting AudioManager stop: {am_stop_err}", exc_info=True
