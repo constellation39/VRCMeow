@@ -2,7 +2,7 @@ import asyncio
 import datetime
 
 # Directly import the config instance
-from typing import Optional, Callable  # 导入 Callable 和 Awaitable
+from typing import Optional  # 导入 Callable 和 Awaitable
 
 import aiofiles  # Use aiofiles for async file operations
 
@@ -72,7 +72,9 @@ class OutputDispatcher:
             # REMOVED: self.vrc_osc_enabled = False
         elif self.vrc_osc_enabled:
             # Log that it's enabled based on config, client check happens at dispatch time.
-            logger.info(f"VRC OSC output enabled per config. Format: '{self.vrc_osc_format}'")
+            logger.info(
+                f"VRC OSC output enabled per config. Format: '{self.vrc_osc_format}'"
+            )
 
     async def dispatch(self, text: str):
         """
@@ -132,13 +134,19 @@ class OutputDispatcher:
 
         # 3. VRC OSC Output (Async - Await directly)
         # DEBUG: Check if VRC OSC dispatch will be attempted
-        logger.debug(f"OUTPUT_DISP: Checking VRC OSC condition. Enabled: {self.vrc_osc_enabled}, Client valid: {bool(self.vrc_client)}")
+        logger.debug(
+            f"OUTPUT_DISP: Checking VRC OSC condition. Enabled: {self.vrc_osc_enabled}, Client valid: {bool(self.vrc_client)}"
+        )
         if self.vrc_osc_enabled and self.vrc_client:
-            logger.info("OUTPUT_DISP: VRC OSC condition met. Proceeding with formatting and sending.") # Log entry into VRC block
+            logger.info(
+                "OUTPUT_DISP: VRC OSC condition met. Proceeding with formatting and sending."
+            )  # Log entry into VRC block
             formatted_vrc_text = text  # Default to raw text
             try:
                 # DEBUG: Log the format string being used
-                logger.debug(f"OUTPUT_DISP: Formatting VRC text using format: '{self.vrc_osc_format}'")
+                logger.debug(
+                    f"OUTPUT_DISP: Formatting VRC text using format: '{self.vrc_osc_format}'"
+                )
                 formatted_vrc_text = self.vrc_osc_format.format(text=text)
             except KeyError as e:
                 logger.warning(
@@ -150,7 +158,7 @@ class OutputDispatcher:
                     f"OutputDispatcher: Error formatting VRC OSC text: {e}. Sending raw text.",
                     exc_info=True,
                 )
-                formatted_vrc_text = text # Ensure fallback is assigned on error
+                formatted_vrc_text = text  # Ensure fallback is assigned on error
 
             try:
                 # INFO: Log before calling VRCClient.send_chatbox

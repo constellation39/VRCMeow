@@ -1,227 +1,227 @@
-# VRCMeow Configuration Example
-# Copy this file to config.yaml and modify it according to your needs.
-# Comments start with '#'.
+# VRCMeow 配置文件示例
+# 将此文件复制为 config.yaml 并根据您的需求进行修改。
+# 注释以 '#' 开头。
 
 # -----------------------------------------------------------------------------
-# Dashscope (Alibaba Cloud Lingji) Service Settings
+# Dashscope (阿里云灵积) 服务设置
 # -----------------------------------------------------------------------------
 dashscope:
-  # API Key (Required)
-  # Strongly recommended to set via the `DASHSCOPE_API_KEY` environment variable.
-  # If set here, it will be used, but the environment variable takes higher priority.
+  # API 密钥 (必需)
+  # 强烈建议通过环境变量 `DASHSCOPE_API_KEY` 设置。
+  # 如果在此处设置，它将被使用，但环境变量具有更高的优先级。
   api_key: ""
 
-  # --- Speech-to-Text (STT) / Speech Translation (STT+Translation) Settings ---
+  # --- 语音转文本 (STT) / 语音翻译 (STT+Translation) 设置 ---
   stt:
-    # Target language for translation (Optional)
-    # If a valid language code is set (e.g., "en", "ja", "ko"), translation will be enabled.
-    # Leave this value empty (`""`) or set it to `null` to disable translation and perform only speech recognition.
-    # Note: Ensure the selected `model` supports the target language you specify.
-    translation_target_language: "" # Example: "en" (Translate to English), "" (Disable translation)
+    # 翻译的目标语言 (可选)
+    # 如果设置了有效的语言代码 (例如 "en", "ja", "ko")，将启用翻译功能。
+    # 将此值留空 (`""`) 或设置为 `null` 以禁用翻译，仅执行语音识别。
+    # 注意：请确保所选的 `model` 支持您指定的目标语言。
+    translation_target_language: "" # 示例: "en" (翻译为英语), "" (禁用翻译)
 
-    # Dashscope model to use (Required)
-    # - "gummy-realtime-v1": Supports real-time speech recognition and translation.
-    # - "paraformer-realtime-v2", "paraformer-realtime-v1": Supports only real-time speech recognition.
-    # Please consult the Dashscope documentation for the latest model list and features.
+    # 使用的 Dashscope 模型 (必需)
+    # - "gummy-realtime-v1": 支持实时语音识别和翻译。
+    # - "paraformer-realtime-v2", "paraformer-realtime-v1": 仅支持实时语音识别。
+    # 请查阅 Dashscope 文档以获取最新的模型列表和功能。
     model: "gummy-realtime-v1"
 
-    # Intermediate result handling (Optional, affects VRChat OSC output only)
-    # Defines how to handle non-final recognition results returned by the STT engine.
-    # - "ignore": (Default) Ignores intermediate results, only sends the final recognized/translated text.
-    # - "show_typing": Displays "Typing..." status in VRChat.
-    # - "show_partial": Displays partially recognized text in VRChat.
+    # 中间结果处理方式 (可选, 仅影响 VRChat OSC 输出)
+    # 定义如何处理 STT 引擎返回的非最终识别结果。
+    # - "ignore": (默认) 忽略中间结果，仅发送最终识别/翻译文本。
+    # - "show_typing": 在 VRChat 中显示 "正在输入..." 状态。
+    # - "show_partial": 在 VRChat 中显示部分识别的文本。
     intermediate_result_behavior: "ignore"
 
 # -----------------------------------------------------------------------------
-# Audio Input Settings
+# 音频输入设置
 # -----------------------------------------------------------------------------
 audio:
-  # Audio input device name (Optional)
-  # Specify the name of the microphone device to use. You can find available devices in the application's dashboard tab.
-  # Set to "Default" (or leave empty/null) to use the system's default input device.
-  # device: "Default" # Uncomment and replace with your device name, e.g., "Microphone (Realtek High Definition Audio)"
+  # 音频输入设备名称 (可选)
+  # 指定要使用的麦克风设备名称。您可以在应用程序的仪表盘选项卡中找到可用设备列表。
+  # 设置为 "Default" (或留空/null) 以使用系统的默认输入设备。
+  # device: "Default" # 取消注释并替换为您的设备名称，例如 "麦克风 (Realtek High Definition Audio)"
 
-  # Audio sample rate (Hz) (Optional)
-  # Set to `null` (or leave empty) to attempt auto-detection and use the default input device's sample rate.
-  # If auto-detection fails, or if you uncomment this line and set a specific value, the specified value will be used.
-  # Default fallback value: 16000 Hz.
-  # Note: Ensure the sample rate is compatible with the selected Dashscope STT model (e.g., Gummy models usually require 16000 Hz).
-  sample_rate: null # Example: 16000
+  # 音频采样率 (Hz) (可选)
+  # 设置为 `null` (或留空) 以尝试自动检测并使用默认输入设备的采样率。
+  # 如果自动检测失败，或取消注释此行并设置具体值，将使用指定的值。
+  # 默认回退值: 16000 Hz。
+  # 注意：确保采样率与所选的 Dashscope STT 模型兼容 (例如, Gummy 模型通常需要 16000 Hz)。
+  sample_rate: null # 示例: 16000
 
-  # Number of audio channels (Optional)
-  # Dashscope Gummy models usually require mono (1).
+  # 音频通道数 (可选)
+  # Dashscope Gummy 模型通常需要单声道 (1)。
   channels: 1
 
-  # Audio data type (Optional)
-  # Dashscope Gummy models usually require 'int16'.
+  # 音频数据类型 (可选)
+  # Dashscope Gummy 模型通常需要 'int16'。
   dtype: "int16"
 
-  # Debug echo mode (Optional)
-  # Set to `true` to route microphone input directly to speaker output.
-  # Useful for testing if microphone input is working correctly without involving STT or OSC.
-  # Warning: Enabling this mode may cause feedback (howling). Use with caution and lower your volume.
+  # 调试回声模式 (可选)
+  # 设置为 `true` 以将麦克风输入直接路由到扬声器输出。
+  # 这对于在不涉及 STT 或 OSC 的情况下测试麦克风输入是否正常工作很有用。
+  # 警告：启用此模式可能会产生啸叫，请谨慎使用并调低音量。
   debug_echo_mode: false
 
 # -----------------------------------------------------------------------------
-# Large Language Model (LLM) Processing Settings
+# 大型语言模型 (LLM) 处理设置
 # -----------------------------------------------------------------------------
 llm:
-  # Enable LLM processing (Required)
-  # Set to `true` to use an LLM for further processing of the text after STT recognition/translation (e.g., style conversion, summarization).
-  # Set to `false` to disable LLM processing.
+  # 是否启用 LLM 处理 (必需)
+  # 设置为 `true` 以在 STT 识别/翻译后，使用 LLM 对文本进行进一步处理 (例如, 风格转换、总结等)。
+  # 设置为 `false` 以禁用 LLM 处理。
   enabled: false
 
-  # OpenAI compatible API Key (Required if enabled is true)
-  # Strongly recommended to set via the `OPENAI_API_KEY` environment variable.
-  # If set here, it will be used, but the environment variable takes higher priority.
+  # OpenAI 兼容 API 密钥 (必需, 如果 enabled 为 true)
+  # 强烈建议通过环境变量 `OPENAI_API_KEY` 设置。
+  # 如果在此处设置，它将被使用，但环境变量具有更高的优先级。
   api_key: ""
 
-  # API Base URL (Optional)
-  # Specify the endpoint URL for the OpenAI compatible API.
-  # - For the official OpenAI API, usually not needed (defaults to `https://api.openai.com/v1`).
-  # - For locally running LLMs (e.g., using Ollama with OpenAI compatible interface enabled): "http://localhost:11434/v1"
-  # - For API proxy services (e.g., Cloudflare AI Gateway, One API, etc.): Consult the respective service's documentation.
-  # Example: base_url: "https://gateway.ai.cloudflare.com/v1/..."
-  # Example: base_url: "https://api.example-proxy.com/v1"
+  # API 基础 URL (可选)
+  # 指定 OpenAI 兼容 API 的端点 URL。
+  # - 对于 OpenAI 官方 API，通常不需要设置 (默认为 `https://api.openai.com/v1`)。
+  # - 对于本地运行的 LLM (例如, 使用 Ollama 并启用 OpenAI 兼容接口): "http://localhost:11434/v1"
+  # - 对于 API 代理服务 (例如 Cloudflare AI Gateway, One API 等): 请查阅相应服务的文档。
+  # 示例: base_url: "https://gateway.ai.cloudflare.com/v1/..."
+  # 示例: base_url: "https://api.example-proxy.com/v1"
   base_url: null
 
-  # LLM model name to use (Required if enabled is true)
-  # Specify the model to use for text processing.
-  # Example: "gpt-3.5-turbo", "gpt-4", "gpt-4o", "claude-3-opus-20240229" (depends on your API service provider)
-  # For local models (like Ollama): "llama3", "qwen:7b" (depends on the models you have downloaded and are running)
+  # 使用的 LLM 模型名称 (必需, 如果 enabled 为 true)
+  # 指定要用于处理文本的模型。
+  # 示例: "gpt-3.5-turbo", "gpt-4", "gpt-4o", "claude-3-opus-20240229" (取决于您的 API 服务提供商)
+  # 对于本地模型 (如 Ollama): "llama3", "qwen:7b" (取决于您已下载并运行的模型)
   model: "gpt-3.5-turbo"
 
-  # System prompt (Required if enabled is true)
-  # Instructions that guide the LLM on how to process the user input.
-  # You can define the LLM's role, task, output format requirements, etc., here.
-  # Below is an example for converting text to a specific style:
+  # 系统提示 (必需, 如果 enabled 为 true)
+  # 指导 LLM 如何处理用户输入的指令。
+  # 您可以在这里定义 LLM 的角色、任务、输出格式要求等。
+  # 下面是一个将文本转换为特定风格的示例：
   system_prompt: |
-    You are a professional text style conversion assistant. Please convert the text provided by the user into a relaxed, slightly playful, conversational style, similar to chatting with a friend.
-    Rules:
-    1. Keep the core meaning of the original text unchanged.
-    2. Use more colloquial words and expressions.
-    3. You can appropriately add some particles like "ya", "la", "oh" at the end of sentences.
-    4. Avoid overly formal or written language.
-    5. Directly output the converted text without any explanation or labels.
+    你是一名专业的文本风格转换助理。请将用户提供的文本转换为轻松愉快的、略带俏皮的口语风格，类似于和朋友聊天。
+    规则：
+    1. 保持原始文本的核心含义不变。
+    2. 使用更口语化的词语和表达方式。
+    3. 可以在句末适当添加一些语气词，如“呀”、“啦”、“哦”。
+    4. 避免过于正式或书面化的语言。
+    5. 直接输出转换后的文本，不要包含任何解释或标签。
 
-  # Temperature (Optional)
-  # Controls the randomness of the LLM's output. Lower values (e.g., 0.2) make the output more deterministic and consistent,
-  # higher values (e.g., 1.0) make it more creative and diverse.
-  # Valid range is typically 0.0 to 2.0.
+  # 温度 (可选)
+  # 控制 LLM 输出的随机性。较低的值 (例如 0.2) 使输出更具确定性和一致性，
+  # 较高的值 (例如 1.0) 使输出更具创造性和多样性。
+  # 有效范围通常是 0.0 到 2.0。
   temperature: 0.7
 
-  # Max Tokens (Optional)
-  # Limits the maximum length of the LLM's generated response (in tokens, roughly corresponding to words or syllables).
-  # Helps control API costs and response time.
+  # 最大 Token 数 (可选)
+  # 限制 LLM 生成响应的最大长度 (以 token 为单位，大致可以理解为单词或音节)。
+  # 这有助于控制 API 成本和响应时间。
   max_tokens: 256
 
-  # Few-shot examples (Optional)
-  # Provide some input/output examples to guide the LLM's behavior more precisely, especially when performing specific format conversions or style imitations.
-  # This is a list of dictionaries, each representing an example with 'user' (input) and 'assistant' (expected output).
+  # Few-shot 示例 (可选)
+  # 提供一些输入/输出示例，以更精确地指导 LLM 的行为，尤其是在执行特定格式转换或风格模仿时。
+  # 这是一个包含字典的列表，每个字典代表一个示例，包含 'user' (输入) 和 'assistant' (期望输出)。
   few_shot_examples:
-    - user: "The weather is really nice today."
-      assistant: "Wow, the weather's great today!"
-    - user: "I need to finish this work."
-      assistant: "Gotta get this work done."
-    # - user: "Input Example 3"
-    #   assistant: "Expected Output 3"
+    - user: "今天天气真不错。"
+      assistant: "今天天气真好呀！"
+    - user: "我需要完成这项工作。"
+      assistant: "我得把这活儿干完啦。"
+    # - user: "输入示例 3"
+    #   assistant: "期望输出 3"
 
 # -----------------------------------------------------------------------------
-# Output Destination Settings
+# 输出目标设置
 # -----------------------------------------------------------------------------
 outputs:
-  # --- VRChat OSC Output ---
+  # --- VRChat OSC 输出 ---
   vrc_osc:
-    # Enable VRChat OSC output (Required)
-    # Set to `true` to send the final processed text via OSC to the VRChat chatbox.
+    # 是否启用 VRChat OSC 输出 (必需)
+    # 设置为 `true` 以将最终处理后的文本通过 OSC 发送到 VRChat 聊天框。
     enabled: true
 
-    # VRChat client IP address (Required)
-    # Usually the IP address of the computer running VRChat. For local runs, typically "127.0.0.1".
+    # VRChat 客户端 IP 地址 (必需)
+    # 通常是运行 VRChat 的计算机的 IP 地址。对于本地运行，通常是 "127.0.0.1"。
     address: "127.0.0.1"
 
-    # VRChat OSC input port (Required)
-    # VRChat's default OSC input port is 9000.
+    # VRChat OSC 输入端口 (必需)
+    # VRChat 默认的 OSC 输入端口是 9000。
     port: 9000
 
-    # Minimum message sending interval (seconds) (Optional)
-    # Controls the shortest time interval between messages sent to the VRChat chatbox.
-    # Setting too low (e.g., < 1.333 seconds) may lead to VRChat rate limiting or chatbox message flooding.
-    # Recommended value: 1.333 or higher.
+    # 消息发送最小间隔 (秒) (可选)
+    # 控制发送到 VRChat 聊天框的消息之间的最短时间间隔。
+    # 设置过低 (例如 < 1.333 秒) 可能导致 VRChat 的速率限制或聊天框消息泛滥。
+    # 建议值: 1.333 或更高。
     message_interval: 1.333
 
-    # Message format string (Optional)
-    # Defines the format of the message sent to the VRChat chatbox.
-    # `{text}` will be replaced with the final recognized/processed text.
-    # Examples:
-    # "{text}"          (Send text directly)
-    # ">> {text}"       (Add ">> " before the text)
-    # "Meow: {text}"    (Add "Meow: " before the text)
-    # "\t{text}\t"     (Add tabs around the text, may affect display)
-    format: "{text}" # Default: send text directly
+    # 消息格式字符串 (可选)
+    # 定义发送到 VRChat 聊天框的消息格式。
+    # `{text}` 将被替换为最终识别/处理后的文本。
+    # 示例:
+    # "{text}"          (直接发送文本)
+    # ">> {text}"       (在文本前添加 ">> ")
+    # "Meow: {text}"    (在文本前添加 "Meow: ")
+    # "\t{text}\t"     (在文本前后添加制表符，可能影响显示效果)
+    format: "{text}" # 默认直接发送文本
 
-    # Send immediately (Optional)
-    # - `true`: (Default) The message will be displayed directly in the chatbox.
-    # - `false`: The message will populate the chatbox input field, requiring manual Enter press to send.
+    # 是否立即发送 (可选)
+    # - `true`: (默认) 消息将直接显示在聊天框中。
+    # - `false`: 消息将填充到聊天框的输入栏中，需要手动按 Enter 发送。
     send_immediately: true
 
-    # Play notification sound (Optional)
-    # Only effective when `send_immediately` is `true`.
-    # - `true`: (Default) VRChat will play a notification sound upon receiving the message.
-    # - `false`: VRChat will not play a notification sound.
+    # 是否播放通知音 (可选)
+    # 仅当 `send_immediately` 为 `true` 时生效。
+    # - `true`: (默认) VRChat 在收到消息时会播放提示音。
+    # - `false`: VRChat 不会播放提示音。
     play_notification_sound: true
 
-  # --- Console Output ---
+  # --- 控制台输出 ---
   console:
-    # Enable console output (Required)
-    # Set to `true` to print the final processed text to the console window running VRCMeow.
-    enabled: true # Recommended to keep enabled for debugging
+    # 是否启用控制台输出 (必需)
+    # 设置为 `true` 以将最终处理后的文本打印到运行 VRCMeow 的控制台窗口。
+    enabled: true # 建议保持启用以进行调试
 
-    # Output prefix (Optional)
-    # Adds the specified prefix before each line of text printed to the console.
+    # 输出前缀 (可选)
+    # 在打印到控制台的每行文本前添加指定的前缀。
     prefix: "[VRCMeow Output]"
 
-  # --- File Output ---
+  # --- 文件输出 ---
   file:
-    # Enable file output (Required)
-    # Set to `true` to append the final processed text to the specified file.
+    # 是否启用文件输出 (必需)
+    # 设置为 `true` 以将最终处理后的文本追加到指定的文件中。
     enabled: false
 
-    # Output file path (Required if enabled is true)
-    # Specify the file path for logging the output text. Can use relative or absolute paths.
+    # 输出文件路径 (必需, 如果 enabled 为 true)
+    # 指定用于记录输出文本的文件路径。可以使用相对路径或绝对路径。
     path: "vrcmeow_output.log"
 
-    # File record format string (Optional)
-    # Defines the format for each line written to the file.
-    # Available placeholders:
-    # - `{timestamp}`: Date and time of recording (e.g., "YYYY-MM-DD HH:MM:SS")
-    # - `{text}`: Final recognized/processed text
-    # Examples:
+    # 文件记录格式字符串 (可选)
+    # 定义写入文件的每行内容的格式。
+    # 可用占位符:
+    # - `{timestamp}`: 记录时的日期和时间 (例如 "YYYY-MM-DD HH:MM:SS")
+    # - `{text}`: 最终识别/处理后的文本
+    # 示例:
     # "{timestamp} | {text}"
     # "[{timestamp}] {text}"
     format: "{timestamp} - {text}"
 
 # -----------------------------------------------------------------------------
-# Logging Settings
+# 日志记录设置
 # -----------------------------------------------------------------------------
 logging:
-  # Level for console and file logs (Required)
-  # Determines which levels of log messages are recorded. Levels from lowest to highest: DEBUG < INFO < WARNING < ERROR < CRITICAL
-  # - "DEBUG": Most detailed logs, for diagnosing problems.
-  # - "INFO": (Default) Provides general information about the program's running state.
-  # - "WARNING": Indicates potential issues or unexpected situations.
-  # - "ERROR": An error occurred, but the program might still be able to continue running.
-  # - "CRITICAL": Severe error, potentially causing the program to terminate.
+  # 控制台和文件日志的级别 (必需)
+  # 决定记录哪些级别的日志消息。级别从低到高： DEBUG < INFO < WARNING < ERROR < CRITICAL
+  # - "DEBUG": 最详细的日志，用于诊断问题。
+  # - "INFO": (默认) 提供程序运行状态的一般信息。
+  # - "WARNING": 指示可能出现的问题或不期望的情况。
+  # - "ERROR": 发生了错误，但程序可能仍能继续运行。
+  # - "CRITICAL": 严重错误，可能导致程序终止。
   level: "INFO"
 
-  # --- Application Log File Settings ---
+  # --- 应用程序日志文件设置 ---
   file:
-    # Enable application log file (Required)
-    # Set to `true` to write detailed application runtime logs (including DEBUG, INFO, WARNING, ERROR, CRITICAL messages)
-    # to the specified file. Very useful for troubleshooting.
-    # Note: This is different from `outputs.file`, which only logs the final STT/LLM result text.
+    # 是否启用应用程序日志文件 (必需)
+    # 设置为 `true` 以将详细的应用程序运行日志 (包括 DEBUG, INFO, WARNING, ERROR, CRITICAL 消息)
+    # 写入到指定的文件中。这对于问题排查非常有用。
+    # 注意：这与 `outputs.file` 不同，后者仅记录最终的 STT/LLM 结果文本。
     enabled: true
 
-    # Application log file path (Required if enabled is true)
-    # Specify the file path to save the application runtime logs.
+    # 应用程序日志文件路径 (必需, 如果 enabled 为 true)
+    # 指定保存应用程序运行日志的文件路径。
     path: "vrcmeow_app.log"
