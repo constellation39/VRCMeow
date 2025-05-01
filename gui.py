@@ -353,18 +353,30 @@ def main(page: ft.Page):
         # page.update() # update_status_callback calls page.update()
 
         try:
-            # --- Start AudioManager ---
-            # Components (LLM, VRC, Dispatcher, AudioManager) are now initialized earlier.
-            # We just need to start the AudioManager here.
-            if not app_state.audio_manager:
-                # This shouldn't happen if initialization worked, but handle defensively.
-                error_msg = "错误：AudioManager 未初始化。"
-                logger.error(error_msg)
-                update_status_callback(error_msg, is_running=False, is_processing=False)
-                gui_utils.show_error_banner(page, error_msg)
-                return
+            # --- Create and Start AudioManager ---
+            # Always create a NEW instance here to ensure it reads the latest config
+            logger.info("Creating new AudioManager instance...")
+            try:
+                # Ensure necessary components (dispatcher, llm_client) are available
+                if not app_state.output_dispatcher:
+                     raise RuntimeError("OutputDispatcher not available for AudioManager.")
+                # Callbacks should already be defined
+                app_state.audio_manager = AudioManager(
+                    llm_client=app_state.llm_client,
+                    output_dispatcher=app_state.output_dispatcher,
+                    status_callback=update_status_callback,
+                    audio_level_callback=update_audio_level_callback,
+                )
+                logger.info("New AudioManager instance created successfully.")
+            except Exception as am_create_err:
+                 error_msg = f"创建 AudioManager 实例时出错: {am_create_err}"
+                 logger.critical(error_msg, exc_info=True)
+                 update_status_callback(error_msg, is_running=False, is_processing=False)
+                 gui_utils.show_error_banner(page, error_msg)
+                 return # Cannot proceed if AudioManager creation fails
 
             # Check for Dashscope API key before starting audio, as STT needs it.
+            # Access config through the singleton instance
             dashscope_api_key = config.get("dashscope.api_key")
             if not dashscope_api_key:
                 error_msg = "错误：Dashscope API Key 未设置，无法启动语音识别。"
