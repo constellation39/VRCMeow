@@ -899,6 +899,8 @@ def main(page: ft.Page):
             # Optionally clear field only on success? Currently clears before dispatch attempt.
             # text_input_field.value = "" # Clearing moved to after successful dispatch
             if page.window_exists(): # Check if page exists before updating
+                 page.update() # Add and indent this line
+
     async def text_input_change(e: ft.ControlEvent):
         """Handles changes in the text input field to reset the timer."""
         # Don't await here, just schedule the timer start/reset
