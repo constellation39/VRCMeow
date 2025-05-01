@@ -224,6 +224,9 @@ class ParaformerCallback(RecognitionCallback):
 
         # --- Handle Intermediate Result ---
         else:  # Not final (Intermediate result from Paraformer)
+            # Log the intermediate text regardless of behavior setting
+            self.logger.info(f"STT_PARA: Intermediate text received: '{text_to_process}'") # <-- Added log line
+
             if self.intermediate_behavior == "show_typing":
                 # Send "Typing..." status periodically via dispatcher
                 current_time = time.monotonic()
