@@ -128,6 +128,64 @@ def main(page: ft.Page):
         page.update()  # Try to show the error
         return  # Stop GUI setup
 
+    # --- Initialize Core Components (based on config) ---
+    logger.info("Initializing core components...")
+    try:
+        # 1. LLMClient (if enabled)
+        if config.get("llm.enabled", False):
+            app_state.llm_client = LLMClient()
+            if not app_state.llm_client.enabled:
+                logger.warning("LLMClient initialization failed or API Key missing, LLM processing will be disabled.")
+                app_state.llm_client = None # Ensure it's None if disabled
+            else:
+                logger.info("LLMClient initialized.")
+        else:
+            logger.info("LLM processing disabled by config.")
+            app_state.llm_client = None
+
+        # 2. VRCClient (if enabled) - Initialize and start
+        if config.get("outputs.vrc_osc.enabled", False):
+            osc_address = config.get("outputs.vrc_osc.address", "127.0.0.1")
+            osc_port = config.get("outputs.vrc_osc.port", 9000)
+            osc_interval = config.get("outputs.vrc_osc.message_interval", 1.333)
+            try:
+                app_state.vrc_client = VRCClient(address=osc_address, port=osc_port, interval=osc_interval)
+                # Start VRCClient in background task
+                asyncio.create_task(app_state.vrc_client.start())
+                logger.info("VRCClient initialized and start requested.")
+            except Exception as vrc_err:
+                error_msg = f"Error initializing or starting VRCClient: {vrc_err}"
+                logger.error(error_msg, exc_info=True)
+                gui_utils.show_error_banner(page, error_msg) # Show error but continue setup
+                app_state.vrc_client = None # Ensure it's None on error
+        else:
+            logger.info("VRC OSC output disabled, skipping VRCClient initialization.")
+            app_state.vrc_client = None
+
+        # 3. OutputDispatcher (pass VRC client and GUI output callback)
+        # Initialize OutputDispatcher regardless of VRCClient state
+        app_state.output_dispatcher = OutputDispatcher(
+            vrc_client_instance=app_state.vrc_client, # Pass VRC client (or None)
+            gui_output_callback=update_output_callback, # Pass the partial callback
+        )
+        logger.info("OutputDispatcher initialized.")
+
+        # 4. AudioManager (pass LLM client, dispatcher, and status/audio callbacks)
+        app_state.audio_manager = AudioManager(
+            llm_client=app_state.llm_client,
+            output_dispatcher=app_state.output_dispatcher,
+            status_callback=update_status_callback,
+            audio_level_callback=update_audio_level_callback, # Pass the audio level callback
+        )
+        logger.info("AudioManager initialized.")
+
+    except Exception as init_err:
+        logger.critical(f"CRITICAL ERROR during core component initialization: {init_err}", exc_info=True)
+        gui_utils.show_error_banner(page, f"核心组件初始化失败: {init_err}")
+        # Depending on the error, we might want to return or disable features
+        # For now, log and show banner, hoping some parts might still work.
+
+
     # --- Create Config Tab Controls ---
     # These are created here because the layout function in gui_config needs them.
     # Functions imported from gui_config are used.
