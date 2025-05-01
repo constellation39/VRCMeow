@@ -595,9 +595,11 @@ def main(page: ft.Page):
         multiline=True,
         min_lines=1, # Reduced min lines
         max_lines=3, # Reduced max lines
-        expand=True,  # Allow horizontal expansion within the Row
+        # expand=True, # Removed: Let the parent Column's alignment handle width/centering
         border_color=ft.colors.OUTLINE,
         dense=True, # Make the text field more compact vertically
+        on_submit=None, # Assign after handler definition below
+        text_align=ft.TextAlign.LEFT, # Keep text left-aligned within the field
     )
     text_input_progress = ft.ProgressRing(
         visible=False, width=16, height=16, stroke_width=2
@@ -605,18 +607,22 @@ def main(page: ft.Page):
     submit_text_button = ft.ElevatedButton(
         "发送",
         icon=ft.icons.SEND,
-        tooltip="处理并发送输入的文本",
-        # on_click will be assigned below
+        tooltip="处理并发送输入的文本 (Enter 键也可发送)", # Updated tooltip
+        on_click=None, # Assign after handler definition below
     )
 
     async def submit_text_handler(e: ft.ControlEvent):
         """Handles clicks on the text input submit button."""
         input_text = text_input_field.value
         if not input_text or not input_text.strip():
-            gui_utils.show_error_banner(page, "请输入要发送的文本。")
+            # Don't show banner on empty submit via Enter key, just do nothing.
+            # gui_utils.show_error_banner(page, "请输入要发送的文本。")
+            logger.debug("Empty text submitted, doing nothing.")
             return
 
         logger.info(f"Text input submitted: '{input_text[:50]}...'")
+        # Disable field and button during processing
+        text_input_field.disabled = True
         submit_text_button.disabled = True
         text_input_progress.visible = True
         page.update()  # Show progress
@@ -651,11 +657,16 @@ def main(page: ft.Page):
             logger.error(error_msg, exc_info=True)
             gui_utils.show_error_banner(page, error_msg)
         finally:
-            # Ensure UI is reset
+            # Ensure UI is reset regardless of success or error
+            text_input_field.disabled = False
             submit_text_button.disabled = False
             text_input_progress.visible = False
+            # Optionally clear field only on success? Currently clears before dispatch attempt.
+            # text_input_field.value = "" # Moved clearing to after successful dispatch
             page.update()
 
+    # Assign handlers now that they are defined
+    text_input_field.on_submit = submit_text_handler
     submit_text_button.on_click = submit_text_handler
 
     # --- Create Tab Layouts ---
@@ -671,26 +682,26 @@ def main(page: ft.Page):
 
     log_tab_layout = create_log_tab_content(log_elements) # Create log tab layout
 
+    # --- Text Input Tab Layout (Revised) ---
     text_input_tab_content = ft.Column(
         [
             ft.Text(
                 "手动输入文本并发送，将通过与语音输入相同的处理流程（LLM -> 输出）。",
-                size=12, # Slightly smaller text
+                size=12,
+                text_align=ft.TextAlign.CENTER, # Center description text
             ),
-            ft.Row( # Put text field, button, and progress in a row
-                [
-                    text_input_field, # Takes available horizontal space
-                    submit_text_button,
-                    text_input_progress,
-                ],
-                alignment=ft.MainAxisAlignment.START,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER, # Align items vertically
-                spacing=5, # Reduce spacing within the row
+            text_input_field, # Add the text field directly
+            ft.Row( # Row for button and progress, centered below field
+                [submit_text_button, text_input_progress],
+                alignment=ft.MainAxisAlignment.CENTER, # Center button/progress horizontally
+                spacing=5,
             ),
         ],
-        spacing=5, # Reduce spacing between the text and the input row
-        # Add scroll if content might overflow, though unlikely with max_lines
-        # scroll=ft.ScrollMode.ADAPTIVE,
+        # Center the column's children horizontally
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=10, # Spacing between description, field, and button row
+        expand=True, # Allow vertical expansion
+        # Width will be controlled by parent padding and centering.
     )
 
     # --- Add Tabs to Page ---
