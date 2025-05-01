@@ -226,24 +226,12 @@ def main(page: ft.Page):
     )  # Now logger is fully configured
 
     # --- Initialize Core Components (based on config) ---
-    logger.info("Initializing core components...")
+    logger.info("Initializing core components (Dispatcher/VRCClient will be async)...")
     try:
-        # 1. LLMClient (if enabled)
-        if config.get("llm.enabled", False):
-            app_state.llm_client = LLMClient()
-            if not app_state.llm_client.enabled:
-                logger.warning(
-                    "LLMClient initialization failed or API Key missing, LLM processing will be disabled."
-                )
-                app_state.llm_client = None  # Ensure it's None if disabled
-            else:
-                logger.info("LLMClient initialized.")
-        else:
-            logger.info("LLM processing disabled by config.")
-            app_state.llm_client = None
+        # LLMClient will be created on demand (in _start_recording_internal or submit_text_handler)
+        app_state.llm_client = None # Initialize as None
 
-        # 2. VRCClient (if enabled) - Defer initialization and start
-        # We will initialize and start it in initialize_async_components below
+        # VRCClient will be initialized asynchronously below
 
         # 3. OutputDispatcher will be initialized asynchronously below.
 
@@ -440,16 +428,41 @@ def main(page: ft.Page):
         # page.update() # update_status_callback calls page.update()
 
         try:
+            # --- Create LLMClient (if enabled) ---
+            # Create ON DEMAND here to use latest config
+            app_state.llm_client = None # Reset before attempting creation
+            if config.get("llm.enabled", False):
+                logger.info("LLM is enabled, creating LLMClient instance...")
+                try:
+                    app_state.llm_client = LLMClient()
+                    if not app_state.llm_client.enabled:
+                        logger.warning(
+                            "LLMClient created but is not enabled (e.g., missing API key). LLM processing will be skipped."
+                        )
+                        # Keep the instance but it won't process; AudioManager handles None client gracefully
+                        # Or set to None if AudioManager requires it:
+                        # app_state.llm_client = None
+                    else:
+                        logger.info("LLMClient instance created successfully for AudioManager.")
+                except Exception as llm_create_err:
+                    logger.error(f"Failed to create LLMClient instance: {llm_create_err}", exc_info=True)
+                    gui_utils.show_error_banner(page, f"创建 LLM 客户端时出错: {llm_create_err}")
+                    app_state.llm_client = None # Ensure it's None on error
+            else:
+                logger.info("LLM is disabled in config. Skipping LLMClient creation.")
+                app_state.llm_client = None
+
             # --- Create and Start AudioManager ---
             # Always create a NEW instance here to ensure it reads the latest config
             logger.info("Creating new AudioManager instance...")
             try:
-                # Ensure necessary components (dispatcher, llm_client) are available
+                # Ensure necessary components (dispatcher) are available
                 if not app_state.output_dispatcher:
                      raise RuntimeError("OutputDispatcher not available for AudioManager.")
                 # Callbacks should already be defined
+                # Pass the potentially newly created llm_client instance (or None)
                 app_state.audio_manager = AudioManager(
-                    llm_client=app_state.llm_client,
+                    llm_client=app_state.llm_client, # Pass the instance created above
                     output_dispatcher=app_state.output_dispatcher,
                     status_callback=update_status_callback,
                     audio_level_callback=update_audio_level_callback,
@@ -570,6 +583,8 @@ def main(page: ft.Page):
         # This ensures the next start creates a fresh instance.
         logger.info("Clearing AudioManager instance reference.")
         app_state.audio_manager = None
+        logger.info("Clearing LLMClient instance reference (if any).")
+        app_state.llm_client = None # Also clear LLM client created during start
 
     async def toggle_recording(e: ft.ControlEvent):
         """Handles clicks on the combined Start/Stop button."""
@@ -822,21 +837,39 @@ def main(page: ft.Page):
 
         processed_text = input_text  # Default to original text
         try:
-            # 1. Process with LLM (if enabled and available)
-            if app_state.llm_client:
-                logger.debug("Processing text with LLM...")
-                llm_result = await app_state.llm_client.process_text(input_text)
+            # 1. Process with LLM (if enabled) - Create temporary instance
+            llm_client_instance: Optional[LLMClient] = None
+            if config.get("llm.enabled", False):
+                logger.info("Text Input: LLM enabled, creating temporary LLMClient...")
+                try:
+                    llm_client_instance = LLMClient() # Create new instance with current config
+                    if not llm_client_instance.enabled:
+                        logger.warning("Text Input: LLMClient created but is not enabled (e.g., missing API key). Skipping LLM.")
+                        llm_client_instance = None # Treat as disabled
+                    else:
+                         logger.info("Text Input: Temporary LLMClient created.")
+                except Exception as llm_create_err:
+                    logger.error(f"Text Input: Failed to create LLMClient: {llm_create_err}", exc_info=True)
+                    gui_utils.show_error_banner(page, f"创建 LLM 客户端时出错: {llm_create_err}")
+                    llm_client_instance = None # Ensure None on error
+
+            if llm_client_instance: # Check if instance was created and is enabled
+                logger.debug("Text Input: Processing text with temporary LLMClient...")
+                llm_result = await llm_client_instance.process_text(input_text)
                 if llm_result is not None:
                     processed_text = llm_result
                     logger.info(
-                        f"LLM processed text input: '{processed_text[:50]}...'"
-                    )  # Log LLM result
+                        f"Text Input: LLM processed text: '{processed_text[:50]}...'"
+                    )
                 else:
                     logger.warning(
-                        "LLM processing returned None, using original text for dispatch."
+                        "Text Input: LLM processing returned None, using original text."
                     )
                     # Optionally show a warning banner?
-                    # gui_utils.show_banner(page, "LLM 处理失败，使用原始文本。", icon=ft.icons.WARNING_AMBER_ROUNDED, bgcolor=ft.colors.AMBER_100, icon_color=ft.colors.AMBER_700)
+                    # gui_utils.show_banner(page, "LLM 处理失败，使用原始文本。", ...)
+            else:
+                 logger.debug("Text Input: LLM processing skipped (disabled or client creation failed).")
+
 
             # 2. Dispatch the result (original or processed)
             if app_state.output_dispatcher:
@@ -1096,23 +1129,32 @@ def main(page: ft.Page):
             return  # Stop further async initialization
 
         # --- Initialize AudioManager (now that Dispatcher is ready) ---
-        try:
-            logger.info("Initializing AudioManager asynchronously...")
-            app_state.audio_manager = AudioManager(
-                llm_client=app_state.llm_client,  # LLM client was initialized synchronously
-                output_dispatcher=app_state.output_dispatcher,  # Pass the newly created dispatcher
-                status_callback=update_status_callback,
-                audio_level_callback=update_audio_level_callback,
+        # AudioManager is now created synchronously in _start_recording_internal
+        # No need to initialize it here anymore.
+        # try:
+        #     logger.info("Initializing AudioManager asynchronously...")
+        #     app_state.audio_manager = AudioManager(
+        #         llm_client=app_state.llm_client, # LLM client is also created in start
+        #         output_dispatcher=app_state.output_dispatcher,
+        #         status_callback=update_status_callback,
+        #         audio_level_callback=update_audio_level_callback,
+        #     )
+        #     logger.info("AudioManager initialized.")
+        # except Exception as am_err:
+        #     logger.critical(f"CRITICAL ERROR initializing AudioManager: {am_err}", exc_info=True)
+        #     gui_utils.show_error_banner(page, f"AudioManager 初始化失败: {am_err}")
+            # Audio input will not work, but text input might still function
             )
             logger.info("AudioManager initialized.")
         except Exception as am_err:
             logger.critical(f"CRITICAL ERROR initializing AudioManager: {am_err}", exc_info=True)
             gui_utils.show_error_banner(page, f"AudioManager 初始化失败: {am_err}")
             # Audio input will not work, but text input might still function
+        # --- End AudioManager Initialization Removal ---
 
-        logger.info("Async component initialization finished.")
+        logger.info("Async component initialization finished (VRCClient, OutputDispatcher).")
 
-    # Schedule the async initialization task to run
+    # Schedule the async initialization task to run (for VRCClient, OutputDispatcher)
     page.run_task(initialize_async_components)
 
     # --- Final Page Update ---
