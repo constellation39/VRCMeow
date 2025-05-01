@@ -200,13 +200,13 @@ class ParaformerCallback(RecognitionCallback):
         log_prefix = ""
         is_final = False
 
-        # Determine if the result is final based on 'status'.
-        # According to docs, this corresponds to the 'result-generated' event
-        # where payload.output.sentence.end_time is not null.
+        # Determine if the result is final based on 'end_time'.
+        # According to the documentation for the 'result-generated' event,
+        # if payload.output.sentence.end_time is not null, it's a final result for that sentence.
         if (
             sentence_data
-            and "status" in sentence_data
-            and sentence_data["status"] == "sentence_end"
+            and "end_time" in sentence_data
+            and sentence_data["end_time"] is not None # Check if end_time exists and is not null
         ):
             is_final = True
 
