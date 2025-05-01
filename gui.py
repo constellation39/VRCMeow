@@ -208,15 +208,9 @@ def main(page: ft.Page):
         # 3. OutputDispatcher will be initialized asynchronously below.
 
         # 4. AudioManager will be initialized asynchronously below.
-        app_state.audio_manager = AudioManager(
-            llm_client=app_state.llm_client,
-            output_dispatcher=app_state.output_dispatcher,
-            status_callback=update_status_callback,
-            audio_level_callback=update_audio_level_callback,  # Pass the audio level callback
-        )
-        logger.info("AudioManager initialized.")
+        # app_state.audio_manager = AudioManager(...) # Removed from here
 
-    except Exception as init_err:
+    except Exception as init_err: # Keep the overall try/except for LLMClient init
         logger.critical(
             f"CRITICAL ERROR during core component initialization: {init_err}",
             exc_info=True,
