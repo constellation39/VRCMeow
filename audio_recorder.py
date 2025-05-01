@@ -313,7 +313,7 @@ class AudioManager:
                         sample_rate=self.sample_rate,
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
-                        enable_translation=enable_translation,
+                        # enable_translation is determined implicitly by target_language
                         target_language=target_language if enable_translation else None,
                     )
                 elif model_type == "paraformer":
