@@ -49,24 +49,29 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
             # 定义可用的 Dashscope STT 模型及其配置 (必需)
             "models": {
                 "gummy-realtime-v1": {
-                    "type": "gummy", # 添加类型字段
+                    "type": "gummy",  # 添加类型字段
+                    "sample_rate": 16000,
+                    "supports_translation": True,
+                },
+                "gummy-chat-v1": {
+                    "type": "gummy",  # 添加类型字段
                     "sample_rate": 16000,
                     "supports_translation": True,
                 },
                 "paraformer-realtime-v2": {
-                    "type": "paraformer", # 添加类型字段
+                    "type": "paraformer",  # 添加类型字段
                     "sample_rate": 16000,
                     "supports_translation": False,
                 },
-                "paraformer-realtime-8k-v2": { # 新增 8k 模型
+                "paraformer-realtime-8k-v2": {  # 新增 8k 模型
                     "type": "paraformer",
                     "sample_rate": 8000,
                     "supports_translation": False,
                 },
-                "paraformer-mtl-v1": { # 新增 mtl 模型
+                "paraformer-mtl-v1": {  # 新增 mtl 模型
                     "type": "paraformer",
                     "sample_rate": 16000,
-                    "supports_translation": False, # 实时 API 通常不支持翻译
+                    "supports_translation": False,  # 实时 API 通常不支持翻译
                 },
             },
             # 中间结果处理方式 (可选, 仅影响 VRChat OSC 输出)

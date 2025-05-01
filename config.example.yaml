@@ -29,6 +29,10 @@ dashscope:
     # - `supports_translation` (必需): 模型是否支持翻译功能。
     # - `type` (必需): 模型的类型，用于选择正确的识别器实现 ("gummy" 或 "paraformer")。
     models:
+      gummy-chat-v1:
+        type: "gummy"
+        sample_rate: 16000
+        supports_translation: true
       gummy-realtime-v1:
         type: "gummy"
         sample_rate: 16000
