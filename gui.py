@@ -549,9 +549,11 @@ def main(page: ft.Page):
         save_config_handler,
         page,
         all_config_controls,
-        config,
-        create_row_wrapper_for_reload,  # Pass the row creation function
-        update_dashboard_info_partial,  # Pass the dashboard update callback
+        config, # Config instance
+        create_row_wrapper_for_reload,  # Function to create few-shot rows
+        update_dashboard_info_partial,  # Callback to update dashboard info
+        app_state, # Pass the application state for cleanup during restart
+        functools.partial(restart_application, page, app_state), # Pass the restart function bound with page and app_state
     )
     save_config_button.on_click = save_handler_partial
 
