@@ -313,8 +313,7 @@ class AudioManager:
                         sample_rate=self.sample_rate,
                         llm_client=self.llm_client,
                         output_dispatcher=self.output_dispatcher,
-                        # enable_translation is determined implicitly by target_language
-                        target_language=target_language if enable_translation else None,
+                        # target_language is read from config inside create_gummy_recognizer
                     )
                 elif model_type == "paraformer":
                     if create_paraformer_recognizer is None:
