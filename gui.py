@@ -401,7 +401,7 @@ def main(page: ft.Page):
             # Successfully launched, now exit the current process by closing the window
             logger.info("New process launched. Closing current application window...")
             try:
-                page.window_destroy()
+                page.window_close() # Use window_close() instead of window_destroy()
                 # Note: Code execution might stop here as the window closes.
                 logger.info("Window close requested.") # This log might not always appear
             except Exception as destroy_ex:
