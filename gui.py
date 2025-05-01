@@ -1144,7 +1144,7 @@ def main(page: ft.Page):
         #     logger.critical(f"CRITICAL ERROR initializing AudioManager: {am_err}", exc_info=True)
         #     gui_utils.show_error_banner(page, f"AudioManager 初始化失败: {am_err}")
             # Audio input will not work, but text input might still function
-            )
+            # ) # Comment out or remove the parenthesis
             logger.info("AudioManager initialized.")
         except Exception as am_err:
             logger.critical(f"CRITICAL ERROR initializing AudioManager: {am_err}", exc_info=True)
