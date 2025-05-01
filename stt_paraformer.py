@@ -207,10 +207,19 @@ class ParaformerCallback(RecognitionCallback):
             # INFO: Log final text before potential LLM processing
             self.logger.info(f"STT_PARA: Final text received: '{text_to_process}'")
 
+            # --- Log LLM processing intent ---
+            if self.llm_client and self.llm_client.enabled:
+                self.logger.info(f"STT_PARA: LLM processing is enabled. Will attempt in background.")
+            else:
+                self.logger.info(f"STT_PARA: LLM processing is disabled.")
+
             # --- Start Background Thread for LLM/Dispatch ---
             self.logger.info(
                 f"STT_PARA: Preparing background thread for final dispatch of '{text_to_process[:50]}...'"
             )
+            # --- Log confirmation of background process initiation ---
+            self.logger.info(f"STT_PARA: Initiating background dispatch process...") # Added log
+
             dispatch_thread = threading.Thread(
                 target=self._dispatch_in_background,
                 args=(text_to_process,),
