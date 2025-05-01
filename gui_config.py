@@ -256,6 +256,37 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         keyboard_type=ft.KeyboardType.NUMBER,
         tooltip="LLM 响应的最大长度",
     )
+    # --- Add extract/marker controls here ---
+    controls["llm.extract_final_answer"] = ft.Switch(
+        label="提取最终答案",
+        value=llm_conf.get("extract_final_answer", False),
+        tooltip="尝试从 LLM 输出中提取标记后的最终答案",
+    )
+    controls["llm.final_answer_marker"] = ft.TextField(
+        label="最终答案标记",
+        value=llm_conf.get("final_answer_marker", "Final Answer:"),
+        tooltip="用于标识最终答案开始的文本 (仅当 '提取最终答案' 启用时)", # Clarify tooltip
+    )
+
+    # --- Preset Management ---
+    # Label to display the currently active preset name (updated by callbacks)
+    controls["llm.active_preset_name_label"] = ft.Text(
+        f"当前预设: {llm_conf.get('active_preset_name', 'Default')}", # Initial value from config data
+        italic=True,
+        color=ft.colors.SECONDARY,
+        size=12,
+    )
+    # Button to open the preset management dialog (handler assigned in gui.py)
+    controls["llm.manage_presets_button"] = ft.ElevatedButton(
+        "管理提示预设",
+        icon=ft.icons.EDIT_NOTE,
+        tooltip="加载、保存或删除系统提示和 Few-Shot 示例预设",
+    )
+
+    # --- Prompt Display/Editing Area (reflects loaded preset) ---
+    # The existing system_prompt definition should remain untouched here,
+    # as it's modified by later blocks.
+
     # Few-shot examples UI elements (created in main, passed to layout function)
     # Define placeholders here; actual controls created in gui.py
     controls["llm.few_shot_examples_column"] = ft.Column(controls=[], spacing=5)
