@@ -199,10 +199,10 @@ def main(page: ft.Page):
         # 3. OutputDispatcher (pass VRC client placeholder and GUI output callback)
         # Initialize OutputDispatcher, VRCClient will be set later if enabled
         app_state.output_dispatcher = OutputDispatcher(
-            vrc_client_instance=app_state.vrc_client, # Pass VRC client (or None)
+            vrc_client_instance=None, # VRCClient instance will be set later
             gui_output_callback=update_output_callback, # Pass the partial callback
         )
-        logger.info("OutputDispatcher initialized.")
+        logger.info("OutputDispatcher initialized (VRCClient pending).")
 
         # 4. AudioManager (pass LLM client, dispatcher, and status/audio callbacks)
         app_state.audio_manager = AudioManager(
