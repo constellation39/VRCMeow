@@ -228,40 +228,53 @@ class GummyCallback(TranslationRecognizerCallback):
 
         # --- 处理中间结果 ---
         else:
+            # --- Extract potential intermediate text first ---
+            intermediate_text = None
+            # Try translation first if enabled
+            if (
+                self.enable_translation
+                and self.target_language
+                and translation_result
+            ):
+                try:
+                    target_translation = translation_result.get_translation(
+                        self.target_language
+                    )
+                    if target_translation and target_translation.text:
+                        intermediate_text = f"{target_translation.text}"
+                        log_prefix = f"部分翻译 ({self.target_language})"
+                except KeyError:
+                    pass # Ignore intermediate key errors
+                except Exception as e:
+                    self.logger.error(f"处理部分翻译结果时出错: {e}", exc_info=True)
+
+            # Fallback to transcription if no translation or translation disabled
+            if (
+                intermediate_text is None
+                and transcription_result
+                and transcription_result.text
+            ):
+                intermediate_text = f"{transcription_result.text}"
+                log_prefix = "部分转录" # Update log prefix if using transcription
+
+            # --- Log the extracted intermediate text (if any) ---
+            if intermediate_text:
+                self.logger.info(f"STT_GUMMY: Intermediate text received: '{intermediate_text}'") # <-- Added log line
+            else:
+                self.logger.debug("STT_GUMMY: Intermediate event received, but no text extracted.")
+
+            # --- Now handle behavior based on config ---
             if self.intermediate_behavior == "show_typing":
                 text_to_send = "Typing..."  # 固定消息
                 self.logger.debug("发送 'Typing...' 状态")  # 使用 debug 级别避免刷屏
             elif self.intermediate_behavior == "show_partial":
-                # 提取部分文本 (优先翻译)
-                if (
-                    self.enable_translation
-                    and self.target_language
-                    and translation_result
-                ):
-                    try:
-                        target_translation = translation_result.get_translation(
-                            self.target_language
-                        )
-                        if target_translation and target_translation.text:
-                            text_to_send = f"{target_translation.text}"
-                            log_prefix = f"部分翻译 ({self.target_language})"
-                    except KeyError:
-                        pass  # 忽略中间结果的 KeyErrors
-                    except Exception as e:
-                        self.logger.error(f"处理部分翻译结果时出错: {e}", exc_info=True)
-
-                # 如果没有部分翻译文本，使用部分转录文本
-                if (
-                    text_to_send is None
-                    and transcription_result
-                    and transcription_result.text
-                ):
-                    text_to_send = f"{transcription_result.text}"
-
+                # Use the previously extracted intermediate_text
+                text_to_send = intermediate_text # Assign the extracted text
                 if text_to_send:
-                    self.logger.debug(f"{text_to_send}")  # 使用 debug 级别避免刷屏
-                # else: # 部分结果为空时无需记录
-                #    self.logger.debug("部分结果文本为空，不发送。")
+                    # Log prefix was already set during extraction
+                    self.logger.debug(f"STT_GUMMY: Using intermediate text for 'show_partial': '{text_to_send}'") # Use debug level for behavior log
+                else:
+                    self.logger.debug("STT_GUMMY: 'show_partial' enabled, but no intermediate text available.")
 
             # 如果是 "ignore" 或部分文本为空，text_to_send 保持为 None
 
