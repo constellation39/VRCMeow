@@ -238,93 +238,31 @@ def main(page: ft.Page):
         # Status update now handles button state during processing
         update_status_callback(
             "正在启动...", is_running=None, is_processing=True
-        )  # Use the callback
+        )
         # page.update() # update_status_callback calls page.update()
 
         try:
-            # --- Initialize Components ---
-            logger.info("GUI requesting start, initializing components...")
-
-            # Check critical config (can re-check here or rely on earlier checks)
-            # Use the config object directly (imported singleton)
-            dashscope_api_key = config.get("dashscope.api_key")
-            if not dashscope_api_key:
-                error_msg = "错误：Dashscope API Key 未设置。"
+            # --- Start AudioManager ---
+            # Components (LLM, VRC, Dispatcher, AudioManager) are now initialized earlier.
+            # We just need to start the AudioManager here.
+            if not app_state.audio_manager:
+                 # This shouldn't happen if initialization worked, but handle defensively.
+                error_msg = "错误：AudioManager 未初始化。"
                 logger.error(error_msg)
-                update_status_callback(  # Use the callback
-                    error_msg, is_running=False, is_processing=False
-                )
-                # Show banner as well
+                update_status_callback(error_msg, is_running=False, is_processing=False)
                 gui_utils.show_error_banner(page, error_msg)
                 return
 
-            # 1. VRCClient (if enabled)
-            vrc_osc_enabled = config.get(
-                "outputs.vrc_osc.enabled", False
-            )  # Access via singleton
-            if vrc_osc_enabled:
-                osc_address = config.get(
-                    "outputs.vrc_osc.address", "127.0.0.1"
-                )  # Access via singleton
-                osc_port = config.get(
-                    "outputs.vrc_osc.port", 9000
-                )  # Access via singleton
-                osc_interval = config.get(
-                    "outputs.vrc_osc.message_interval", 1.333
-                )  # Access via singleton
-                try:
-                    app_state.vrc_client = VRCClient(
-                        address=osc_address, port=osc_port, interval=osc_interval
-                    )
-                    await app_state.vrc_client.start()
-                    logger.info("VRCClient initialized and started.")
-                except Exception as vrc_err:
-                    error_msg = f"Error initializing VRCClient: {vrc_err}"
-                    logger.error(error_msg, exc_info=True)
-                    update_status_callback(
-                        error_msg, is_running=False, is_processing=False
-                    )  # Use partial
-                    gui_utils.show_error_banner(page, error_msg)
-                    return  # Stop the start process
-            else:
-                logger.info(
-                    "VRC OSC output disabled, skipping VRCClient initialization."
-                )
-                app_state.vrc_client = None
+            # Check for Dashscope API key before starting audio, as STT needs it.
+            dashscope_api_key = config.get("dashscope.api_key")
+            if not dashscope_api_key:
+                error_msg = "错误：Dashscope API Key 未设置，无法启动语音识别。"
+                logger.error(error_msg)
+                update_status_callback(error_msg, is_running=False, is_processing=False)
+                gui_utils.show_error_banner(page, error_msg)
+                return
 
-            # 2. LLMClient (if enabled)
-            llm_enabled = config.get("llm.enabled", False)  # Access via singleton
-            if llm_enabled:
-                app_state.llm_client = LLMClient()
-                if not app_state.llm_client.enabled:
-                    logger.warning(
-                        "LLMClient 初始化失败或 API Key 缺失，LLM 处理将被禁用。"
-                    )
-                    app_state.llm_client = None
-                else:
-                    logger.info("LLMClient 已初始化。")
-            else:
-                app_state.llm_client = None
-
-            # 3. OutputDispatcher (pass VRC client and GUI output callback)
-            app_state.output_dispatcher = OutputDispatcher(
-                vrc_client_instance=app_state.vrc_client,
-                gui_output_callback=update_output_callback,  # Pass the partial callback
-            )
-            logger.info("OutputDispatcher initialized.")
-
-            # 4. AudioManager (pass LLM client, dispatcher, and status callback)
-            app_state.audio_manager = AudioManager(
-                llm_client=app_state.llm_client,
-                output_dispatcher=app_state.output_dispatcher,
-                status_callback=update_status_callback,
-                audio_level_callback=update_audio_level_callback, # Pass the audio level callback
-            )
-            logger.info("AudioManager initialized.")
-
-            # --- Start AudioManager ---
-            # AudioManager.start() 会启动后台线程
-            app_state.audio_manager.start()
+            logger.info("Requesting AudioManager start...")
             # AudioManager.start() is synchronous but starts background threads.
             # The threads inside AudioManager will update the status via the callback.
             app_state.audio_manager.start()
@@ -362,41 +300,30 @@ def main(page: ft.Page):
 
         # Stop AudioManager (this handles stopping STT and audio stream)
         if app_state.audio_manager:
-            logger.info("Stopping AudioManager...")
+            logger.info("Requesting AudioManager stop...")
             try:
                 # Run the potentially blocking stop() in a thread
+                # AudioManager's stop should handle its internal threads gracefully.
                 await asyncio.to_thread(app_state.audio_manager.stop)
-                logger.info("AudioManager stop completed.")
+                logger.info("AudioManager stop request completed.")
+                # The final status update ("Stopped", "Error") should come from
+                # the AudioManager's status_callback when its threads fully exit.
             except Exception as am_stop_err:
-                logger.error(
-                    f"Error stopping AudioManager: {am_stop_err}", exc_info=True
-                )
-                # Update status even if error occurs during stop
-                update_status_callback(
-                    "停止时出错", is_running=False, is_processing=False
-                )
-                gui_utils.show_error_banner(
-                    page, f"停止 AudioManager 时出错: {am_stop_err}"
-                )
-            # Don't nullify audio_manager here, let the status callback handle final state update
-            # app_state.audio_manager = None # Removed
+                logger.error(f"Error requesting AudioManager stop: {am_stop_err}", exc_info=True)
+                # Force status update on error during stop request
+                update_status_callback("停止时出错", is_running=False, is_processing=False)
+                gui_utils.show_error_banner(page, f"停止 AudioManager 时出错: {am_stop_err}")
+        else:
+             logger.warning("Stop requested, but AudioManager not found in state.")
+             # Ensure UI reflects stopped state if manager is missing
+             update_status_callback("已停止", is_running=False, is_processing=False)
 
-        # Stop VRCClient (if exists)
-        if app_state.vrc_client:
-            logger.info("正在停止 VRCClient...")
-            try:
-                await app_state.vrc_client.stop()
-                logger.info("VRCClient 已停止。")
-            except Exception as vrc_stop_err:
-                logger.error(f"停止 VRCClient 时出错: {vrc_stop_err}", exc_info=True)
-            app_state.vrc_client = None
 
-        # Clean up other resources
-        app_state.llm_client = None  # LLMClient has no explicit stop needed currently
-        app_state.output_dispatcher = None  # Dispatcher has no explicit stop needed
+        # Do NOT stop VRCClient or nullify LLMClient/OutputDispatcher here.
+        # They persist for other functions (like text input) or app lifetime.
 
-        # Mark logical state *after* attempting stops
-        app_state.is_running = False
+        # Mark logical *audio recording* state as stopped
+        app_state.is_running = False # This now specifically means audio recording is off
         logger.info(
             "All components requested to stop. Final status update relies on AudioManager callback."
         )
@@ -422,15 +349,28 @@ def main(page: ft.Page):
     async def on_window_event(e: ft.ControlEvent):
         if e.data == "close":
             logger.info("检测到窗口关闭事件。")
-            # Ensure processes are stopped before closing
-            if app_state.is_running:
-                logger.info("Window closing, stopping background processes before restart...")
-                await _stop_recording_internal()  # Call internal stop logic
+            logger.info("Window closing event detected.")
+            # Ensure audio processes are stopped
+            if app_state.is_running: # is_running now refers to audio state
+                logger.info("Stopping active audio recording before closing...")
+                await _stop_recording_internal() # Stop AudioManager if running
+                # Add a small delay to allow AudioManager's threads to potentially finish cleanup
+                await asyncio.sleep(0.2)
             else:
-                logger.info("Window closing, no active processes to stop.")
+                logger.info("Audio recording not active.")
+
+            # Stop VRCClient if it exists and is running
+            if app_state.vrc_client:
+                logger.info("Stopping VRCClient before closing...")
+                try:
+                    await app_state.vrc_client.stop()
+                    logger.info("VRCClient stopped.")
+                except Exception as vrc_stop_err:
+                    logger.error(f"Error stopping VRCClient during window close: {vrc_stop_err}", exc_info=True)
+                app_state.vrc_client = None # Clear reference
 
             # Don't destroy the window, restart the application instead
-            logger.info("Executing application restart after window close...")
+            logger.info("Attempting application restart after cleanup...")
             try:
                 # Ensure sys.executable and sys.argv are valid
                 if not sys.executable or not sys.argv:
@@ -513,6 +453,74 @@ def main(page: ft.Page):
     else:
         logger.error("Cannot assign handler: Add example button is invalid.")
 
+
+    # --- Create Text Input Tab Elements & Handler ---
+    text_input_field = ft.TextField(
+        label="在此输入文本",
+        multiline=True,
+        min_lines=3,
+        max_lines=5,
+        expand=True, # Allow vertical expansion
+        border_color=ft.colors.OUTLINE,
+    )
+    text_input_progress = ft.ProgressRing(visible=False, width=16, height=16, stroke_width=2)
+    submit_text_button = ft.ElevatedButton(
+        "发送",
+        icon=ft.icons.SEND,
+        tooltip="处理并发送输入的文本",
+        # on_click will be assigned below
+    )
+
+    async def submit_text_handler(e: ft.ControlEvent):
+        """Handles clicks on the text input submit button."""
+        input_text = text_input_field.value
+        if not input_text or not input_text.strip():
+            gui_utils.show_error_banner(page, "请输入要发送的文本。")
+            return
+
+        logger.info(f"Text input submitted: '{input_text[:50]}...'")
+        submit_text_button.disabled = True
+        text_input_progress.visible = True
+        page.update() # Show progress
+
+        processed_text = input_text # Default to original text
+        try:
+            # 1. Process with LLM (if enabled and available)
+            if app_state.llm_client:
+                logger.debug("Processing text with LLM...")
+                llm_result = await app_state.llm_client.process_text(input_text)
+                if llm_result is not None:
+                    processed_text = llm_result
+                    logger.debug(f"LLM result: '{processed_text[:50]}...'")
+                else:
+                    logger.warning("LLM processing returned None, using original text.")
+                    # Optionally show a warning banner?
+                    # gui_utils.show_banner(page, "LLM 处理失败，使用原始文本。", icon=ft.icons.WARNING_AMBER_ROUNDED, bgcolor=ft.colors.AMBER_100, icon_color=ft.colors.AMBER_700)
+
+            # 2. Dispatch the result (original or processed)
+            if app_state.output_dispatcher:
+                logger.debug("Dispatching processed text...")
+                await app_state.output_dispatcher.dispatch(processed_text)
+                # Add result to GUI output display as well for consistency
+                update_output_callback(f"文本输入已发送: {processed_text}") # Use the existing callback
+                text_input_field.value = "" # Clear input on success
+            else:
+                logger.error("OutputDispatcher not available, cannot dispatch text.")
+                gui_utils.show_error_banner(page, "错误：无法分发文本。")
+
+        except Exception as ex:
+            error_msg = f"处理文本输入时出错: {ex}"
+            logger.error(error_msg, exc_info=True)
+            gui_utils.show_error_banner(page, error_msg)
+        finally:
+            # Ensure UI is reset
+            submit_text_button.disabled = False
+            text_input_progress.visible = False
+            page.update()
+
+    submit_text_button.on_click = submit_text_handler
+
+
     # --- Create Tab Layouts ---
     dashboard_tab_layout = create_dashboard_tab_content(
         dashboard_elements
@@ -523,6 +531,21 @@ def main(page: ft.Page):
         reload_button=reload_config_button,
         all_controls=all_config_controls,  # Pass controls dict (includes few-shot column/button)
     )
+
+    text_input_tab_content = ft.Column(
+        [
+            ft.Text("手动输入文本并发送，将通过与语音输入相同的处理流程（LLM -> 输出）。"),
+            text_input_field,
+            ft.Row(
+                [submit_text_button, text_input_progress],
+                alignment=ft.MainAxisAlignment.END,
+            ),
+        ],
+        spacing=10,
+        # Add scroll if content might overflow, though unlikely with max_lines
+        # scroll=ft.ScrollMode.ADAPTIVE,
+    )
+
 
     # --- Add Tabs to Page ---
     page.add(
@@ -535,7 +558,12 @@ def main(page: ft.Page):
                 ),
                 ft.Tab(
                     text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout
-                ),  # Use correct variable
+                ),
+                ft.Tab(
+                    text="文本输入",
+                    icon=ft.icons.TEXT_FIELDS,
+                    content=text_input_tab_content, # Add the new tab content
+                ),
             ],
             expand=True,  # Make tabs fill the page width
         )
