@@ -281,6 +281,19 @@ def main(page: ft.Page):
         all_config_controls["llm.add_example_button"] = (
             add_example_button  # Add fallback to dict
         )
+    # --- Extract and log preset button status ---
+    manage_presets_button = all_config_controls.get("llm.manage_presets_button") # Get the button
+    active_preset_name_label = all_config_controls.get("llm.active_preset_name_label") # Get the label
+
+    if manage_presets_button:
+        logger.debug("Successfully retrieved 'llm.manage_presets_button' control.")
+    else:
+        logger.error("'llm.manage_presets_button' control not found in all_config_controls.")
+    if active_preset_name_label:
+         logger.debug("Successfully retrieved 'llm.active_preset_name_label' control.")
+    else:
+         logger.error("'llm.active_preset_name_label' control not found in all_config_controls.")
+
 
     # --- Create Config Save/Reload Buttons ---
     save_config_button = ft.ElevatedButton(
