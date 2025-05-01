@@ -786,7 +786,7 @@ class AudioManager:
             logger.error(error_msg, exc_info=True)
             logger.error("Ensure microphone/speakers are connected and not in use.")
             logger.error(
-                f"Check support for {self.sample_rate} Hz, {self.channels} channels, {self.dtype}."
+                f"Check support for {self.sample_rate} Hz (required by model '{self.stt_model}'), {self.channels} channels, {self.dtype}."
             )
             # Indicate fatal error state
             if self.status_callback:
