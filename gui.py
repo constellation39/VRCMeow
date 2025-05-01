@@ -737,6 +737,16 @@ def main(page: ft.Page):
     )
     reload_config_button.on_click = reload_handler_partial
 
+    # Assign handler to the manage presets button
+    if manage_presets_button and isinstance(manage_presets_button, ft.ElevatedButton): # Add type check
+        logger.info("Assigning open_preset_dialog handler to manage_presets_button.on_click")
+        manage_presets_button.on_click = open_preset_dialog
+    elif manage_presets_button:
+         logger.error(f"Manage presets button found but is not an ElevatedButton (Type: {type(manage_presets_button)}). Cannot assign handler.")
+    else:
+        # Error already logged during retrieval check
+        logger.error("Cannot assign handler: Manage presets button control was not found or is invalid.")
+
     # Ensure add_example_button is valid before assigning handler
     if add_example_button:
         add_example_partial = functools.partial(
