@@ -173,7 +173,7 @@ class AudioManager:
             if device_info and "default_samplerate" in device_info:
                 rate = int(device_info["default_samplerate"])
                 # Use the more descriptive log_device_description
-                logger.info(f"Using {log_prefix} device sample rate: {rate} Hz")
+                logger.info(f"Using {log_device_description} device sample rate: {rate} Hz")
                 return rate
             else:
                 logger.warning(
