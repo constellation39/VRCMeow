@@ -152,10 +152,11 @@ class ParaformerCallback(RecognitionCallback):
         self.logger.info("Dashscope Paraformer 连接已关闭。")  # Keep as INFO
 
     def on_complete(self) -> None:
-        # Paraformer specific event - might be useful for final cleanup if needed
+        # This method is called when the recognizer finishes processing.
+        # It might correspond to receiving a 'task-finished' type event internally.
         self.logger.info(
-            "Dashscope Paraformer 识别完成 (on_complete)。"
-        )  # Keep as INFO
+            "Dashscope Paraformer task completed (on_complete received)."
+        ) # Keep as INFO, updated message
 
     def on_error(self, message) -> None:
         # Paraformer error structure might contain request_id and message
