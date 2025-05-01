@@ -415,14 +415,25 @@ def create_config_tab_content(
             get_ctrl("llm.api_key"),
             get_ctrl("llm.base_url"),
             get_ctrl("llm.model"),
-            get_ctrl("llm.system_prompt"),
+            get_ctrl("llm.system_prompt"), # Now shows preset prompt
             get_ctrl("llm.temperature"),
             get_ctrl("llm.max_tokens"),
-            ft.Divider(height=5),
-            ft.Text("Few-Shot 示例", style=ft.TextThemeStyle.TITLE_SMALL),
-            ft.Text("这些示例指导 LLM 如何响应特定输入。", size=11, italic=True),
-            few_shot_column,
-            add_example_btn,
+            get_ctrl("llm.extract_final_answer"), # Add missing controls
+            get_ctrl("llm.final_answer_marker"), # Add missing controls
+            ft.Divider(height=10),
+            ft.Row( # Row for preset management
+                [
+                    get_ctrl("llm.active_preset_name_label"),
+                    get_ctrl("llm.manage_presets_button"),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            ft.Divider(height=10),
+            get_ctrl("llm.few_shot_examples_label"), # Add label for examples
+            # ft.Text("这些示例指导 LLM 如何响应特定输入。", size=11, italic=True), # Remove redundant text
+            few_shot_column, # Now shows preset examples
+            add_example_btn, # Button to add to current UI view
         ],
     )
 
@@ -1125,13 +1136,64 @@ def reload_config_controls(
                         f"Skipping invalid few-shot example during reload: {example}"
                     )
         else:
-            logger.warning(
-                "'llm.few_shot_examples' in reloaded config is not a list. Cannot reload examples."
-            )
-    elif few_shot_column:
-        logger.error("Few-shot column control is not a Column. Cannot reload examples.")
+            logger.warning("Config 'llm.few_shot_examples' is not a list during reload.")
+
+
+    # --- Reload LLM Controls (Basic Settings) ---
+    if "llm.enabled" in all_config_controls:
+        all_config_controls["llm.enabled"].value = config_instance.get("llm.enabled", False)
+    if "llm.api_key" in all_config_controls:
+        all_config_controls["llm.api_key"].value = config_instance.get("llm.api_key", "")
+    if "llm.base_url" in all_config_controls:
+        # Handle None correctly for TextField
+        base_url_val = config_instance.get("llm.base_url")
+        all_config_controls["llm.base_url"].value = str(base_url_val) if base_url_val is not None else ""
+    if "llm.model" in all_config_controls:
+        all_config_controls["llm.model"].value = config_instance.get("llm.model", "gpt-3.5-turbo")
+    if "llm.temperature" in all_config_controls:
+        # Handle Slider update
+        temp_control = all_config_controls["llm.temperature"]
+        if isinstance(temp_control, ft.Slider):
+            temp_control.value = config_instance.get("llm.temperature", 0.7)
+        elif isinstance(temp_control, ft.TextField): # Fallback if type changed
+             temp_control.value = str(config_instance.get("llm.temperature", 0.7))
+    if "llm.max_tokens" in all_config_controls:
+        all_config_controls["llm.max_tokens"].value = str(config_instance.get("llm.max_tokens", 256))
+    if "llm.extract_final_answer" in all_config_controls:
+         all_config_controls["llm.extract_final_answer"].value = config_instance.get("llm.extract_final_answer", False)
+    if "llm.final_answer_marker" in all_config_controls:
+         all_config_controls["llm.final_answer_marker"].value = config_instance.get("llm.final_answer_marker", "Final Answer:")
+
+    # --- Reload Preset Data into UI ---
+    # Get the active preset name from the reloaded config
+    active_preset_name = config_instance.get("llm.active_preset_name", "Default")
+    logger.info(f"Reloading config: Active LLM preset name is '{active_preset_name}'.")
+
+    # Import necessary functions here (or at top level if preferred)
+    from prompt_presets import get_preset, get_default_preset_values
+
+    # Load the preset data
+    preset_data = get_preset(active_preset_name)
+    loaded_system_prompt = ""
+    loaded_few_shot_examples = []
+
+    if preset_data:
+        loaded_system_prompt = preset_data.get("system_prompt", "")
+        loaded_few_shot_examples = preset_data.get("few_shot_examples", [])
+        logger.info(f"Loaded preset '{active_preset_name}' data for UI reload.")
     else:
-        logger.warning("Few-shot column control not found. Cannot reload examples.")
+        logger.warning(f"Preset '{active_preset_name}' not found during reload. Loading default values into UI.")
+        # Fallback to default values from _DEFAULT_CONFIG if preset is missing
+        loaded_system_prompt, loaded_few_shot_examples = get_default_preset_values()
+        active_preset_name = "Default" # Ensure name reflects fallback
+
+    # --- Update UI using the callback ---
+    # This centralizes the UI update logic for system prompt and few-shot examples
+    try:
+        update_llm_ui_callback(loaded_system_prompt, loaded_few_shot_examples, active_preset_name)
+        logger.info(f"LLM config UI updated with data from preset '{active_preset_name}'.")
+    except Exception as ui_update_err:
+        logger.error(f"Error calling update_llm_ui_callback during reload: {ui_update_err}", exc_info=True)
 
     # Update the page to show changes
     try:
