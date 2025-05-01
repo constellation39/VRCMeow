@@ -181,23 +181,21 @@ def create_audio_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Contro
     )
     # --- End Microphone Selection ---
 
-    controls["audio.sample_rate"] = ft.TextField(
-        label="采样率 (Hz)",
-        value=str(audio_conf.get("sample_rate") or ""),  # Keep existing logic
-        hint_text="留空则使用设备默认值 (例如 16000)",
-        keyboard_type=ft.KeyboardType.NUMBER,
-        tooltip="音频输入采样率。需要与所选 STT 模型兼容",
-    )
+    # REMOVED: Sample rate is now determined by the selected STT model
+    # controls["audio.sample_rate"] = ft.TextField(...)
+
     controls["audio.channels"] = ft.TextField(
-        label="声道数",
+        label="声道数 (固定)", # Indicate fixed value
         value=str(audio_conf.get("channels", 1)),
         keyboard_type=ft.KeyboardType.NUMBER,
-        tooltip="音频输入声道数 (通常为 1)",
+        tooltip="音频输入声道数 (由代码固定为 1)",
+        disabled=True, # Make read-only
     )
     controls["audio.dtype"] = ft.TextField(
-        label="数据类型",
+        label="数据类型 (固定)", # Indicate fixed value
         value=audio_conf.get("dtype", "int16"),
-        tooltip="音频数据类型 (例如 int16)",
+        tooltip="音频数据类型 (由代码固定为 int16)",
+        disabled=True, # Make read-only
     )
     controls["audio.debug_echo_mode"] = ft.Switch(
         label="调试回声模式",
@@ -403,9 +401,9 @@ def create_config_tab_content(
             ft.Divider(height=5),
             ft.Text("音频输入", style=ft.TextThemeStyle.TITLE_SMALL),
             get_ctrl("audio.device"),  # Add device dropdown here
-            get_ctrl("audio.sample_rate"),
-            get_ctrl("audio.channels"),
-            get_ctrl("audio.dtype"),
+            # REMOVED: get_ctrl("audio.sample_rate"),
+            get_ctrl("audio.channels"), # Keep disabled field
+            get_ctrl("audio.dtype"), # Keep disabled field
             get_ctrl("audio.debug_echo_mode"),
         ],
     )
@@ -668,11 +666,12 @@ async def save_config_handler(
             "audio.device",  # Save selected device
             get_control_value(all_config_controls, "audio.device", str, "Default"),
         )
-        update_nested_dict(
-            new_config_data,
-            "audio.sample_rate",
-            get_control_value(all_config_controls, "audio.sample_rate", int, None),
-        )
+        # REMOVED: Sample rate is no longer saved from GUI
+        # update_nested_dict(
+        #     new_config_data,
+        #     "audio.sample_rate",
+        #     get_control_value(all_config_controls, "audio.sample_rate", int, None),
+        # )
         update_nested_dict(
             new_config_data,
             "audio.channels",
