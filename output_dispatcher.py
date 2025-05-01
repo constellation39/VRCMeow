@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 
 # Directly import the config instance
@@ -197,35 +196,3 @@ class OutputDispatcher:
                 exc_info=True,
             )
             raise  # Re-raise to allow gather to catch it
-
-
-# Example Usage
-async def _test_dispatcher():
-    from logger_config import setup_logging
-
-    setup_logging()
-
-    # Mock VRCClient for testing
-    class MockVRCClient:
-        async def send_chatbox(self, content):
-            print(f"[Mock VRC Client] Received: {content}")
-            await asyncio.sleep(0.1)  # Simulate async work
-            # Simulate an error occasionally
-            # if "error" in content.lower():
-            #    raise ConnectionRefusedError("Simulated OSC connection error")
-
-    # Ensure you have a config.yaml with outputs configured
-    # Example: enable console, file, and vrc_osc
-    mock_client = MockVRCClient()
-    dispatcher = OutputDispatcher(vrc_client_instance=mock_client)
-
-    print("\nTesting Dispatcher...")
-    await dispatcher.dispatch("This is the first test message.")
-    await dispatcher.dispatch("你好，这是第二条消息。")
-    # await dispatcher.dispatch("This message might cause an error.") # Uncomment to test error handling
-    print("Dispatcher test complete.")
-
-
-if __name__ == '__main__':
-    print("Running OutputDispatcher test...")
-    asyncio.run(_test_dispatcher())

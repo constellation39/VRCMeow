@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from config import Config  # Type hint only
 
     # Avoid circular import for Config singleton instance, pass it as arg
-    from gui import AppState  # Import AppState for type hinting
 
 # --- Configuration UI Element Definitions & Helpers ---
 
@@ -893,7 +892,7 @@ async def save_config_handler(
         # REMOVED: Delay and restart logic
 
     except Exception as ex:
-        error_msg = f"保存或重载配置时出错: {ex}" # Reverted error message context
+        error_msg = f"保存或重载配置时出错: {ex}"  # Reverted error message context
         logger.critical(error_msg, exc_info=True)
         # Show error banner
         gui_utils.show_error_banner(page, error_msg)

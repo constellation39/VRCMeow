@@ -3,7 +3,6 @@ import asyncio
 import functools
 import os
 import pathlib
-import subprocess # <-- Import subprocess
 import sys
 from typing import Optional, Dict  # Added Callable here
 
@@ -61,6 +60,7 @@ from gui_dashboard import (
     update_dashboard_info_display,  # Import the dashboard info update function
     update_audio_level_display,  # Import the audio level update function
 )
+
 # --- New Log Tab Imports ---
 from gui_log import (
     create_log_elements,
@@ -77,7 +77,7 @@ from output_dispatcher import OutputDispatcher
 
 # --- Logging Setup Placeholder ---
 # Logging will be configured later after the page and log UI elements are created
-logger = get_logger("VRCMeowGUI") # Get logger instance early, but setup is deferred
+logger = get_logger("VRCMeowGUI")  # Get logger instance early, but setup is deferred
 
 
 class AppState:
@@ -198,16 +198,18 @@ def main(page: ft.Page):
 
     # Validate essential log elements
     if not all([log_output_listview, clear_log_button, log_level_dropdown]):
-         logger.critical("CRITICAL: Failed to create essential log UI elements.")
-         # Handle error appropriately, maybe show message and exit
-         page.add(ft.Text("CRITICAL ERROR: Failed to create log UI.", color=ft.colors.RED))
-         page.update()
-         return
+        logger.critical("CRITICAL: Failed to create essential log UI elements.")
+        # Handle error appropriately, maybe show message and exit
+        page.add(
+            ft.Text("CRITICAL ERROR: Failed to create log UI.", color=ft.colors.RED)
+        )
+        page.update()
+        return
 
     # --- Create Log Update Callback ---
     # This will be called periodically to pull logs from the queue
     log_update_callback = functools.partial(
-        update_log_display, # Function from gui_log
+        update_log_display,  # Function from gui_log
         page,
         log_output_listview,
     )
@@ -215,7 +217,9 @@ def main(page: ft.Page):
     # --- Initialize Logging (NOW that page and log elements exist) ---
     # Pass the log update callback to the setup function
     setup_logging(log_update_callback=log_update_callback)
-    logger.info("Logging setup complete with Flet handler.") # Now logger is fully configured
+    logger.info(
+        "Logging setup complete with Flet handler."
+    )  # Now logger is fully configured
 
     # --- Initialize Core Components (based on config) ---
     logger.info("Initializing core components...")
@@ -242,7 +246,7 @@ def main(page: ft.Page):
         # 4. AudioManager will be initialized asynchronously below.
         # app_state.audio_manager = AudioManager(...) # Removed from here
 
-    except Exception as init_err: # Keep the overall try/except for LLMClient init
+    except Exception as init_err:  # Keep the overall try/except for LLMClient init
         logger.critical(
             f"CRITICAL ERROR during core component initialization: {init_err}",
             exc_info=True,
@@ -331,17 +335,16 @@ def main(page: ft.Page):
     async def clear_log_handler(e: ft.ControlEvent):
         """Handles clicks on the clear log button."""
         logger.info("Clearing GUI log display.")
-        clear_log_display(page, log_output_listview) # Call function from gui_log
+        clear_log_display(page, log_output_listview)  # Call function from gui_log
 
     async def log_level_change_handler(e: ft.ControlEvent):
         """Handles changes in the log level dropdown."""
         selected_level = e.control.value
         logger.info(f"GUI log level filter changed to: {selected_level}")
-        set_log_level_filter(selected_level) # Call function from gui_log
+        set_log_level_filter(selected_level)  # Call function from gui_log
         # The update_log_display function (called periodically) will use the new filter
         # We might force an immediate update here if desired, but periodic is usually fine.
-        log_update_callback() # Force immediate update after level change
-
+        log_update_callback()  # Force immediate update after level change
 
     async def _start_recording_internal():
         """Internal logic for starting the process."""
@@ -412,19 +415,27 @@ def main(page: ft.Page):
             try:
                 # Run the potentially blocking stop() in a thread via asyncio.to_thread
                 # Wrap this await in asyncio.wait_for to prevent hangs during restart
-                stop_timeout = 10.0 # Seconds to wait for AudioManager.stop() to complete
-                logger.info(f"Waiting up to {stop_timeout}s for AudioManager.stop() to complete...")
+                stop_timeout = (
+                    10.0  # Seconds to wait for AudioManager.stop() to complete
+                )
+                logger.info(
+                    f"Waiting up to {stop_timeout}s for AudioManager.stop() to complete..."
+                )
                 await asyncio.wait_for(
                     asyncio.to_thread(app_state.audio_manager.stop),
-                    timeout=stop_timeout
+                    timeout=stop_timeout,
                 )
                 logger.info("AudioManager stop request completed within timeout.")
                 # The final status update ("Stopped", "Error") should come from
                 # the AudioManager's status_callback when its threads fully exit.
             except asyncio.TimeoutError:
-                logger.warning(f"AudioManager.stop() did not complete within {stop_timeout}s timeout. Proceeding with stop/restart anyway.")
+                logger.warning(
+                    f"AudioManager.stop() did not complete within {stop_timeout}s timeout. Proceeding with stop/restart anyway."
+                )
                 # Force UI update to indicate potential issue but still stopped state
-                update_status_callback("已停止 (超时)", is_running=False, is_processing=False)
+                update_status_callback(
+                    "已停止 (超时)", is_running=False, is_processing=False
+                )
             except Exception as am_stop_err:
                 logger.error(
                     f"Error requesting AudioManager stop: {am_stop_err}", exc_info=True
@@ -481,16 +492,23 @@ def main(page: ft.Page):
                 try:
                     # Use a slightly longer timeout for closing than for restart
                     stop_timeout = 10.0
-                    logger.info(f"Closing: Waiting up to {stop_timeout}s for AudioManager.stop()...")
+                    logger.info(
+                        f"Closing: Waiting up to {stop_timeout}s for AudioManager.stop()..."
+                    )
                     await asyncio.wait_for(
                         asyncio.to_thread(app_state.audio_manager.stop),
-                        timeout=stop_timeout
+                        timeout=stop_timeout,
                     )
                     logger.info("Closing: AudioManager stopped.")
                 except asyncio.TimeoutError:
-                    logger.warning(f"Closing: AudioManager.stop() timed out after {stop_timeout}s.")
+                    logger.warning(
+                        f"Closing: AudioManager.stop() timed out after {stop_timeout}s."
+                    )
                 except Exception as audio_stop_err:
-                    logger.error(f"Closing: Error stopping AudioManager: {audio_stop_err}", exc_info=True)
+                    logger.error(
+                        f"Closing: Error stopping AudioManager: {audio_stop_err}",
+                        exc_info=True,
+                    )
             else:
                 logger.info("Closing: Audio recording not active.")
 
@@ -507,7 +525,7 @@ def main(page: ft.Page):
                     )
                 app_state.vrc_client = None  # Clear reference
             else:
-                 logger.info("Closing: VRCClient not active.")
+                logger.info("Closing: VRCClient not active.")
 
             # Close the window to exit the application
             logger.info("Cleanup finished. Closing application window...")
@@ -515,15 +533,17 @@ def main(page: ft.Page):
                 page.window_close()
                 logger.info("Window close requested.")
             except Exception as close_ex:
-                logger.error(f"Error requesting window close: {close_ex}", exc_info=True)
+                logger.error(
+                    f"Error requesting window close: {close_ex}", exc_info=True
+                )
                 logger.info("Attempting sys.exit(0) as fallback.")
-                sys.exit(0) # Force exit if window close fails
+                sys.exit(0)  # Force exit if window close fails
 
     # --- Bind Event Handlers ---
     toggle_button.on_click = toggle_recording  # Dashboard button
     page.on_window_event = on_window_event  # Page event
-    clear_log_button.on_click = clear_log_handler # Log tab button
-    log_level_dropdown.on_change = log_level_change_handler # Log tab dropdown
+    clear_log_button.on_click = clear_log_handler  # Log tab button
+    log_level_dropdown.on_change = log_level_change_handler  # Log tab dropdown
 
     # --- Define a wrapper for create_config_example_row needed by reload/save handlers ---
     # This wrapper matches the signature expected by reload_config_controls
@@ -562,7 +582,7 @@ def main(page: ft.Page):
         save_config_handler,
         page,
         all_config_controls,
-        config, # Config instance
+        config,  # Config instance
         create_row_wrapper_for_reload,  # Function to create few-shot rows
         update_dashboard_info_partial,  # Callback to update dashboard info
         # REMOVED: app_state argument
@@ -593,13 +613,13 @@ def main(page: ft.Page):
     text_input_field = ft.TextField(
         label="在此输入文本",
         multiline=True,
-        min_lines=1, # Reduced min lines
-        max_lines=3, # Reduced max lines
+        min_lines=1,  # Reduced min lines
+        max_lines=3,  # Reduced max lines
         # expand=True, # Removed: Let the parent Column's alignment handle width/centering
         border_color=ft.colors.OUTLINE,
-        dense=True, # Make the text field more compact vertically
-        on_submit=None, # Assign after handler definition below
-        text_align=ft.TextAlign.LEFT, # Keep text left-aligned within the field
+        dense=True,  # Make the text field more compact vertically
+        on_submit=None,  # Assign after handler definition below
+        text_align=ft.TextAlign.LEFT,  # Keep text left-aligned within the field
     )
     text_input_progress = ft.ProgressRing(
         visible=False, width=16, height=16, stroke_width=2
@@ -607,8 +627,8 @@ def main(page: ft.Page):
     submit_text_button = ft.ElevatedButton(
         "发送",
         icon=ft.icons.SEND,
-        tooltip="处理并发送输入的文本 (Enter 键也可发送)", # Updated tooltip
-        on_click=None, # Assign after handler definition below
+        tooltip="处理并发送输入的文本 (Enter 键也可发送)",  # Updated tooltip
+        on_click=None,  # Assign after handler definition below
     )
 
     async def submit_text_handler(e: ft.ControlEvent):
@@ -635,21 +655,29 @@ def main(page: ft.Page):
                 llm_result = await app_state.llm_client.process_text(input_text)
                 if llm_result is not None:
                     processed_text = llm_result
-                    logger.info(f"LLM processed text input: '{processed_text[:50]}...'") # Log LLM result
+                    logger.info(
+                        f"LLM processed text input: '{processed_text[:50]}...'"
+                    )  # Log LLM result
                 else:
-                    logger.warning("LLM processing returned None, using original text for dispatch.")
+                    logger.warning(
+                        "LLM processing returned None, using original text for dispatch."
+                    )
                     # Optionally show a warning banner?
                     # gui_utils.show_banner(page, "LLM 处理失败，使用原始文本。", icon=ft.icons.WARNING_AMBER_ROUNDED, bgcolor=ft.colors.AMBER_100, icon_color=ft.colors.AMBER_700)
 
             # 2. Dispatch the result (original or processed)
             if app_state.output_dispatcher:
-                logger.info(f"Dispatching text input result: '{processed_text[:50]}...'") # Log before dispatch
+                logger.info(
+                    f"Dispatching text input result: '{processed_text[:50]}...'"
+                )  # Log before dispatch
                 await app_state.output_dispatcher.dispatch(processed_text)
                 # REMOVED: update_output_callback(...) call
-                logger.info("Text input dispatched successfully.") # Log after dispatch
+                logger.info("Text input dispatched successfully.")  # Log after dispatch
                 text_input_field.value = ""  # Clear input on success
             else:
-                logger.error("OutputDispatcher not available, cannot dispatch text input.")
+                logger.error(
+                    "OutputDispatcher not available, cannot dispatch text input."
+                )
                 gui_utils.show_error_banner(page, "错误：无法分发文本。")
 
         except Exception as ex:
@@ -680,7 +708,7 @@ def main(page: ft.Page):
         all_controls=all_config_controls,  # Pass controls dict
     )
 
-    log_tab_layout = create_log_tab_content(log_elements) # Create log tab layout
+    log_tab_layout = create_log_tab_content(log_elements)  # Create log tab layout
 
     # --- Text Input Tab Layout (Revised) ---
     text_input_tab_content = ft.Column(
@@ -688,19 +716,19 @@ def main(page: ft.Page):
             ft.Text(
                 "手动输入文本并发送，将通过与语音输入相同的处理流程（LLM -> 输出）。",
                 size=12,
-                text_align=ft.TextAlign.CENTER, # Center description text
+                text_align=ft.TextAlign.CENTER,  # Center description text
             ),
-            text_input_field, # Add the text field directly
-            ft.Row( # Row for button and progress, centered below field
+            text_input_field,  # Add the text field directly
+            ft.Row(  # Row for button and progress, centered below field
                 [submit_text_button, text_input_progress],
-                alignment=ft.MainAxisAlignment.CENTER, # Center button/progress horizontally
+                alignment=ft.MainAxisAlignment.CENTER,  # Center button/progress horizontally
                 spacing=5,
             ),
         ],
         # Center the column's children horizontally
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=10, # Spacing between description, field, and button row
-        expand=True, # Allow vertical expansion
+        spacing=10,  # Spacing between description, field, and button row
+        expand=True,  # Allow vertical expansion
         # Width will be controlled by parent padding and centering.
     )
 
@@ -719,7 +747,7 @@ def main(page: ft.Page):
                     icon=ft.icons.TEXT_FIELDS,
                     content=text_input_tab_content,
                 ),
-                 ft.Tab( # Add the new Log tab
+                ft.Tab(  # Add the new Log tab
                     text="日志",
                     icon=ft.icons.LIST_ALT_ROUNDED,
                     content=log_tab_layout,
@@ -735,13 +763,15 @@ def main(page: ft.Page):
         while True:
             try:
                 # Attempt to update the log display
-                log_update_callback() # Call the partial function
+                log_update_callback()  # Call the partial function
             except Exception as log_update_err:
                 # If any error occurs during update (e.g., page closed), log it and stop the loop.
-                logger.warning(f"Error during periodic log update (likely page closed), stopping task: {log_update_err}")
-                break # Exit the loop
+                logger.warning(
+                    f"Error during periodic log update (likely page closed), stopping task: {log_update_err}"
+                )
+                break  # Exit the loop
             # If update succeeds, wait and continue
-            await asyncio.sleep(0.5) # Check every 500ms
+            await asyncio.sleep(0.5)  # Check every 500ms
 
     page.run_task(periodic_log_update)
 
@@ -848,29 +878,36 @@ def main(page: ft.Page):
             logger.info("VRC OSC output disabled, skipping VRCClient initialization.")
             app_state.vrc_client = None
             # Ensure dispatcher doesn't hold a reference
-            if app_state.output_dispatcher: # Check if dispatcher exists before assigning None
+            if (
+                app_state.output_dispatcher
+            ):  # Check if dispatcher exists before assigning None
                 app_state.output_dispatcher.vrc_client_instance = None
 
         # --- Initialize OutputDispatcher (now that VRCClient is potentially ready) ---
         try:
             logger.info("Initializing OutputDispatcher asynchronously...")
             app_state.output_dispatcher = OutputDispatcher(
-                vrc_client_instance=app_state.vrc_client, # Pass the actual client instance (or None)
+                vrc_client_instance=app_state.vrc_client,  # Pass the actual client instance (or None)
                 # REMOVED: gui_output_callback=update_output_callback,
             )
             logger.info("OutputDispatcher initialized.")
         except Exception as disp_err:
-            logger.critical(f"CRITICAL ERROR initializing OutputDispatcher: {disp_err}", exc_info=True)
-            gui_utils.show_error_banner(page, f"OutputDispatcher 初始化失败: {disp_err}")
+            logger.critical(
+                f"CRITICAL ERROR initializing OutputDispatcher: {disp_err}",
+                exc_info=True,
+            )
+            gui_utils.show_error_banner(
+                page, f"OutputDispatcher 初始化失败: {disp_err}"
+            )
             # Cannot proceed without dispatcher for audio/text input
-            return # Stop further async initialization
+            return  # Stop further async initialization
 
         # --- Initialize AudioManager (now that Dispatcher is ready) ---
         try:
             logger.info("Initializing AudioManager asynchronously...")
             app_state.audio_manager = AudioManager(
-                llm_client=app_state.llm_client, # LLM client was initialized synchronously
-                output_dispatcher=app_state.output_dispatcher, # Pass the newly created dispatcher
+                llm_client=app_state.llm_client,  # LLM client was initialized synchronously
+                output_dispatcher=app_state.output_dispatcher,  # Pass the newly created dispatcher
                 status_callback=update_status_callback,
                 audio_level_callback=update_audio_level_callback,
             )

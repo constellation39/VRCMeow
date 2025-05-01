@@ -1,8 +1,6 @@
 import logging
 import queue
-import threading
-from datetime import datetime
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional
 
 import flet as ft
 
@@ -17,7 +15,7 @@ class FletLogHandler(logging.Handler):
         super().__init__(level=level)
         self.formatter = logging.Formatter(
             "%(asctime)s - %(levelname)s - %(name)s:%(lineno)d - %(message)s",
-            datefmt="%H:%M:%S", # Use a shorter timestamp for GUI logs
+            datefmt="%H:%M:%S",  # Use a shorter timestamp for GUI logs
         )
 
     def emit(self, record: logging.LogRecord):
@@ -38,13 +36,13 @@ def create_log_elements() -> Dict[str, ft.Control]:
     elements["log_output"] = ft.ListView(
         expand=True,
         spacing=2,
-        auto_scroll=True, # Keep scrolled to the bottom
+        auto_scroll=True,  # Keep scrolled to the bottom
         # divider_thickness=1, # Optional divider
     )
     elements["clear_log_button"] = ft.IconButton(
         icon=ft.icons.DELETE_SWEEP_OUTLINED,
         tooltip="清除日志",
-        on_click=None, # Handler assigned in gui.py
+        on_click=None,  # Handler assigned in gui.py
     )
     elements["log_level_dropdown"] = ft.Dropdown(
         label="日志级别",
@@ -56,10 +54,10 @@ def create_log_elements() -> Dict[str, ft.Control]:
             ft.dropdown.Option("ERROR"),
             ft.dropdown.Option("CRITICAL"),
         ],
-        value="INFO", # Default level
+        value="INFO",  # Default level
         width=150,
         dense=True,
-        on_change=None, # Handler assigned in gui.py
+        on_change=None,  # Handler assigned in gui.py
     )
     return elements
 
@@ -71,7 +69,9 @@ def create_log_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
     level_dropdown = elements.get("log_level_dropdown")
 
     if not log_output or not clear_button or not level_dropdown:
-        return ft.Column([ft.Text("Error creating log tab layout.", color=ft.colors.RED)])
+        return ft.Column(
+            [ft.Text("Error creating log tab layout.", color=ft.colors.RED)]
+        )
 
     return ft.Column(
         [
@@ -80,7 +80,7 @@ def create_log_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
                 alignment=ft.MainAxisAlignment.END,
             ),
             ft.Divider(height=1, thickness=1),
-            ft.Container( # Container to hold the ListView and allow expansion
+            ft.Container(  # Container to hold the ListView and allow expansion
                 content=log_output,
                 expand=True,
                 border=ft.border.all(1, ft.colors.with_opacity(0.5, ft.colors.OUTLINE)),
@@ -98,7 +98,8 @@ def create_log_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
 # Store the full log history and the filtered list separately
 _full_log_history = []
 _filtered_log_controls = []
-_current_log_level = logging.INFO # Default level
+_current_log_level = logging.INFO  # Default level
+
 
 def set_log_level_filter(level_name: str):
     """Sets the minimum level for logs displayed in the GUI."""
@@ -131,7 +132,7 @@ def _get_log_color(level_name: str) -> Optional[str]:
     elif level_name == "WARNING":
         return ft.colors.AMBER_700
     elif level_name == "DEBUG":
-        return ft.colors.with_opacity(0.7, ft.colors.ON_SURFACE) # Dim debug messages
+        return ft.colors.with_opacity(0.7, ft.colors.ON_SURFACE)  # Dim debug messages
     # INFO and others default to None (default text color)
     return None
 
@@ -139,7 +140,7 @@ def _get_log_color(level_name: str) -> Optional[str]:
 def update_log_display(
     page: ft.Page,
     log_output_listview: ft.ListView,
-    max_log_entries: int = 500, # Limit displayed entries
+    max_log_entries: int = 500,  # Limit displayed entries
 ):
     """
     Checks the log queue and updates the Flet ListView.
@@ -159,14 +160,14 @@ def update_log_display(
                 logs_added = True
 
                 # Parse level name for coloring and filtering (simple parsing)
-                level_name = "INFO" # Default
+                level_name = "INFO"  # Default
                 parts = log_entry.split(" - ", 3)
                 if len(parts) > 1:
-                    level_name = parts[1] # e.g., "INFO", "WARNING"
+                    level_name = parts[1]  # e.g., "INFO", "WARNING"
 
                 log_level_int = logging.getLevelName(level_name.upper())
                 if not isinstance(log_level_int, int):
-                    log_level_int = logging.INFO # Fallback
+                    log_level_int = logging.INFO  # Fallback
 
                 # Create the Text control for the log entry
                 log_text_control = ft.Text(
@@ -187,9 +188,9 @@ def update_log_display(
                     _filtered_log_controls.append(log_text_control)
 
             except queue.Empty:
-                break # Should not happen with the loop condition, but good practice
+                break  # Should not happen with the loop condition, but good practice
             except Exception as e:
-                print(f"Error processing log entry: {e}") # Log error processing error
+                print(f"Error processing log entry: {e}")  # Log error processing error
 
         # Limit history size (both full and filtered)
         if len(_full_log_history) > max_log_entries:
@@ -197,14 +198,14 @@ def update_log_display(
             _full_log_history = _full_log_history[num_to_remove:]
             # Refilter after trimming full history
             _refilter_log_display()
-            logs_added = True # Force UI update if logs were trimmed
+            logs_added = True  # Force UI update if logs were trimmed
 
         # Update the ListView only if logs were added or trimmed/refiltered
         if logs_added:
             log_output_listview.controls = _filtered_log_controls
             # Check page validity before updating
             if page and page.controls is not None:
-                log_output_listview.update() # Update the ListView itself
+                log_output_listview.update()  # Update the ListView itself
                 # page.update(log_output_listview) # Alternative: update via page
 
     except Exception as e:

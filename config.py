@@ -2,8 +2,8 @@ import yaml
 import os
 import logging
 from typing import Dict, Any, Optional
-import copy # Import copy for deep copying config data
-import pathlib # Import pathlib
+import copy  # Import copy for deep copying config data
+import pathlib  # Import pathlib
 
 # Use standard logging; configuration (level etc.) is handled by logger_config later
 logger = logging.getLogger(__name__)
@@ -14,10 +14,12 @@ logger = logging.getLogger(__name__)
 # This basic configuration will be overridden/replaced by logger_config.setup_logging().
 if not logger.hasHandlers():
     _handler = logging.StreamHandler()
-    _formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    _formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     _handler.setFormatter(_formatter)
     logger.addHandler(_handler)
-    logger.setLevel(logging.INFO) # Default to INFO for initial config loading messages
+    logger.setLevel(logging.INFO)  # Default to INFO for initial config loading messages
     # logger.propagate = False # Optional: Prevent messages duplicating if root logger is configured
 
 # Determine paths relative to the Current Working Directory (CWD)
@@ -43,17 +45,17 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
             # 翻译的目标语言 (可选) - `None` 或空字符串 `""` 表示禁用翻译。
             "translation_target_language": None,  # 示例: "en", "ja", "ko"
             # 使用的 Dashscope 模型 (必需)
-            "model": "gummy-realtime-v1", # 示例: "paraformer-realtime-v2"
+            "model": "gummy-realtime-v1",  # 示例: "paraformer-realtime-v2"
             # 中间结果处理方式 (可选, 仅影响 VRChat OSC 输出)
-            "intermediate_result_behavior": "ignore", # 可选: "show_typing", "show_partial"
-        }
+            "intermediate_result_behavior": "ignore",  # 可选: "show_typing", "show_partial"
+        },
     },
     # -------------------------------------------------------------------------
     # 音频输入设置
     # -------------------------------------------------------------------------
     "audio": {
         # 音频输入设备名称 (可选) - `None` 或 "Default" 表示使用系统默认设备。
-        "device": None, # 示例: "麦克风 (Realtek High Definition Audio)"
+        "device": None,  # 示例: "麦克风 (Realtek High Definition Audio)"
         # 音频采样率 (Hz) (可选) - `None` 表示尝试自动检测，失败则回退到 16000。
         "sample_rate": None,  # 示例: 16000
         # 音频通道数 (可选) - Gummy 模型通常需要 1。
@@ -72,17 +74,17 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
         # OpenAI 兼容 API 密钥 (必需, 如果 enabled 为 true) - 强烈建议通过环境变量 `OPENAI_API_KEY` 设置。
         "api_key": "",
         # API 基础 URL (可选) - `None` 表示使用默认 OpenAI URL 或服务特定 URL。
-        "base_url": None, # 示例: "http://localhost:11434/v1" (本地 Ollama)
+        "base_url": None,  # 示例: "http://localhost:11434/v1" (本地 Ollama)
         # 使用的 LLM 模型名称 (必需, 如果 enabled 为 true)
-        "model": "gpt-3.5-turbo", # 示例: "gpt-4", "llama3"
+        "model": "gpt-3.5-turbo",  # 示例: "gpt-4", "llama3"
         # 系统提示 (必需, 如果 enabled 为 true) - 指导 LLM 如何处理文本。
-        "system_prompt": "You are a helpful assistant.", # 默认提示
+        "system_prompt": "You are a helpful assistant.",  # 默认提示
         # 温度 (可选) - 控制输出随机性 (0.0-2.0)。
         "temperature": 0.7,
         # 最大 Token 数 (可选) - 限制 LLM 响应长度。
-        "max_tokens": 256, # 之前是 150，与 YAML 示例同步为 256
+        "max_tokens": 256,  # 之前是 150，与 YAML 示例同步为 256
         # Few-shot 示例 (可选) - 提供输入/输出对指导 LLM。
-        "few_shot_examples": [], # 示例: [{"user": "你好", "assistant": "你好呀！"}]
+        "few_shot_examples": [],  # 示例: [{"user": "你好", "assistant": "你好呀！"}]
     },
     # -------------------------------------------------------------------------
     # 输出目标设置
@@ -99,7 +101,7 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
             # 消息发送最小间隔 (秒) (可选) - 建议 >= 1.333。
             "message_interval": 1.333,
             # 消息格式字符串 (可选) - `{text}` 会被替换。
-            "format": "{text}", # 与 YAML 示例同步，移除前后制表符
+            "format": "{text}",  # 与 YAML 示例同步，移除前后制表符
             # 是否立即发送 (可选) - `True` 直接显示, `False` 填充输入框。
             "send_immediately": True,
             # 是否播放通知音 (可选) - 仅当 `send_immediately` 为 `True` 时有效。
@@ -108,19 +110,19 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
         # --- 控制台输出 ---
         "console": {
             # 是否启用控制台输出 (必需)
-            "enabled": True, # 之前是 False，与 YAML 示例同步为 True
+            "enabled": True,  # 之前是 False，与 YAML 示例同步为 True
             # 输出前缀 (可选)
-            "prefix": "[VRCMeow Output]" # 与 YAML 示例同步
+            "prefix": "[VRCMeow Output]",  # 与 YAML 示例同步
         },
         # --- 文件输出 ---
         "file": {
             # 是否启用文件输出 (必需)
             "enabled": False,
             # 输出文件路径 (必需, 如果 enabled 为 true)
-            "path": "vrcmeow_output.log", # 与 YAML 示例同步
+            "path": "vrcmeow_output.log",  # 与 YAML 示例同步
             # 文件记录格式字符串 (可选) - 可用 `{timestamp}`, `{text}`。
             "format": "{timestamp} - {text}",
-        }
+        },
         # 在此添加其他输出类型 (未来扩展)
     },
     # -------------------------------------------------------------------------
@@ -128,16 +130,17 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
     # -------------------------------------------------------------------------
     "logging": {
         # 控制台和文件日志的级别 (必需)
-        "level": "INFO", # 可选: "DEBUG", "WARNING", "ERROR", "CRITICAL"
+        "level": "INFO",  # 可选: "DEBUG", "WARNING", "ERROR", "CRITICAL"
         # --- 应用程序日志文件设置 ---
         "file": {
             # 是否启用应用程序日志文件 (必需) - 记录详细运行日志。
             "enabled": True,
             # 应用程序日志文件路径 (必需, 如果 enabled 为 true)
-            "path": "vrcmeow_app.log"
-        }
+            "path": "vrcmeow_app.log",
+        },
     },
 }
+
 
 def _recursive_update(d: Dict, u: Dict) -> Dict:
     """Recursively update dict d with values from dict u."""
@@ -147,15 +150,17 @@ def _recursive_update(d: Dict, u: Dict) -> Dict:
             d_k = d.get(k)
             if isinstance(d_k, dict):
                 d[k] = _recursive_update(d_k, v)
-            else: # If d[k] is not a dict (or doesn't exist), replace it
+            else:  # If d[k] is not a dict (or doesn't exist), replace it
                 d[k] = v
         else:
             d[k] = v
     return d
 
+
 class Config:
     """Singleton class to load and hold application configuration."""
-    _instance: Optional['Config'] = None
+
+    _instance: Optional["Config"] = None
     _config_data: Dict[str, Any] = {}
 
     def __new__(cls, *args, **kwargs):
@@ -166,109 +171,156 @@ class Config:
             cls._instance._load_config(str(DEFAULT_CONFIG_PATH))
         return cls._instance
 
-    def _load_config(self, config_path: str) -> None: # Default removed, set in __new__
+    def _load_config(self, config_path: str) -> None:  # Default removed, set in __new__
         """Loads configuration from file and environment variables."""
         # config_path is now expected to be an absolute path
-        config_path_obj = pathlib.Path(config_path) # Work with Path object
-        self._loaded_config_path = f"Attempting: {config_path_obj}" # Initialize status
+        config_path_obj = pathlib.Path(config_path)  # Work with Path object
+        self._loaded_config_path = f"Attempting: {config_path_obj}"  # Initialize status
 
         # Start with a deep copy of defaults to avoid modifying the original
         # Use recursive copy for nested dicts
         config = {}
         for k, v in _DEFAULT_CONFIG.items():
             if isinstance(v, dict):
-                config[k] = v.copy() # Shallow copy for top-level dict is okay for defaults
+                config[k] = (
+                    v.copy()
+                )  # Shallow copy for top-level dict is okay for defaults
             else:
                 config[k] = v
 
         # 1. Load from file (using absolute path)
         try:
-            with open(config_path_obj, 'r', encoding='utf-8') as f:
+            with open(config_path_obj, "r", encoding="utf-8") as f:
                 file_config = yaml.safe_load(f)
                 if file_config and isinstance(file_config, dict):
                     config = _recursive_update(config, file_config)
                     logger.info(f"Loaded configuration from {config_path_obj}.")
-                    self._loaded_config_path = str(config_path_obj) # Set path on successful load
-                elif file_config: # Loaded something, but not a dict
-                     logger.warning(f"Config file {config_path_obj} does not contain a valid YAML dictionary. Using defaults.")
-                     self._loaded_config_path = f"Invalid YAML in {config_path_obj}, using defaults" # Update status
-                else: # File is empty
-                    logger.info(f"Config file {config_path_obj} is empty. Using default configuration.")
-                    self._loaded_config_path = f"Empty file: {config_path_obj}, using defaults" # Update status
+                    self._loaded_config_path = str(
+                        config_path_obj
+                    )  # Set path on successful load
+                elif file_config:  # Loaded something, but not a dict
+                    logger.warning(
+                        f"Config file {config_path_obj} does not contain a valid YAML dictionary. Using defaults."
+                    )
+                    self._loaded_config_path = f"Invalid YAML in {config_path_obj}, using defaults"  # Update status
+                else:  # File is empty
+                    logger.info(
+                        f"Config file {config_path_obj} is empty. Using default configuration."
+                    )
+                    self._loaded_config_path = f"Empty file: {config_path_obj}, using defaults"  # Update status
         except FileNotFoundError:
             logger.warning(f"Config file '{config_path_obj}' not found in CWD.")
-            self._loaded_config_path = f"Not found: {config_path_obj}" # Update status: file not found initially
+            self._loaded_config_path = f"Not found: {config_path_obj}"  # Update status: file not found initially
             # Look for example config in CWD
             example_config_path_obj = DEFAULT_EXAMPLE_CONFIG_PATH
             try:
                 if example_config_path_obj.exists():
                     import shutil
-                    shutil.copy2(str(example_config_path_obj), str(config_path_obj)) # copy2 preserves metadata
-                    logger.info(f"Copied '{example_config_path_obj}' to '{config_path_obj}'.")
+
+                    shutil.copy2(
+                        str(example_config_path_obj), str(config_path_obj)
+                    )  # copy2 preserves metadata
+                    logger.info(
+                        f"Copied '{example_config_path_obj}' to '{config_path_obj}'."
+                    )
                     # Now attempt to load the newly created file
-                    with open(config_path_obj, 'r', encoding='utf-8') as f:
-                         file_config = yaml.safe_load(f)
-                         if file_config and isinstance(file_config, dict):
-                             config = _recursive_update(config, file_config)
-                             logger.info(f"Successfully loaded configuration from newly created '{config_path_obj}'.")
-                             self._loaded_config_path = f"Copied from example: {config_path_obj}" # Update status: successfully copied and loaded example
-                         else:
-                             logger.warning(f"Newly created '{config_path_obj}' is empty or invalid. Using defaults.")
-                             self._loaded_config_path = f"Copied example '{config_path_obj}' is invalid, using defaults" # Update status: copied example is bad
+                    with open(config_path_obj, "r", encoding="utf-8") as f:
+                        file_config = yaml.safe_load(f)
+                        if file_config and isinstance(file_config, dict):
+                            config = _recursive_update(config, file_config)
+                            logger.info(
+                                f"Successfully loaded configuration from newly created '{config_path_obj}'."
+                            )
+                            self._loaded_config_path = f"Copied from example: {config_path_obj}"  # Update status: successfully copied and loaded example
+                        else:
+                            logger.warning(
+                                f"Newly created '{config_path_obj}' is empty or invalid. Using defaults."
+                            )
+                            self._loaded_config_path = f"Copied example '{config_path_obj}' is invalid, using defaults"  # Update status: copied example is bad
                 else:
-                    logger.warning(f"Example config file '{example_config_path_obj}' not found in CWD. Using default configuration.")
-                    self._loaded_config_path = f"Not found & example missing, using defaults (tried: {config_path_obj})" # Update status: file and example missing
+                    logger.warning(
+                        f"Example config file '{example_config_path_obj}' not found in CWD. Using default configuration."
+                    )
+                    self._loaded_config_path = f"Not found & example missing, using defaults (tried: {config_path_obj})"  # Update status: file and example missing
             except Exception as copy_err:
-                logger.error(f"Failed to copy '{example_config_path_obj}' to '{config_path_obj}': {copy_err}. Using default configuration.", exc_info=True)
-                self._loaded_config_path = f"Error copying example to {config_path_obj}, using defaults" # Update status: copy failed
+                logger.error(
+                    f"Failed to copy '{example_config_path_obj}' to '{config_path_obj}': {copy_err}. Using default configuration.",
+                    exc_info=True,
+                )
+                self._loaded_config_path = f"Error copying example to {config_path_obj}, using defaults"  # Update status: copy failed
 
         except yaml.YAMLError as e:
-            logger.error(f"Error parsing config file {config_path_obj}: {e}. Using default config.", exc_info=True)
-            self._loaded_config_path = f"YAML error in {config_path_obj}, using defaults" # Update status: YAML parse error
+            logger.error(
+                f"Error parsing config file {config_path_obj}: {e}. Using default config.",
+                exc_info=True,
+            )
+            self._loaded_config_path = f"YAML error in {config_path_obj}, using defaults"  # Update status: YAML parse error
         except Exception as e:
-            logger.error(f"Unknown error loading config file {config_path_obj}: {e}. Using default config.", exc_info=True)
-            self._loaded_config_path = f"Error loading {config_path_obj}, using defaults" # Update status: other load error
+            logger.error(
+                f"Unknown error loading config file {config_path_obj}: {e}. Using default config.",
+                exc_info=True,
+            )
+            self._loaded_config_path = f"Error loading {config_path_obj}, using defaults"  # Update status: other load error
 
         # 2. Environment variable override (Dashscope API Key)
-        env_dash_api_key = os.getenv('DASHSCOPE_API_KEY')
+        env_dash_api_key = os.getenv("DASHSCOPE_API_KEY")
         if env_dash_api_key:
             # Ensure 'dashscope' dict exists before setting the key
             if "dashscope" not in config:
                 config["dashscope"] = {}
-            if not isinstance(config.get("dashscope"), dict): # Check if existing dashscope is dict
-                logger.warning("Dashscope config section is not a dictionary, cannot override API key. Check config.yaml structure.")
+            if not isinstance(
+                config.get("dashscope"), dict
+            ):  # Check if existing dashscope is dict
+                logger.warning(
+                    "Dashscope config section is not a dictionary, cannot override API key. Check config.yaml structure."
+                )
             else:
-                config['dashscope']['api_key'] = env_dash_api_key
-                logger.info("Overridden Dashscope API Key using DASHSCOPE_API_KEY environment variable.")
+                config["dashscope"]["api_key"] = env_dash_api_key
+                logger.info(
+                    "Overridden Dashscope API Key using DASHSCOPE_API_KEY environment variable."
+                )
         elif not config.get("dashscope", {}).get("api_key"):
             # Check if the key is missing/empty within the dashscope section
-             logger.warning("Dashscope API Key not found in config file or DASHSCOPE_API_KEY environment variable.")
+            logger.warning(
+                "Dashscope API Key not found in config file or DASHSCOPE_API_KEY environment variable."
+            )
 
         # 2b. Environment variable override (LLM API Key)
-        env_llm_api_key = os.getenv('OPENAI_API_KEY')
+        env_llm_api_key = os.getenv("OPENAI_API_KEY")
         if env_llm_api_key:
-             # Ensure 'llm' dict exists before setting the key
+            # Ensure 'llm' dict exists before setting the key
             if "llm" not in config:
                 config["llm"] = {}
-            if not isinstance(config.get("llm"), dict): # Check if existing llm is dict
-                 logger.warning("LLM config section is not a dictionary, cannot override API key. Check config.yaml structure.")
+            if not isinstance(config.get("llm"), dict):  # Check if existing llm is dict
+                logger.warning(
+                    "LLM config section is not a dictionary, cannot override API key. Check config.yaml structure."
+                )
             else:
-                 config['llm']['api_key'] = env_llm_api_key
-                 logger.info("Overridden LLM API Key using OPENAI_API_KEY environment variable.")
-        elif config.get("llm", {}).get("enabled") and not config.get("llm", {}).get("api_key"):
+                config["llm"]["api_key"] = env_llm_api_key
+                logger.info(
+                    "Overridden LLM API Key using OPENAI_API_KEY environment variable."
+                )
+        elif config.get("llm", {}).get("enabled") and not config.get("llm", {}).get(
+            "api_key"
+        ):
             # Check if LLM is enabled but the key is missing/empty
-            if config.get("llm", {}).get("enabled") and not config.get("llm", {}).get("api_key"):
-                logger.warning("LLM processing is enabled but API Key not found in config file or OPENAI_API_KEY environment variable.")
-
+            if config.get("llm", {}).get("enabled") and not config.get("llm", {}).get(
+                "api_key"
+            ):
+                logger.warning(
+                    "LLM processing is enabled but API Key not found in config file or OPENAI_API_KEY environment variable."
+                )
 
         # 3. Ensure LLM System Prompt exists (using config value or default)
         try:
             # Ensure llm structure exists
             if "llm" not in config or not isinstance(config.get("llm"), dict):
-                config["llm"] = {} # Initialize if missing or wrong type
+                config["llm"] = {}  # Initialize if missing or wrong type
 
             # Get the default prompt from the _DEFAULT_CONFIG dictionary
-            default_prompt = _DEFAULT_CONFIG.get("llm", {}).get("system_prompt", "You are a helpful assistant.")
+            default_prompt = _DEFAULT_CONFIG.get("llm", {}).get(
+                "system_prompt", "You are a helpful assistant."
+            )
 
             # Ensure 'system_prompt' key exists in the loaded config's llm section,
             # otherwise set it to the default.
@@ -281,36 +333,46 @@ class Config:
                 logger.debug("Using LLM system prompt from configuration.")
 
         except Exception as e:
-             logger.error(f"Error processing LLM system prompt configuration: {e}. Using default prompt.", exc_info=True)
-             # Ensure a safe fallback if structure was bad
-             if "llm" not in config or not isinstance(config.get("llm"), dict):
-                 config["llm"] = {}
-             config["llm"]["system_prompt"] = _DEFAULT_CONFIG.get("llm", {}).get("system_prompt", "You are a helpful assistant.")
-
+            logger.error(
+                f"Error processing LLM system prompt configuration: {e}. Using default prompt.",
+                exc_info=True,
+            )
+            # Ensure a safe fallback if structure was bad
+            if "llm" not in config or not isinstance(config.get("llm"), dict):
+                config["llm"] = {}
+            config["llm"]["system_prompt"] = _DEFAULT_CONFIG.get("llm", {}).get(
+                "system_prompt", "You are a helpful assistant."
+            )
 
         # 4. Validate and transform (Log level)
         try:
             # Ensure logging dict structure exists before accessing nested keys
             if "logging" not in config or not isinstance(config.get("logging"), dict):
-                 config["logging"] = {} # Initialize if missing or wrong type
+                config["logging"] = {}  # Initialize if missing or wrong type
 
             log_level_str = config.get("logging", {}).get("level", "INFO").upper()
             log_level = getattr(logging, log_level_str, logging.INFO)
             if not isinstance(log_level, int):
-                logger.warning(f"Invalid log level '{log_level_str}', defaulting to INFO.")
+                logger.warning(
+                    f"Invalid log level '{log_level_str}', defaulting to INFO."
+                )
                 log_level = logging.INFO
 
             # Store both string and int level for convenience
-            config["logging"]["level"] = logging.getLevelName(log_level) # Ensure string matches level
+            config["logging"]["level"] = logging.getLevelName(
+                log_level
+            )  # Ensure string matches level
             config["logging"]["level_int"] = log_level
         except Exception as e:
-            logger.error(f"Error processing logging configuration: {e}. Using default log level INFO.", exc_info=True)
+            logger.error(
+                f"Error processing logging configuration: {e}. Using default log level INFO.",
+                exc_info=True,
+            )
             # Ensure defaults are set if error occurred
             if "logging" not in config:
                 config["logging"] = {}
             config["logging"]["level"] = "INFO"
             config["logging"]["level_int"] = logging.INFO
-
 
         self._config_data = config
         logger.debug(f"Final loaded configuration: {self._config_data}")
@@ -321,15 +383,15 @@ class Config:
         Returns a default value if the key is not found.
         e.g., config.get('stt.model') or config.get('dashscope_api_key')
         """
-        if '.' in key:
-            keys = key.split('.')
+        if "." in key:
+            keys = key.split(".")
             value = self._config_data
             try:
                 for k in keys:
                     if isinstance(value, dict):
                         value = value[k]
                     else:
-                        return default # Path is invalid if intermediate value is not a dict
+                        return default  # Path is invalid if intermediate value is not a dict
                 return value
             except KeyError:
                 return default
@@ -337,22 +399,23 @@ class Config:
             # Access top-level key directly
             return self._config_data.get(key, default)
 
-
     def __getitem__(self, key: str) -> Any:
         """
         Allow dictionary-style access, supporting dot notation for nested keys.
         Raises KeyError if the key is not found.
         e.g., config['stt.model'] or config['dashscope_api_key']
         """
-        if '.' in key:
-            keys = key.split('.')
+        if "." in key:
+            keys = key.split(".")
             value = self._config_data
             try:
                 for k in keys:
-                     if isinstance(value, dict):
-                         value = value[k]
-                     else:
-                         raise KeyError(f"Configuration path invalid at '{k}' for key '{key}'.")
+                    if isinstance(value, dict):
+                        value = value[k]
+                    else:
+                        raise KeyError(
+                            f"Configuration path invalid at '{k}' for key '{key}'."
+                        )
                 return value
             except KeyError:
                 raise KeyError(f"Configuration key '{key}' not found.")
@@ -361,7 +424,7 @@ class Config:
             try:
                 return self._config_data[key]
             except KeyError:
-                 raise KeyError(f"Configuration key '{key}' not found.")
+                raise KeyError(f"Configuration key '{key}' not found.")
 
     @property
     def data(self) -> Dict[str, Any]:
@@ -373,7 +436,9 @@ class Config:
     def loaded_config_path(self) -> Optional[str]:
         """Returns the path or status of the configuration file that was loaded."""
         # This property was missing, causing the dashboard to show "Unknown"
-        return getattr(self, '_loaded_config_path', None) # Safely access the internal attribute
+        return getattr(
+            self, "_loaded_config_path", None
+        )  # Safely access the internal attribute
 
     def reload(self) -> None:
         """Reloads the configuration."""
@@ -381,10 +446,12 @@ class Config:
         # Reload using the default path based on CWD
         self._load_config(str(DEFAULT_CONFIG_PATH))
 
-    def save(self, config_path: str = str(DEFAULT_CONFIG_PATH)) -> None: # Use absolute default path
+    def save(
+        self, config_path: str = str(DEFAULT_CONFIG_PATH)
+    ) -> None:  # Use absolute default path
         """Saves the current configuration back to the YAML file."""
         logger.info(f"Attempting to save configuration to {config_path}...")
-        config_path_obj = pathlib.Path(config_path) # Work with Path object
+        config_path_obj = pathlib.Path(config_path)  # Work with Path object
         # Create a deep copy to avoid modifying the live config dict directly during preparation
         config_to_save = copy.deepcopy(self._config_data)
 
@@ -403,11 +470,19 @@ class Config:
         try:
             # Ensure the directory exists before saving
             config_path_obj.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path_obj, 'w', encoding='utf-8') as f:
-                yaml.dump(config_to_save, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
+            with open(config_path_obj, "w", encoding="utf-8") as f:
+                yaml.dump(
+                    config_to_save,
+                    f,
+                    allow_unicode=True,
+                    sort_keys=False,
+                    default_flow_style=False,
+                )
             logger.info(f"Configuration successfully saved to {config_path_obj}.")
         except Exception as e:
-            logger.error(f"Failed to save configuration to {config_path_obj}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to save configuration to {config_path_obj}: {e}", exc_info=True
+            )
             # Re-raise or handle as appropriate for the application context (e.g., show error in GUI)
             raise
 
@@ -418,17 +493,27 @@ try:
     config = Config()
 except Exception as e:
     # Critical error during initial config load
-    logger.critical(f"CRITICAL ERROR during initial configuration load: {e}", exc_info=True)
-    logger.critical("Application might not function correctly. Attempting to use fallback defaults.")
+    logger.critical(
+        f"CRITICAL ERROR during initial configuration load: {e}", exc_info=True
+    )
+    logger.critical(
+        "Application might not function correctly. Attempting to use fallback defaults."
+    )
+
     # Attempt to provide a minimal fallback using _DEFAULT_CONFIG directly
     # Note: This won't have env vars or log level conversion applied correctly
     class FallbackConfig:
         # Create a deep copy of defaults for fallback
         _data = copy.deepcopy(_DEFAULT_CONFIG)
         # Ensure minimal structure exists for logging (already handled by deepcopy if default is okay)
-        if "logging" not in _data: _data["logging"] = {}
-        _data["logging"]["level"] = _DEFAULT_CONFIG.get("logging", {}).get("level", "INFO")
-        _data["logging"]["level_int"] = getattr(logging, _data["logging"]["level"], logging.INFO)
+        if "logging" not in _data:
+            _data["logging"] = {}
+        _data["logging"]["level"] = _DEFAULT_CONFIG.get("logging", {}).get(
+            "level", "INFO"
+        )
+        _data["logging"]["level_int"] = getattr(
+            logging, _data["logging"]["level"], logging.INFO
+        )
         # Ensure llm section exists (even in fallback, though keys won't be overridden)
         if "llm" not in _data:
             _data["llm"] = {}
@@ -436,13 +521,16 @@ except Exception as e:
         @property
         def data(self):
             return self._data
-        def __getitem__(self, key): # Basic non-nested access
+
+        def __getitem__(self, key):  # Basic non-nested access
             try:
                 return self._data[key]
             except KeyError:
                 raise KeyError(f"Fallback config missing key '{key}'")
-        def get(self, key, default=None): # Basic non-nested get
+
+        def get(self, key, default=None):  # Basic non-nested get
             return self._data.get(key, default)
+
     config = FallbackConfig()
     # The warning is logged when the instance is created, not part of the class definition itself
     logger.warning("Using fallback configuration due to critical error during load.")
@@ -453,51 +541,3 @@ def get_config_data() -> Dict[str, Any]:
     """Returns the loaded configuration data dictionary."""
     return config.data
 
-if __name__ == '__main__':
-    print("Testing Config class...")
-    # Accessing the singleton instance multiple times yields the same object
-    c1 = Config()
-    c2 = Config()
-    print(f"Is c1 the same instance as c2? {c1 is c2}")
-    # Check if config is the singleton or the fallback
-    if isinstance(config, Config):
-         print(f"Is c1 the same instance as the module-level 'config' instance? {c1 is config}")
-    else:
-         print("Module-level 'config' is a FallbackConfig instance.")
-
-
-    print("\nLoaded Configuration:")
-    import json
-    # Use the get_config_data helper or access via instance.data
-    print(json.dumps(get_config_data(), indent=2, ensure_ascii=False))
-
-    # Test accessing values using different methods
-    try:
-        print(f"\nLogging Level (dict access): {config['logging']['level']}") # Direct dict access
-        print(f"Logging Level (dot notation __getitem__): {config['logging.level']}") # Dot notation via __getitem__
-        print(f"STT Model (nested get): {config.get('dashscope.stt.model', 'NOT_FOUND')}") # Use new nested key
-        print(f"STT Translation Lang (nested get): {config.get('dashscope.stt.translation_target_language', 'NOT_FOUND')}") # Use new nested key, use get for safety
-        print(f"OSC Address (get method): {config.get('outputs.vrc_osc.address', 'default_ip')}") # Dot notation via get()
-        print(f"OSC Port (get method): {config.get('outputs.vrc_osc.port', 9999)}") # Dot notation via get()
-        print(f"Dashscope API Key (get method): {config.get('dashscope.api_key', 'NOT_SET')}")
-        print(f"LLM API Key (get method): {config.get('llm.api_key', 'NOT_SET')}")
-        print(f"LLM System Prompt (get method): {config.get('llm.system_prompt', 'DEFAULT_PROMPT')[:50]}...") # Get beginning of prompt
-
-        # Test non-existent key with get
-        print(f"Non-existent key (get): {config.get('invalid.key', 'MISSING')}")
-
-        # Test non-existent key with __getitem__
-        print(f"Non-existent key (__getitem__): {config['non_existent.key']}")
-
-    except KeyError as e:
-        print(f"Caught KeyError: {e}")
-    except Exception as e:
-         print(f"Caught unexpected error during testing: {e}")
-
-
-    # Test reload (optional)
-    # print("\nSimulating config file change and reloading...")
-    # # In a real scenario, you might modify config.yaml here
-    # config.reload()
-    # print("Configuration reloaded.")
-    # print(json.dumps(config.data, indent=2, ensure_ascii=False))

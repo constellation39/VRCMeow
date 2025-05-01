@@ -30,44 +30,55 @@ def get_input_devices() -> List[Dict[str, Any]]:
     try:
         device_list = sd.query_devices()
         hostapis = sd.query_hostapis()
-        default_input_idx = sd.default.device[0] # Get default input device index
+        default_input_idx = sd.default.device[0]  # Get default input device index
 
         for i, device in enumerate(device_list):
             # Check if it's an input device (has input channels)
             if device.get("max_input_channels", 0) > 0:
                 # Try to get host API info
                 try:
-                    hostapi_info = hostapis[device.get('hostapi', 0)]
-                    hostapi_name = hostapi_info.get('name', 'Unknown API')
+                    hostapi_info = hostapis[device.get("hostapi", 0)]
+                    hostapi_name = hostapi_info.get("name", "Unknown API")
                 except IndexError:
-                    hostapi_name = 'Unknown API' # Handle case where hostapi index is invalid
+                    hostapi_name = (
+                        "Unknown API"  # Handle case where hostapi index is invalid
+                    )
 
                 # --- Filter by Host API (Keep only MME) ---
-                if hostapi_name == 'MME':
+                if hostapi_name == "MME":
                     # Use original device name, maybe add (MME) for clarity?
                     # For now, just use the name sounddevice provides.
-                    device_name = device.get('name', 'Unknown Device')
+                    device_name = device.get("name", "Unknown Device")
                     # Add (MME) suffix for clarity in the dropdown
                     display_name = f"{device_name} (MME)"
 
-                    is_default = (i == default_input_idx)
-                    devices.append({
-                        "id": i, # Store index for potential use with sounddevice
-                        "name": display_name, # User-friendly name with MME suffix
-                        "is_default": is_default,
-                        # Store the original name without suffix for potential matching in AudioManager
-                        "raw_name": device.get('name')
-                    })
+                    is_default = i == default_input_idx
+                    devices.append(
+                        {
+                            "id": i,  # Store index for potential use with sounddevice
+                            "name": display_name,  # User-friendly name with MME suffix
+                            "is_default": is_default,
+                            # Store the original name without suffix for potential matching in AudioManager
+                            "raw_name": device.get("name"),
+                        }
+                    )
                 else:
                     # Log skipped devices for debugging if needed
                     # logger.debug(f"Skipping device '{device.get('name')}' with host API '{hostapi_name}'")
-                    pass # Skip devices that are not MME
+                    pass  # Skip devices that are not MME
 
         logger.debug(f"Found MME input devices: {devices}")
     except Exception as e:
         logger.error(f"Error querying audio devices: {e}", exc_info=True)
         # Return a fallback device entry if query fails
-        devices.append({"id": -1, "name": "Error querying devices", "is_default": False, "raw_name": None})
+        devices.append(
+            {
+                "id": -1,
+                "name": "Error querying devices",
+                "is_default": False,
+                "raw_name": None,
+            }
+        )
     return devices
 
 
@@ -103,11 +114,13 @@ class AudioManager:
         llm_client: Optional["LLMClient"],
         output_dispatcher: "OutputDispatcher",
         status_callback: Optional[Callable[[str, Optional[bool], bool], None]] = None,
-        audio_level_callback: Optional[Callable[[float], None]] = None, # Add audio level callback
+        audio_level_callback: Optional[
+            Callable[[float], None]
+        ] = None,  # Add audio level callback
     ):
         self.llm_client = llm_client
         self.output_dispatcher = output_dispatcher
-        self.audio_level_callback = audio_level_callback # Store audio level callback
+        self.audio_level_callback = audio_level_callback  # Store audio level callback
         # Store the raw status callback
         self._raw_status_callback = status_callback
         # Wrapper for the callback to include state (initialized later if needed)
@@ -132,11 +145,13 @@ class AudioManager:
         self.debug_echo_mode = config.get("audio.debug_echo_mode", False)
         # Use new nested key for STT model
         self.stt_model = config.get("dashscope.stt.model", "gummy-realtime-v1")
-        self.device = config.get("audio.device", "Default") # Load selected device
+        self.device = config.get("audio.device", "Default")  # Load selected device
 
         # Dynamically determine sample rate if not configured
         if self.sample_rate is None:
-            self.sample_rate = self._determine_sample_rate() # Now considers selected device
+            self.sample_rate = (
+                self._determine_sample_rate()
+            )  # Now considers selected device
 
     def _determine_sample_rate(self) -> int:
         """Queries device info to determine sample rate if not set in config, considering the selected device."""
@@ -147,25 +162,37 @@ class AudioManager:
             configured_device_name = self.device
             if configured_device_name and configured_device_name != "Default":
                 log_device_description = f"configured device '{configured_device_name}'"
-                logger.debug(f"Attempting to find index for {log_device_description} to determine sample rate.")
-                available_devices = get_input_devices() # Get list of dicts {id, name, ...}
+                logger.debug(
+                    f"Attempting to find index for {log_device_description} to determine sample rate."
+                )
+                available_devices = (
+                    get_input_devices()
+                )  # Get list of dicts {id, name, ...}
                 found_device = False
                 for device_info_dict in available_devices:
                     if device_info_dict.get("name") == configured_device_name:
                         found_index = device_info_dict.get("id")
                         if found_index is not None and found_index >= 0:
                             device_index_to_query = found_index
-                            logger.debug(f"Found index {device_index_to_query} for {log_device_description}.")
+                            logger.debug(
+                                f"Found index {device_index_to_query} for {log_device_description}."
+                            )
                             found_device = True
                             break
                         else:
-                            logger.warning(f"Found matching device '{configured_device_name}' but its index '{found_index}' is invalid. Will use default.")
+                            logger.warning(
+                                f"Found matching device '{configured_device_name}' but its index '{found_index}' is invalid. Will use default."
+                            )
                 if not found_device:
-                    logger.warning(f"{log_device_description} not found among available MME devices. Will query default device for sample rate.")
+                    logger.warning(
+                        f"{log_device_description} not found among available MME devices. Will query default device for sample rate."
+                    )
                     # Keep device_index_to_query as None to use default
             else:
-                 logger.debug("Configured device is 'Default'. Querying default device for sample rate.")
-                 # Keep device_index_to_query as None to use default
+                logger.debug(
+                    "Configured device is 'Default'. Querying default device for sample rate."
+                )
+                # Keep device_index_to_query as None to use default
 
             # Query sounddevice using the found index (or None for default)
             device_info = sd.query_devices(device=device_index_to_query, kind="input")
@@ -173,20 +200,25 @@ class AudioManager:
             if device_info and "default_samplerate" in device_info:
                 rate = int(device_info["default_samplerate"])
                 # Use the more descriptive log_device_description
-                logger.info(f"Using {log_device_description} device sample rate: {rate} Hz")
+                logger.info(
+                    f"Using {log_device_description} device sample rate: {rate} Hz"
+                )
                 return rate
             else:
                 logger.warning(
                     f"Could not determine sample rate for {log_device_description}, falling back to 16000 Hz."
                 )
                 return 16000
-        except ValueError as e: # Catch specific ValueError for device not found by index/default
-             logger.error(
-                f"Error querying {log_device_description} (index: {device_index_to_query}) for sample rate: {e}", exc_info=False # Keep log concise
+        except (
+            ValueError
+        ) as e:  # Catch specific ValueError for device not found by index/default
+            logger.error(
+                f"Error querying {log_device_description} (index: {device_index_to_query}) for sample rate: {e}",
+                exc_info=False,  # Keep log concise
             )
-             logger.warning("Falling back to 16000 Hz sample rate due to query error.")
-             return 16000
-        except Exception as e: # Catch other potential errors
+            logger.warning("Falling back to 16000 Hz sample rate due to query error.")
+            return 16000
+        except Exception as e:  # Catch other potential errors
             logger.error(
                 f"Error querying audio devices for sample rate: {e}", exc_info=True
             )
@@ -599,7 +631,10 @@ class AudioManager:
                     self.audio_level_callback(normalized_level)
                 except Exception as level_err:
                     # Log error but don't stop audio processing for level calculation failure
-                    logger.error(f"Error calculating/sending audio level: {level_err}", exc_info=False) # Avoid excessive logging
+                    logger.error(
+                        f"Error calculating/sending audio level: {level_err}",
+                        exc_info=False,
+                    )  # Avoid excessive logging
 
         except queue.Full:
             logger.warning("Audio queue is full. Dropping audio frame.")
@@ -609,42 +644,64 @@ class AudioManager:
 
     def _run_audio_stream(self):
         """Target function for the audio processing thread."""
-        stream_device_index: Optional[int] = None # Use index for reliability
+        stream_device_index: Optional[int] = None  # Use index for reliability
         try:
             # --- Determine Device Index to Use ---
-            configured_device_name = self.device # Name from config (e.g., "Mic (MME)")
+            configured_device_name = self.device  # Name from config (e.g., "Mic (MME)")
             if configured_device_name and configured_device_name != "Default":
-                logger.info(f"Attempting to find index for configured device: '{configured_device_name}'")
+                logger.info(
+                    f"Attempting to find index for configured device: '{configured_device_name}'"
+                )
                 found_device = False
                 # Use the same logic as get_input_devices to find the matching index
-                available_devices = get_input_devices() # Get list of dicts {id, name, is_default, raw_name}
+                available_devices = (
+                    get_input_devices()
+                )  # Get list of dicts {id, name, is_default, raw_name}
                 for device_info in available_devices:
                     if device_info.get("name") == configured_device_name:
                         stream_device_index = device_info.get("id")
                         if stream_device_index is not None and stream_device_index >= 0:
-                            logger.info(f"Found matching device index: {stream_device_index} for '{configured_device_name}'")
+                            logger.info(
+                                f"Found matching device index: {stream_device_index} for '{configured_device_name}'"
+                            )
                             found_device = True
-                            break # Stop searching once found
+                            break  # Stop searching once found
                         else:
-                             logger.warning(f"Found matching device '{configured_device_name}' but its index '{stream_device_index}' is invalid.")
+                            logger.warning(
+                                f"Found matching device '{configured_device_name}' but its index '{stream_device_index}' is invalid."
+                            )
 
                 if not found_device:
-                    logger.warning(f"Configured audio device '{configured_device_name}' not found among available MME devices. Falling back to default.")
-                    stream_device_index = None # Fallback to default explicitly
+                    logger.warning(
+                        f"Configured audio device '{configured_device_name}' not found among available MME devices. Falling back to default."
+                    )
+                    stream_device_index = None  # Fallback to default explicitly
             else:
                 logger.info("Using default audio input device (index: None).")
-                stream_device_index = None # Use default
+                stream_device_index = None  # Use default
 
             # --- Log Device Info ---
             try:
                 # Query the device that will actually be used (default if index is None)
-                actual_input_device_info = sd.query_devices(device=stream_device_index, kind='input')
-                input_name = actual_input_device_info.get('name', 'Unknown') if actual_input_device_info else 'Unknown (Default)'
-                logger.info(f"Using Input Device: {input_name} (Index: {stream_device_index})")
+                actual_input_device_info = sd.query_devices(
+                    device=stream_device_index, kind="input"
+                )
+                input_name = (
+                    actual_input_device_info.get("name", "Unknown")
+                    if actual_input_device_info
+                    else "Unknown (Default)"
+                )
+                logger.info(
+                    f"Using Input Device: {input_name} (Index: {stream_device_index})"
+                )
 
                 # Log default output device for echo mode reference
                 default_output_info = sd.query_devices(kind="output")
-                output_name = default_output_info.get('name', 'Unknown') if default_output_info else 'Unknown (Default)'
+                output_name = (
+                    default_output_info.get("name", "Unknown")
+                    if default_output_info
+                    else "Unknown (Default)"
+                )
                 logger.info(f"Default Output Device (for echo): {output_name}")
 
             except Exception as dev_err:
@@ -664,12 +721,17 @@ class AudioManager:
 
             # Use sounddevice Stream context manager
             with sd.Stream(
-                device=(stream_device_index, None), # Specify input device index, default output
+                device=(
+                    stream_device_index,
+                    None,
+                ),  # Specify input device index, default output
                 samplerate=self.sample_rate,
                 channels=self.channels,
                 dtype=self.dtype,
                 callback=self._audio_callback,
-                blocksize=int(self.sample_rate * 0.1), # Optional: Process in 100ms chunks
+                blocksize=int(
+                    self.sample_rate * 0.1
+                ),  # Optional: Process in 100ms chunks
             ) as stream:
                 actual_rate = getattr(
                     stream, "samplerate", "N/A"

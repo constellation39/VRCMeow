@@ -154,34 +154,3 @@ class LLMClient:
                 f"LLMClient: Unexpected error during LLM processing: {e}", exc_info=True
             )
             return None
-
-
-# Example Usage (can be run standalone for testing if needed)
-async def _test_llm_client():
-    from logger_config import setup_logging
-
-    setup_logging()  # Setup basic logging for testing
-
-    # Ensure you have a config.yaml or set environment variables
-    # export OPENAI_API_KEY='your_key'
-    # You might need to adjust config.yaml to enable LLM and set a model
-
-    client = LLMClient()
-    if client.enabled:
-        test_input = "你好世界嗯，今天天气怎么样啊"
-        print(f"\nSending to LLM: {test_input}")
-        processed = await client.process_text(test_input)
-        if processed:
-            print(f"Received from LLM: {processed}")
-        else:
-            print("LLM processing failed or returned no result.")
-    else:
-        print("\nLLM Client is disabled or failed to initialize. Cannot run test.")
-
-
-if __name__ == "__main__":
-    # Requires python -m llm_client to run if dependencies are structured with src/ etc.
-    # Set OPENAI_API_KEY=... for testing
-    # Make sure config.yaml exists and llm.enabled=true
-    print("Running LLMClient test...")
-    asyncio.run(_test_llm_client())

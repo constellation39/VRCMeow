@@ -39,7 +39,9 @@ class VRCClient:
         self.interval = interval
         self.format_string = config.get("outputs.vrc_osc.format", "{text}")
         self._send_immediately = config.get("outputs.vrc_osc.send_immediately", True)
-        self._play_notification_sound = config.get("outputs.vrc_osc.play_notification_sound", True)
+        self._play_notification_sound = config.get(
+            "outputs.vrc_osc.play_notification_sound", True
+        )
         self._address = address  # 可以存储起来用于日志记录
         self._port = port  # 可以存储起来用于日志记录
 
@@ -97,7 +99,9 @@ class VRCClient:
             return
 
         # INFO: Log when send_chatbox is called and the content received
-        logger.info(f"VRC_CLIENT: send_chatbox method entered. Received content: '{content}'")
+        logger.info(
+            f"VRC_CLIENT: send_chatbox method entered. Received content: '{content}'"
+        )
 
         async with self._lock:
             current_time = time.time()
@@ -116,7 +120,9 @@ class VRCClient:
         注意：内容应该由调用者（例如 OutputDispatcher）提前格式化。
         """
         # INFO: Log when _send_message is called, showing the content to be sent
-        logger.info(f"VRC_CLIENT: _send_message method entered. Attempting to send content: '{content}'")
+        logger.info(
+            f"VRC_CLIENT: _send_message method entered. Attempting to send content: '{content}'"
+        )
         try:
             # 内容应该已经由 OutputDispatcher 使用配置的格式字符串格式化。
             # 直接发送接收到的内容。
@@ -127,7 +133,7 @@ class VRCClient:
             payload = [content, self._send_immediately, self._play_notification_sound]
             self._osc_client.send_message("/chatbox/input", payload)
             self._last_send_time = time.time()  # 更新上次发送时间
-            logger.info(f"OSC 消息已发送: {payload}") # Log the full payload
+            logger.info(f"OSC 消息已发送: {payload}")  # Log the full payload
         except Exception as e:
             logger.error(
                 f"发送 OSC 消息时出错: {e}", exc_info=True

@@ -231,11 +231,7 @@ class GummyCallback(TranslationRecognizerCallback):
             # --- Extract potential intermediate text first ---
             intermediate_text = None
             # Try translation first if enabled
-            if (
-                self.enable_translation
-                and self.target_language
-                and translation_result
-            ):
+            if self.enable_translation and self.target_language and translation_result:
                 try:
                     target_translation = translation_result.get_translation(
                         self.target_language
@@ -244,7 +240,7 @@ class GummyCallback(TranslationRecognizerCallback):
                         intermediate_text = f"{target_translation.text}"
                         log_prefix = f"部分翻译 ({self.target_language})"
                 except KeyError:
-                    pass # Ignore intermediate key errors
+                    pass  # Ignore intermediate key errors
                 except Exception as e:
                     self.logger.error(f"处理部分翻译结果时出错: {e}", exc_info=True)
 
@@ -255,13 +251,17 @@ class GummyCallback(TranslationRecognizerCallback):
                 and transcription_result.text
             ):
                 intermediate_text = f"{transcription_result.text}"
-                log_prefix = "部分转录" # Update log prefix if using transcription
+                log_prefix = "部分转录"  # Update log prefix if using transcription
 
             # --- Log the extracted intermediate text (if any) ---
             if intermediate_text:
-                self.logger.info(f"STT_GUMMY: Intermediate text received: '{intermediate_text}'") # <-- Added log line
+                self.logger.info(
+                    f"STT_GUMMY: Intermediate text received: '{intermediate_text}'"
+                )  # <-- Added log line
             else:
-                self.logger.debug("STT_GUMMY: Intermediate event received, but no text extracted.")
+                self.logger.debug(
+                    "STT_GUMMY: Intermediate event received, but no text extracted."
+                )
 
             # --- Now handle behavior based on config ---
             if self.intermediate_behavior == "show_typing":
@@ -269,12 +269,16 @@ class GummyCallback(TranslationRecognizerCallback):
                 self.logger.debug("发送 'Typing...' 状态")  # 使用 debug 级别避免刷屏
             elif self.intermediate_behavior == "show_partial":
                 # Use the previously extracted intermediate_text
-                text_to_send = intermediate_text # Assign the extracted text
+                text_to_send = intermediate_text  # Assign the extracted text
                 if text_to_send:
                     # Log prefix was already set during extraction
-                    self.logger.debug(f"STT_GUMMY: Using intermediate text for 'show_partial': '{text_to_send}'") # Use debug level for behavior log
+                    self.logger.debug(
+                        f"STT_GUMMY: Using intermediate text for 'show_partial': '{text_to_send}'"
+                    )  # Use debug level for behavior log
                 else:
-                    self.logger.debug("STT_GUMMY: 'show_partial' enabled, but no intermediate text available.")
+                    self.logger.debug(
+                        "STT_GUMMY: 'show_partial' enabled, but no intermediate text available."
+                    )
 
             # 如果是 "ignore" 或部分文本为空，text_to_send 保持为 None
 
@@ -371,13 +375,19 @@ def create_gummy_recognizer(
     api_key = config.get("dashscope.api_key")
     if not api_key:
         # Log a critical error or raise if API key is essential
-        logger.error("Dashscope API Key not found in configuration (dashscope.api_key). Cannot create recognizer.")
+        logger.error(
+            "Dashscope API Key not found in configuration (dashscope.api_key). Cannot create recognizer."
+        )
         raise ValueError("Missing Dashscope API Key in configuration.")
 
-    model = config.get("dashscope.stt.model", "gummy-realtime-v1") # Use nested key and provide default
+    model = config.get(
+        "dashscope.stt.model", "gummy-realtime-v1"
+    )  # Use nested key and provide default
     # sample_rate is now passed as an argument
-    channels = config.get("audio.channels", 1) # Use get() for robustness
-    target_language = config.get("dashscope.stt.translation_target_language") # Use nested key
+    channels = config.get("audio.channels", 1)  # Use get() for robustness
+    target_language = config.get(
+        "dashscope.stt.translation_target_language"
+    )  # Use nested key
     enable_translation = bool(target_language)
 
     # Create the callback instance, passing all necessary clients/dispatchers

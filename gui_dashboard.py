@@ -1,12 +1,12 @@
 import flet as ft
 from typing import Optional, Dict
 import logging
-from datetime import datetime # Import datetime
 
 logger = logging.getLogger(__name__)
 
 
 # --- Dashboard UI Element Creation and Layout ---
+
 
 def _create_info_row(icon: str, text_control: ft.Control) -> ft.Row:
     """Helper to create a consistent row for info display."""
@@ -18,6 +18,7 @@ def _create_info_row(icon: str, text_control: ft.Control) -> ft.Row:
         spacing=8,
         vertical_alignment=ft.CrossAxisAlignment.CENTER,
     )
+
 
 def create_dashboard_elements() -> Dict[str, ft.Control]:
     """Creates the core UI elements for the dashboard tab, including info display."""
@@ -50,26 +51,40 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
 
     # --- Add elements for displaying configuration info ---
     default_info_text_style = {"size": 12, "opacity": 0.9}
-    elements["info_mic_label"] = ft.Text("麦克风: -", **default_info_text_style, selectable=True)
-    elements["info_stt_label"] = ft.Text("STT: -", **default_info_text_style, selectable=True)
-    elements["info_llm_label"] = ft.Text("LLM: -", **default_info_text_style, selectable=True)
-    elements["info_vrc_label"] = ft.Text("VRC OSC: -", **default_info_text_style, selectable=True)
-    elements["info_file_label"] = ft.Text("文件输出: -", **default_info_text_style, selectable=True)
+    elements["info_mic_label"] = ft.Text(
+        "麦克风: -", **default_info_text_style, selectable=True
+    )
+    elements["info_stt_label"] = ft.Text(
+        "STT: -", **default_info_text_style, selectable=True
+    )
+    elements["info_llm_label"] = ft.Text(
+        "LLM: -", **default_info_text_style, selectable=True
+    )
+    elements["info_vrc_label"] = ft.Text(
+        "VRC OSC: -", **default_info_text_style, selectable=True
+    )
+    elements["info_file_label"] = ft.Text(
+        "文件输出: -", **default_info_text_style, selectable=True
+    )
 
     # --- Add element for audio level visualization ---
     elements["audio_level_bar"] = ft.ProgressBar(
-        width=150, # Adjust width as needed
-        height=8, # Adjust height for thickness
-        value=0.0, # Start empty
+        width=150,  # Adjust width as needed
+        height=8,  # Adjust height for thickness
+        value=0.0,  # Start empty
         bar_height=8,
-        color=ft.colors.with_opacity(0.7, ft.colors.BLUE_ACCENT), # Color for the bar
-        bgcolor=ft.colors.with_opacity(0.2, ft.colors.OUTLINE), # Background color
+        color=ft.colors.with_opacity(0.7, ft.colors.BLUE_ACCENT),  # Color for the bar
+        bgcolor=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),  # Background color
         border_radius=ft.border_radius.all(4),
         tooltip="当前麦克风音量",
         # visible=False # Initially hidden, shown when running? Or always visible? Let's keep visible.
     )
-    elements["info_config_path_label"] = ft.Text("配置文件: Loading...", **default_info_text_style, selectable=True, color=ft.colors.SECONDARY) # Add config path text
-
+    elements["info_config_path_label"] = ft.Text(
+        "配置文件: Loading...",
+        **default_info_text_style,
+        selectable=True,
+        color=ft.colors.SECONDARY,
+    )  # Add config path text
 
     return elements
 
@@ -91,49 +106,60 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
                 elements["status_row"], padding=ft.padding.only(top=15, bottom=5)
             ),
             # Combined Start/Stop button below status, centered
-            ft.Row( # Add ft.Row() here
+            ft.Row(  # Add ft.Row() here
                 [elements["toggle_button"], elements["progress_indicator"]],
                 alignment=ft.MainAxisAlignment.CENTER,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=15,
             ),
-            ft.Divider(height=10, thickness=1), # Separator
-
+            ft.Divider(height=10, thickness=1),  # Separator
             # --- Configuration Info Section ---
             ft.Column(
                 [
                     # Combine Mic info and volume bar in one row
                     ft.Row(
                         [
-                            ft.Icon(name=ft.icons.MIC_NONE_OUTLINED, size=16, opacity=0.7),
+                            ft.Icon(
+                                name=ft.icons.MIC_NONE_OUTLINED, size=16, opacity=0.7
+                            ),
                             elements["info_mic_label"],
-                            ft.Container(width=10), # Spacer
-                            elements["audio_level_bar"], # Add volume bar here
+                            ft.Container(width=10),  # Spacer
+                            elements["audio_level_bar"],  # Add volume bar here
                         ],
                         spacing=8,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     # Other info rows remain the same
-                    _create_info_row(ft.icons.RECORD_VOICE_OVER_OUTLINED, elements["info_stt_label"]),
-                    _create_info_row(ft.icons.TEXT_SNIPPET_OUTLINED, elements["info_llm_label"]),
-                    _create_info_row(ft.icons.SEND_AND_ARCHIVE_OUTLINED, elements["info_vrc_label"]),
-                    _create_info_row(ft.icons.SAVE_ALT_OUTLINED, elements["info_file_label"]),
-                    _create_info_row(ft.icons.FOLDER_OPEN_OUTLINED, elements["info_config_path_label"]), # Add config file path row
+                    _create_info_row(
+                        ft.icons.RECORD_VOICE_OVER_OUTLINED, elements["info_stt_label"]
+                    ),
+                    _create_info_row(
+                        ft.icons.TEXT_SNIPPET_OUTLINED, elements["info_llm_label"]
+                    ),
+                    _create_info_row(
+                        ft.icons.SEND_AND_ARCHIVE_OUTLINED, elements["info_vrc_label"]
+                    ),
+                    _create_info_row(
+                        ft.icons.SAVE_ALT_OUTLINED, elements["info_file_label"]
+                    ),
+                    _create_info_row(
+                        ft.icons.FOLDER_OPEN_OUTLINED,
+                        elements["info_config_path_label"],
+                    ),  # Add config file path row
                 ],
-                spacing=5, # Adjust spacing if needed after adding the bar
+                spacing=5,  # Adjust spacing if needed after adding the bar
                 alignment=ft.MainAxisAlignment.START,
-                horizontal_alignment=ft.CrossAxisAlignment.START, # Align info text left
+                horizontal_alignment=ft.CrossAxisAlignment.START,  # Align info text left
             ),
-            ft.Divider(height=10, thickness=1), # Separator
-
+            ft.Divider(height=10, thickness=1),  # Separator
             # REMOVED: elements["output_text"],
         ],
-       # expand=True, # Remove expand from column
-       alignment=ft.MainAxisAlignment.START, # Keep column alignment
-       horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-       spacing=10,
-       # scroll=ft.ScrollMode.ADAPTIVE, # Remove scroll from column, TextField handles its own
-   )
+        # expand=True, # Remove expand from column
+        alignment=ft.MainAxisAlignment.START,  # Keep column alignment
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=10,
+        # scroll=ft.ScrollMode.ADAPTIVE, # Remove scroll from column, TextField handles its own
+    )
 
 
 # --- Dashboard Callback Functions ---
@@ -141,17 +167,21 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
 # Function to update the static info display
 # Forward reference Config for type hinting
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
-    from config import Config # Import Config class for type hinting
+    from config import Config  # Import Config class for type hinting
+
 
 def update_dashboard_info_display(
     page: ft.Page,
     elements: Dict[str, ft.Control],
-    config_instance: "Config", # Pass the config instance
+    config_instance: "Config",  # Pass the config instance
 ):
     """线程安全地更新仪表盘上的静态配置信息显示"""
     if not page:
-        logger.warning("update_dashboard_info_display called without a valid page object.")
+        logger.warning(
+            "update_dashboard_info_display called without a valid page object."
+        )
         return
     if not elements:
         logger.warning("update_dashboard_info_display called without elements.")
@@ -164,12 +194,11 @@ def update_dashboard_info_display(
     try:
         config_data = config_instance.data
         if not config_data:
-             logger.warning("Config instance provided but its data is empty.")
-             return # Or handle appropriately
+            logger.warning("Config instance provided but its data is empty.")
+            return  # Or handle appropriately
     except Exception as e:
         logger.error(f"Error accessing config_instance.data: {e}", exc_info=True)
         return
-
 
     # Extract info from config_data (use .get() for safety)
     audio_conf = config_data.get("audio", {})
@@ -211,43 +240,73 @@ def update_dashboard_info_display(
     llm_label = elements.get("info_llm_label")
     vrc_label = elements.get("info_vrc_label")
     file_label = elements.get("info_file_label")
-    config_path_label = elements.get("info_config_path_label") # Get config path label
+    config_path_label = elements.get("info_config_path_label")  # Get config path label
 
     def update_info_ui():
-        if mic_label and isinstance(mic_label, ft.Text): mic_label.value = mic_info
-        if stt_label and isinstance(stt_label, ft.Text): stt_label.value = stt_info
-        if llm_label and isinstance(llm_label, ft.Text): llm_label.value = llm_info
-        if vrc_label and isinstance(vrc_label, ft.Text): vrc_label.value = vrc_info
-        if file_label and isinstance(file_label, ft.Text): file_label.value = file_info
+        if mic_label and isinstance(mic_label, ft.Text):
+            mic_label.value = mic_info
+        if stt_label and isinstance(stt_label, ft.Text):
+            stt_label.value = stt_info
+        if llm_label and isinstance(llm_label, ft.Text):
+            llm_label.value = llm_info
+        if vrc_label and isinstance(vrc_label, ft.Text):
+            vrc_label.value = vrc_info
+        if file_label and isinstance(file_label, ft.Text):
+            file_label.value = file_info
         # Update config file path display
         if config_path_label and isinstance(config_path_label, ft.Text):
-            loaded_path = getattr(config_instance, 'loaded_config_path', "Unknown") # Use getattr for safety with FallbackConfig
-            config_path_label.value = f"配置文件: {loaded_path}" # Display the path/status
+            loaded_path = getattr(
+                config_instance, "loaded_config_path", "Unknown"
+            )  # Use getattr for safety with FallbackConfig
+            config_path_label.value = (
+                f"配置文件: {loaded_path}"  # Display the path/status
+            )
 
         try:
             if page and page.controls:
                 # Update only the specific controls that changed
-                controls_to_update = [ctrl for ctrl in [mic_label, stt_label, llm_label, vrc_label, file_label, config_path_label] if ctrl] # Add config_path_label
+                controls_to_update = [
+                    ctrl
+                    for ctrl in [
+                        mic_label,
+                        stt_label,
+                        llm_label,
+                        vrc_label,
+                        file_label,
+                        config_path_label,
+                    ]
+                    if ctrl
+                ]  # Add config_path_label
                 if controls_to_update:
                     page.update(*controls_to_update)
             elif page:
-                logger.warning("Page has no controls, skipping update in update_dashboard_info_display.")
+                logger.warning(
+                    "Page has no controls, skipping update in update_dashboard_info_display."
+                )
         except Exception as e:
-            logger.error(f"Error during page.update in update_dashboard_info_display: {e}", exc_info=True)
+            logger.error(
+                f"Error during page.update in update_dashboard_info_display: {e}",
+                exc_info=True,
+            )
 
     try:
         if page and page.controls is not None:
-            page.run_thread(update_info_ui) # type: ignore
+            page.run_thread(update_info_ui)  # type: ignore
         elif page:
-            logger.warning("Page object seems invalid, skipping run_thread in update_dashboard_info_display.")
+            logger.warning(
+                "Page object seems invalid, skipping run_thread in update_dashboard_info_display."
+            )
     except Exception as e:
-        logger.error(f"Error calling page.run_thread in update_dashboard_info_display: {e}", exc_info=True)
+        logger.error(
+            f"Error calling page.run_thread in update_dashboard_info_display: {e}",
+            exc_info=True,
+        )
 
 
 def update_audio_level_display(
     page: ft.Page,
     audio_level_bar: ft.ProgressBar,
-    level: float # Expect normalized level 0.0 to 1.0
+    level: float,  # Expect normalized level 0.0 to 1.0
 ):
     """线程安全地更新音频电平指示器 (需要传入 UI 元素)"""
     if not page:
@@ -269,10 +328,10 @@ def update_audio_level_display(
                     # Update only the specific control
                     page.update(audio_level_bar)
                 # No need for else, page check already handled
-            except Exception as e:
+            except Exception:
                 # Catch errors during update (e.g., page closed unexpectedly)
                 # logger.error(f"Error during page.update in update_audio_level_display: {e}", exc_info=True) # Can be noisy
-                pass # Ignore update errors for level bar
+                pass  # Ignore update errors for level bar
 
     # Run UI updates on the Flet thread
     try:
@@ -280,10 +339,10 @@ def update_audio_level_display(
         if page and page.controls is not None:
             page.run_thread(update_ui)  # type: ignore
         # No need for else, page check already handled
-    except Exception as e:
+    except Exception:
         # Catch potential errors if page becomes invalid between check and run_thread
         # logger.error(f"Error calling page.run_thread in update_audio_level_display: {e}", exc_info=True) # Can be noisy
-        pass # Ignore run_thread errors for level bar
+        pass  # Ignore run_thread errors for level bar
 
 
 def update_status_display(
