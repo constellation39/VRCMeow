@@ -898,8 +898,9 @@ def main(page: ft.Page):
             text_input_progress.visible = False
             # Optionally clear field only on success? Currently clears before dispatch attempt.
             # text_input_field.value = "" # Clearing moved to after successful dispatch
-            if page.window_exists(): # Check if page exists before updating
-                 page.update() # Add and indent this line
+            # Removed check for page.window_exists() as it's not a valid attribute
+            # Flet handles updates to closed pages gracefully.
+            page.update()
 
     async def text_input_change(e: ft.ControlEvent):
         """Handles changes in the text input field to reset the timer."""
