@@ -161,8 +161,17 @@ class LLMClient:
                     )
                     return None  # Treat empty response as failure
             else:
+                # Log the problematic response structure for debugging
+                response_dump = "None"
+                try:
+                    # Attempt to dump the response to JSON for inspection
+                    response_dump = response.model_dump_json(indent=2)
+                except Exception as dump_err:
+                    response_dump = f"Could not dump response object: {dump_err}"
+
                 logger.warning(
-                    "LLMClient: LLM response did not contain expected choices or message."
+                    "LLMClient: LLM response did not contain the expected structure (choices[0].message.content). Response received:\n%s",
+                    response_dump
                 )
                 return None
 
