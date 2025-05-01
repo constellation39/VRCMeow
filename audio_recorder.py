@@ -445,9 +445,17 @@ class AudioManager:
                             logger.info(
                                 f"Stopped failed Dashscope {engine_type} Recognizer instance."
                             )
+                        except InvalidParameter as ip_err:
+                            # If the error is specifically that it's already stopped, just warn.
+                            if str(ip_err) == "Speech recognition has stopped.":
+                                logger.warning(f"Attempted to stop an already stopped recognizer: {ip_err}")
+                            else:
+                                # Log other InvalidParameter errors as errors
+                                logger.error(f"Error stopping failed recognizer (InvalidParameter): {ip_err}", exc_info=True)
                         except Exception as stop_err:
+                            # Catch any other unexpected errors during stop
                             logger.error(
-                                f"Error stopping failed recognizer: {stop_err}",
+                                f"Unexpected error stopping failed recognizer: {stop_err}",
                                 exc_info=True,
                             )
                         recognizer = None  # Clear reference
