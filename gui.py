@@ -755,18 +755,18 @@ def main(page: ft.Page):
         ft.Tabs(
             [
                 ft.Tab(
-                    text="仪表盘",
-                    icon=ft.icons.DASHBOARD,
-                    content=dashboard_tab_layout,  # Use correct variable
+                    text="语音",  # Renamed from "仪表盘"
+                    icon=ft.icons.MIC, # Changed icon from DASHBOARD
+                    content=dashboard_tab_layout,  # Content remains the same layout
                 ),
-                ft.Tab(text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout),
-                ft.Tab(
+                ft.Tab( # Moved Text Input tab up
                     text="文本输入",
                     icon=ft.icons.TEXT_FIELDS,
                     content=text_input_tab_content,
                 ),
-                ft.Tab(  # Add the new Log tab
-                    text="日志",
+                ft.Tab(text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout), # Moved Config tab down
+                ft.Tab(
+                    text="日志", # Moved Log tab down (implicitly by moving others)
                     icon=ft.icons.LIST_ALT_ROUNDED,
                     content=log_tab_layout,
                 ),
