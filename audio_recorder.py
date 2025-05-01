@@ -174,6 +174,16 @@ class AudioManager:
         else:
             logger.info(f"Using STT Model: '{self.stt_model}' with Sample Rate: {self.sample_rate} Hz")
 
+        # --- Add Detailed Logging for Effective Settings ---
+        logger.info(f"AudioManager Init - Effective Settings:")
+        logger.info(f"  - STT Model: '{self.stt_model}'")
+        logger.info(f"  - Sample Rate: {self.sample_rate} Hz (derived from model config)")
+        logger.info(f"  - Audio Device: '{self.device}'")
+        logger.info(f"  - Channels: {self.channels}")
+        logger.info(f"  - Dtype: {self.dtype}")
+        logger.info(f"  - Debug Echo Mode: {self.debug_echo_mode}")
+        # --- End Detailed Logging ---
+
     # REMOVED: _determine_sample_rate method and its body. Sample rate is now determined from config.
 
     # Remove the old _update_status signature that didn't take kwargs # This comment is still relevant
