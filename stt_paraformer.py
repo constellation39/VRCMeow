@@ -1,17 +1,15 @@
 import asyncio
-import threading  # Import threading
+import threading
+import time
 from typing import Optional
-from dashscope.audio.asr import RecognitionCallback, Recognition, RecognitionResult
-import time  # Import time for LLM timeout and typing status
-from logger_config import get_logger
 
-# 直接从 config 模块导入 config 实例
+from dashscope.audio.asr import Recognition, RecognitionCallback, RecognitionResult
+
 from config import config
-
-# Import LLMClient and OutputDispatcher for type hinting and usage
 from llm_client import LLMClient
+from logger_config import get_logger
+from osc_client import VRCClient
 from output_dispatcher import OutputDispatcher
-from osc_client import VRCClient  # <-- Add this import
 
 
 # --- Callback for Paraformer API (Recognition only) ---

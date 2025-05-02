@@ -1,19 +1,18 @@
 import logging
+import os
 import pathlib
 import sys
-from typing import Optional, Callable  # Add Callable
-import os  # Ensure os module is imported
+from typing import Callable, Optional
 
-# Import the Flet handler (assuming gui_log.py is in the same directory or accessible)
 try:
     from gui_log import FletLogHandler
 except ImportError:
-    # Handle case where GUI is not used or file is missing
     FletLogHandler = None
 
 # Directly import the config instance and APP_DIR. If this fails, the application should exit.
 try:
-    from config import config as app_config, APP_DIR
+    from config import APP_DIR
+    from config import config as app_config
 except ImportError as e:
     # Log critical error and potentially exit if config/APP_DIR cannot be imported
     # Using print as logger might not be configured yet

@@ -1,4 +1,5 @@
 import flet as ft
+
 from gui import main as gui_main
 from logger_config import get_logger
 

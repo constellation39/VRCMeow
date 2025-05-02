@@ -1,23 +1,28 @@
-import flet as ft
-from typing import Dict, Any, Optional, Callable, TYPE_CHECKING
-import logging
 import asyncio
+import copy
+import logging
+import os
+import subprocess
+import sys
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    Optional,
+)
+
+import flet as ft
 from openai import (
-    AsyncOpenAI,
     APIConnectionError,
+    AsyncOpenAI,
     AuthenticationError,
     OpenAIError,
-)  # Added OpenAI imports
-import copy
-import os  # Import os for startfile
-import subprocess  # Import subprocess for cross-platform opening
-import sys  # Import sys for platform check
-import gui_utils  # Import for close_banner
-from audio_recorder import get_input_devices  # Import device getter
-from typing import (
-    Awaitable,
-)  # Added Awaitable
+)
 
+import gui_utils
+from audio_recorder import get_input_devices
 
 # Use standard logging; setup happens elsewhere
 logger = logging.getLogger(__name__)
@@ -95,7 +100,6 @@ def create_dashscope_controls(
             model_type = model_info.get(
                 "type", "unknown"
             )  # Get type for potential display
-            # Example: "gummy-realtime-v1 (Gummy, 支持翻译)"
             display_text += f" ({model_type.capitalize()}"
             if supports_translation:
                 display_text += ", 支持翻译"
@@ -1508,7 +1512,7 @@ def reload_config_controls(
             # The partial already has page, all_config_controls, and active_preset_name_label_ctrl.
             # We only need to pass the active_preset_name value.
             update_llm_ui_callback(
-                active_preset_name_value=active_preset_name, # Pass preset name by keyword
+                active_preset_name_value=active_preset_name,  # Pass preset name by keyword
             )
             logger.info(
                 f"LLM active preset label updated via callback for preset '{active_preset_name}'."

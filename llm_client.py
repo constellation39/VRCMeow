@@ -1,8 +1,7 @@
 from typing import Optional
 
-from openai import AsyncOpenAI, OpenAIError  # Use AsyncOpenAI for async operations
+from openai import AsyncOpenAI, OpenAIError
 
-# Directly import the config instance
 from config import config
 from logger_config import get_logger
 

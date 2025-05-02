@@ -1,6 +1,7 @@
-import flet as ft
-from typing import Optional, Dict
 import logging
+from typing import Dict, Optional
+
+import flet as ft
 
 logger = logging.getLogger(__name__)
 

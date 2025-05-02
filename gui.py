@@ -1,19 +1,56 @@
-# --- Standard Library Imports ---
 import asyncio
 import functools
 import os
 import pathlib
 import sys
 from typing import (
-    Optional,
-    Dict,
     TYPE_CHECKING,
-)  # Added Callable here, Added TYPE_CHECKING
+    Dict,
+    Optional,
+)
 
-# --- Third-Party Imports ---
 import flet as ft
 
-# --- Third-Party Imports ---
+from audio_recorder import AudioManager
+from config import config
+
+if TYPE_CHECKING:
+    from config import Config
+import gui_config
+import gui_utils
+import prompt_presets
+from gui_config import (
+    create_audio_controls,
+    create_config_tab_content,
+    create_console_output_controls,
+    create_dashscope_controls,
+    create_file_output_controls,
+    create_llm_controls,
+    create_logging_controls,
+    create_vrc_osc_controls,
+    open_config_folder_handler,
+    reload_config_handler,
+    save_config_handler,
+)
+from gui_dashboard import (
+    create_dashboard_elements,
+    create_dashboard_tab_content,
+    update_audio_level_display,
+    update_dashboard_info_display,
+    update_status_display,
+)
+from gui_log import (
+    clear_log_display,
+    create_log_elements,
+    create_log_tab_content,
+    set_log_level_filter,
+    update_log_display,
+)
+from gui_presets import create_preset_tab_content
+from llm_client import LLMClient
+from logger_config import get_logger, setup_logging
+from osc_client import VRCClient
+from output_dispatcher import OutputDispatcher
 
 # --- Project Setup & CWD Adjustment ---
 # This block MUST run before local imports to ensure modules are found,
@@ -39,55 +76,6 @@ else:
         f"[INFO] Initial CWD '{current_cwd}' seems correct or config.yaml not found at expected root."
     )
 # --- End Project Setup ---
-
-# --- Local Project Imports (after CWD setup) ---
-from audio_recorder import AudioManager
-from config import config  # Import singleton instance
-
-if TYPE_CHECKING:
-    from config import Config  # Import class for type hints only
-import gui_utils
-import prompt_presets  # Import the missing module
-import gui_config  # Import the module itself
-from gui_config import (
-    create_audio_controls,
-    # REMOVED: create_config_example_row,
-    create_config_tab_content,
-    create_console_output_controls,
-    create_dashscope_controls,
-    create_file_output_controls,
-    create_llm_controls,
-    create_logging_controls,
-    create_vrc_osc_controls,
-    # REMOVED: add_example_handler,
-    reload_config_handler,
-    save_config_handler,
-    open_config_folder_handler,  # Import the new handler
-)
-
-# --- Preset UI Import ---
-from gui_presets import create_preset_tab_content  # Import the new function
-from gui_dashboard import (
-    create_dashboard_elements,
-    create_dashboard_tab_content,
-    # REMOVED: update_output_display,
-    update_status_display,
-    update_dashboard_info_display,  # Import the dashboard info update function
-    update_audio_level_display,  # Import the audio level update function
-)
-
-# --- New Log Tab Imports ---
-from gui_log import (
-    create_log_elements,
-    create_log_tab_content,
-    update_log_display,
-    clear_log_display,
-    set_log_level_filter,
-)
-from llm_client import LLMClient
-from logger_config import get_logger, setup_logging
-from osc_client import VRCClient
-from output_dispatcher import OutputDispatcher
 
 
 # --- Logging Setup Placeholder ---
@@ -130,11 +118,9 @@ def main(page: ft.Page):
     page.title = "VRCMeow Dashboard"
     page.vertical_alignment = ft.MainAxisAlignment.START
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-    # 设置初始窗口大小 (可选)
     page.window_width = 600
     page.window_height = 450
     page.window_resizable = True
-    # page.window_frameless = True # 启用无边框窗口
     page.padding = 10
 
     app_state = AppState()
@@ -326,7 +312,7 @@ def main(page: ft.Page):
         dashboard_update_callback=None,
         update_llm_ui_callback=None,
         active_preset_name_label_ctrl=None,
-        text_input_info_update_callback=None, # Add placeholder for the new callback too
+        text_input_info_update_callback=None,  # Add placeholder for the new callback too
     )
     # Note: The actual callback functions are assigned below using save_handler_partial.keywords[...]
 
@@ -1039,21 +1025,12 @@ def main(page: ft.Page):
     )
     open_config_folder_button.on_click = open_folder_handler_partial
 
-    # --- REMOVED: Preset Dialog Handlers ---
-    # async def open_preset_dialog(e: ft.ControlEvent): ...
-    # def close_dialog(dialog_instance: ft.AlertDialog): ...
-    # REMOVED: Assignment to manage_presets_button.on_click
-
-    # REMOVED: Ensure add_example_button is valid before assigning handler
-    # if add_example_button: ...
-
     # --- Create Text Input Tab Elements & Handlers ---
     text_input_field = ft.TextField(
         label="在此输入文本 (或等待定时器发送)",  # Updated label
         multiline=True,
         min_lines=3,  # Increased min lines for better multiline visibility
         max_lines=5,  # Increased max lines
-        # expand=True, # Keep removed
         border_color=ft.colors.OUTLINE,
         dense=True,
         on_submit=None,  # Assigned later
@@ -1685,5 +1662,3 @@ def main(page: ft.Page):
     page.update()
 
 
-# 注意：此文件不再包含 if __name__ == "__main__": ft.app(...)
-# 这将移至 main.py

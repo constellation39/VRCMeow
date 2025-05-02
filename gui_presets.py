@@ -1,12 +1,10 @@
-import flet as ft
+import functools
 import logging
-import functools  # Add missing import
-from typing import Dict, Callable, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Dict, Optional
 
-# Import preset logic functions
-from prompt_presets import load_presets, get_preset, save_preset, delete_preset
+import flet as ft
 
-# Import GUI utils for banners
+from prompt_presets import delete_preset, get_preset, load_presets, save_preset
 
 if TYPE_CHECKING:
     from config import Config  # For type hinting

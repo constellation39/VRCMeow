@@ -1,9 +1,5 @@
-# config_loader.py - Compatibility Layer
-# This module now acts as a simple bridge to the new 'config.py' module.
-# It's recommended to update imports to use 'config.config' or 'config.get_config_data' directly in the future.
-
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
 # Attempt to import from the new config module
 try:
@@ -13,7 +9,7 @@ try:
 
     # Optionally, configure a logger for this compatibility layer if needed
     logger = logging.getLogger(__name__)
-    # logger.info("config_loader.py: Successfully imported from the new 'config' module.")
+    logger.info("config_loader.py: Successfully imported from the new 'config' module.")
 except ImportError as e:
     # Log a critical error if the new module cannot be imported
     logger = logging.getLogger(__name__)  # Get a logger instance anyway
@@ -48,10 +44,3 @@ else:
         """
         # Return the data dictionary from the singleton config instance in config.py
         return _get_config_data()
-
-# Note: The old APP_CONFIG global variable is intentionally removed.
-# Code relying on 'config_loader.APP_CONFIG' must be updated to use 'get_config()'
-# or preferably import directly from 'config.py'.
-
-# The test block (__name__ == '__main__') is removed.
-# Testing of the configuration loading should occur within 'config.py'.

@@ -1,18 +1,11 @@
-# import json # No longer needed for presets file
-import pathlib
 import logging
-from typing import Dict, Any, List, Optional, Tuple
+import pathlib
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
-# REMOVED: Direct import of config instance and _DEFAULT_CONFIG
-# try:
-#     from config import config, _DEFAULT_CONFIG
-# except ImportError:
-# Import the application directory path from the config module
 try:
-    # Import both config instance and APP_DIR
-    from config import config, APP_DIR
+    from config import APP_DIR, config
 except ImportError:
     # Fallback or error handling if config module/APP_DIR isn't available
     # This indicates a potential setup issue.
@@ -38,16 +31,6 @@ EXAMPLE_CONFIG_FILENAME = "config.example.yaml"  # Keep for reading defaults
 PRESETS_PATH = APP_DIR / PRESETS_FILENAME  # Presets file lives in APP_DIR
 CWD = pathlib.Path.cwd()  # Still need CWD for example config location
 EXAMPLE_CONFIG_PATH = CWD / EXAMPLE_CONFIG_FILENAME  # Example config read from CWD
-
-# --- Preset Data Structure ---
-# {
-#   "preset_name": {
-#     "system_prompt": "...",
-#     "few_shot_examples": [{"user": "...", "assistant": "..."}, ...]
-#   },
-#   ...
-# }
-# ---
 
 
 def load_presets() -> Dict[str, Dict[str, Any]]:

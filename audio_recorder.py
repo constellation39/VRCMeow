@@ -1,31 +1,20 @@
+import queue
 import threading
-import queue  # Use standard queue for thread-safe communication
-from typing import Optional, TYPE_CHECKING, Union, Callable, Any, List, Dict
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 import sounddevice as sd
-
-# 直接从 config 模块导入 config 实例
-from config import config
-
-# 获取该模块的 logger 实例
-from logger_config import get_logger
-
-# Import Dashscope base recognizer types for type hinting
-from dashscope.audio.asr import TranslationRecognizerRealtime, Recognition
-
-# Import specific error type
+from dashscope.audio.asr import Recognition, TranslationRecognizerRealtime
 from dashscope.common.error import InvalidParameter
 
-# Local STT implementation imports
+from config import config
+from logger_config import get_logger
 from stt_gummy import create_gummy_recognizer
 from stt_paraformer import create_paraformer_recognizer
-
 
 logger = get_logger(__name__)
 
 
-# --- Audio Device Helper ---
 def get_input_devices() -> List[Dict[str, Any]]:
     """Returns a list of available audio input devices."""
     devices = []
@@ -35,21 +24,15 @@ def get_input_devices() -> List[Dict[str, Any]]:
         default_input_idx = sd.default.device[0]  # Get default input device index
 
         for i, device in enumerate(device_list):
-            # Check if it's an input device (has input channels)
             if device.get("max_input_channels", 0) > 0:
-                # Try to get host API info
                 try:
                     hostapi_info = hostapis[device.get("hostapi", 0)]
                     hostapi_name = hostapi_info.get("name", "Unknown API")
                 except IndexError:
-                    hostapi_name = (
-                        "Unknown API"  # Handle case where hostapi index is invalid
-                    )
+                    hostapi_name = "Unknown API"
 
                 # --- Filter by Host API (Keep only MME) ---
                 if hostapi_name == "MME":
-                    # Use original device name, maybe add (MME) for clarity?
-                    # For now, just use the name sounddevice provides.
                     device_name = device.get("name", "Unknown Device")
                     # Add (MME) suffix for clarity in the dropdown
                     display_name = f"{device_name} (MME)"
@@ -60,14 +43,13 @@ def get_input_devices() -> List[Dict[str, Any]]:
                             "id": i,  # Store index for potential use with sounddevice
                             "name": display_name,  # User-friendly name with MME suffix
                             "is_default": is_default,
-                            # Store the original name without suffix for potential matching in AudioManager
                             "raw_name": device.get("name"),
                         }
                     )
                 else:
-                    # Log skipped devices for debugging if needed
-                    # logger.debug(f"Skipping device '{device.get('name')}' with host API '{hostapi_name}'")
-                    pass  # Skip devices that are not MME
+                    logger.debug(
+                        f"Skipping device '{device.get('name')}' with host API '{hostapi_name}'"
+                    )
 
         logger.debug(f"Found MME input devices: {devices}")
     except Exception as e:
@@ -84,27 +66,21 @@ def get_input_devices() -> List[Dict[str, Any]]:
     return devices
 
 
-# --- Component Imports for Type Hinting (Keep these) ---
-# Use TYPE_CHECKING to avoid circular imports at runtime
 if TYPE_CHECKING:
     try:
         from llm_client import LLMClient
     except ImportError:
-        LLMClient = None  # type: ignore
+        LLMClient = None
     try:
         from output_dispatcher import OutputDispatcher
     except ImportError:
-        OutputDispatcher = None  # type: ignore
+        OutputDispatcher = None
     try:
         from osc_client import VRCClient
     except ImportError:
-        VRCClient = None  # type: ignore
+        VRCClient = None
 
 
-# Actual imports needed at runtime (handled elsewhere, these are just for hints)
-
-
-# --- AudioManager Class ---
 class AudioManager:
     """
     Manages audio input, STT processing, and communication with the GUI.
@@ -122,12 +98,10 @@ class AudioManager:
     ):
         self.llm_client = llm_client
         self.output_dispatcher = output_dispatcher
-        self.audio_level_callback = audio_level_callback  # Store audio level callback
-        # Store the raw status callback
+        self.audio_level_callback = audio_level_callback
         self._raw_status_callback = status_callback
-        # Wrapper for the callback to include state (initialized later if needed)
         self.status_callback: Optional[Callable[[str, Optional[bool], bool], None]] = (
-            status_callback  # Assign callback directly
+            status_callback
         )
 
         self._audio_queue = queue.Queue()  # Thread-safe queue
@@ -144,28 +118,24 @@ class AudioManager:
         self.debug_echo_mode = config.get("audio.debug_echo_mode", False)
         self.device = config.get("audio.device", "Default")
 
-        # --- Get STT Model and Sample Rate from Config ---
         selected_model_name = config.get("dashscope.stt.selected_model")
         stt_models_config = config.get("dashscope.stt.models", {})
         model_info = stt_models_config.get(selected_model_name)
 
         if not selected_model_name or not model_info:
-            # Fallback or error if selected model is invalid or not found
-            fallback_model = "gummy-realtime-v1"  # Or choose another default
+            fallback_model = "gummy-realtime-v1"
             logger.error(
                 f"Selected STT model '{selected_model_name}' not found or invalid in config. Falling back to '{fallback_model}'."
             )
             selected_model_name = fallback_model
-            model_info = stt_models_config.get(
-                selected_model_name, {}
-            )  # Try getting fallback info
+            model_info = stt_models_config.get(selected_model_name, {})
 
-        self.stt_model = selected_model_name  # Store the final selected model name
+        self.stt_model = selected_model_name
         self.sample_rate = model_info.get("sample_rate")
 
         # Validate if sample rate was found for the selected (or fallback) model
         if self.sample_rate is None:
-            default_sr = 16000  # Define a hardcoded default if config is broken
+            default_sr = 16000
             logger.critical(
                 f"Sample rate not defined for STT model '{self.stt_model}' in config! Using default: {default_sr} Hz. Audio stream might fail!"
             )
@@ -175,7 +145,6 @@ class AudioManager:
                 f"Using STT Model: '{self.stt_model}' with Sample Rate: {self.sample_rate} Hz"
             )
 
-        # --- Add Detailed Logging for Effective Settings ---
         logger.info("AudioManager Init - Effective Settings:")
         logger.info(f"  - STT Model: '{self.stt_model}'")
         logger.info(
@@ -185,9 +154,7 @@ class AudioManager:
         logger.info(f"  - Channels: {self.channels}")
         logger.info(f"  - Dtype: {self.dtype}")
         logger.info(f"  - Debug Echo Mode: {self.debug_echo_mode}")
-        # --- End Detailed Logging ---
 
-    # Keep the correctly defined overload signature
     def _update_status(
         self,
         message: str,
@@ -196,64 +163,42 @@ class AudioManager:
         is_processing: bool = False,
     ):
         """Helper to call the status callback with running and processing state."""
-        # Changed level to DEBUG as status updates can be frequent
         logger.debug(
             f"AudioManager Status: {message} (Running: {is_running}, Processing: {is_processing})"
         )
-        # Use the wrapped status_callback
         if self.status_callback:
             try:
                 # Pass the new arguments to the callback
-                self.status_callback(
-                    message, is_running=is_running, is_processing=is_processing
-                )
+                self.status_callback(message)
             except Exception as e:
                 logger.error(f"Error calling status callback: {e}", exc_info=True)
 
-    # --- STT Processing Logic (Now synchronous, runs in its own thread) ---
-    # Rename and remove async def
     def _run_stt_processor(self):
         """Target function for the STT processing thread. Handles recognizer lifecycle and data feeding."""
-        # No longer an async task, but the main logic for the STT thread.
-        # Model name (self.stt_model) and sample rate (self.sample_rate) are now set in __init__
 
         logger.info("STT Processor Thread Started.")
         if self.status_callback:
-            self._update_status(
-                "STT 线程启动中...", is_processing=True
-            )  # Indicate processing during startup
-        # Removed redundant starting log message
+            self._update_status("STT 线程启动中...", is_processing=True)
         recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
         engine_type = "Unknown"
 
-        # --- Reconnect Parameters ---
         max_retries = 5
-        initial_retry_delay = 1.0  # Initial retry delay (seconds)
-        max_retry_delay = 30.0  # 最大重试延迟 (秒)
+        initial_retry_delay = 1.0
+        max_retry_delay = 30.0
         retry_count = 0
         current_delay = initial_retry_delay
 
-        # API Key check happens in main.py before AudioManager is created
-
-        # --- Outer Reconnect Loop ---
         while not self._stop_event.is_set():
-            recognizer = None  # Reset recognizer before each connection attempt
+            recognizer = None
             try:
-                # --- Check config and model compatibility (re-check each loop) ---
-                # Use instance variables set in __init__
-                current_model = self.stt_model  # Get model name from instance var
-                stt_models_config = config.get(
-                    "dashscope.stt.models", {}
-                )  # Reload models dict in case config changed
-                model_info = stt_models_config.get(
-                    current_model, {}
-                )  # Get current model's info
-                model_type = model_info.get("type")  # 获取模型类型
+                current_model = self.stt_model
+                stt_models_config = config.get("dashscope.stt.models", {})
+                model_info = stt_models_config.get(current_model, {})
+                model_type = model_info.get("type")
 
                 target_language = config.get(
                     "dashscope.stt.translation_target_language"
                 )
-                # Determine translation support based on config
                 model_supports_translation = model_info.get(
                     "supports_translation", False
                 )
@@ -261,7 +206,6 @@ class AudioManager:
                     bool(target_language) and model_supports_translation
                 )
 
-                # --- Validate Model Type ---
                 if not model_type or model_type not in ["gummy", "paraformer"]:
                     error_msg = f"配置中为模型 '{current_model}' 指定的类型 '{model_type}' 无效或缺失。请在 config.yaml 中设置 'type' 为 'gummy' 或 'paraformer'。"
                     logger.error(error_msg)
@@ -791,10 +735,12 @@ class AudioManager:
                 logger.warning("STT thread did not finish gracefully within timeout.")
                 # If thread is stuck, loop might need forceful stop (handled in _run_stt_processor finally)
             else:
-                logger.debug("STT thread finished.") # Changed to DEBUG
+                logger.debug("STT thread finished.")  # Changed to DEBUG
                 stt_stopped = True
         else:
-            logger.debug("STT thread was not running or already finished.") # Changed to DEBUG
+            logger.debug(
+                "STT thread was not running or already finished."
+            )  # Changed to DEBUG
             stt_stopped = True  # Consider it stopped if it wasn't running
 
         audio_stopped = False
@@ -805,10 +751,12 @@ class AudioManager:
             if self._audio_thread.is_alive():
                 logger.warning("Audio thread did not finish within timeout.")
             else:
-                logger.debug("Audio thread finished.") # Changed to DEBUG
+                logger.debug("Audio thread finished.")  # Changed to DEBUG
                 audio_stopped = True
         else:
-            logger.debug("Audio thread was not running or already finished.") # Changed to DEBUG
+            logger.debug(
+                "Audio thread was not running or already finished."
+            )  # Changed to DEBUG
             audio_stopped = True  # Consider it stopped
 
         # Clean up references
@@ -823,5 +771,3 @@ class AudioManager:
             logger.warning("AudioManager stopped with potential issues (threads did not join).")
             # Final status: Stopped (with issues), not running, not processing
             if self.status_callback: self._update_status("已停止 (有潜在问题)", is_running=False, is_processing=False)
-
-# The logic is now inside the AudioManager class.

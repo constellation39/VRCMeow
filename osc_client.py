@@ -1,15 +1,13 @@
 import asyncio
 import time
-from typing import Any  # Added Union
+from typing import Any
 
-# Direct import, program will exit if this fails
-from pythonosc import udp_client as pythonosc_udp_client  # Rename to avoid conflict
+from pythonosc import udp_client as pythonosc_udp_client
 from pythonosc.osc_message_builder import ArgValue
 
-from config import config  # Import the config instance
-from logger_config import get_logger  # 导入日志获取器
+from config import config
+from logger_config import get_logger
 
-# 获取该模块的 logger 实例
 logger = get_logger(__name__)  # 使用模块名作为 logger 名称
 
 

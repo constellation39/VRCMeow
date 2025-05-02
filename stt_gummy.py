@@ -1,22 +1,19 @@
 import asyncio
-import threading  # <-- Added import
+import threading
 from typing import Optional
+
 from dashscope.audio.asr import (
+    TranscriptionResult,
     TranslationRecognizerCallback,
     TranslationRecognizerRealtime,
-    TranscriptionResult,
     TranslationResult,
 )
-from logger_config import get_logger
 
-# 直接从 config 模块导入 config 实例
 from config import config
-
-
-# Import VRCClient for type hinting and usage in callback
 from llm_client import LLMClient
+from logger_config import get_logger
+from osc_client import VRCClient
 from output_dispatcher import OutputDispatcher
-from osc_client import VRCClient  # Import VRCClient
 
 
 # --- Callback for Gummy API (Translation/Transcription) ---
