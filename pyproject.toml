@@ -1,7 +1,7 @@
 [project]
 name = "vrcmeow"
 version = "0.1.0"
-description = "Add your description here"
+description = "Real-time speech-to-text and translation for VRChat via OSC" # 更具体的描述
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -16,3 +16,32 @@ dependencies = [
     "flet[all]==0.27.6",
     "pyinstaller>=6.13.0",
 ]
+
+[tool.ruff]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) rules by default.
+# Allow unused variables (`F841`) but enforce others.
+# Exclude specific directories if needed, e.g., venv
+# exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # Pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+]
+ignore = [
+    "E501", # Line too long, handled by formatter
+    # Add other rules to ignore if necessary
+]
+# Allow unused variables in `__init__.py` and specific functions if needed.
+# per-file-ignores = { "__init__.py" = ["F401"] }
+
+[tool.ruff.format]
+# Use black-compatible formatting.
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
