@@ -1279,7 +1279,8 @@ def main(page: ft.Page):
     # --- Page Resize Handler (Moved Here) ---
     async def on_page_resize(e=None): # Allow calling without event
         if page.width and tabs_container:
-            horizontal_padding = max(20, page.width * 0.1) # Calculate 10% padding each side, min 20px
+            # Reduce padding percentage from 0.1 (10%) to 0.05 (5%) and min padding from 20 to 10
+            horizontal_padding = max(10, page.width * 0.05)
             tabs_container.padding = ft.padding.symmetric(horizontal=horizontal_padding)
             logger.debug(f"Page resized to {page.width}px width. Setting tabs container padding to {horizontal_padding}px.")
             try:
