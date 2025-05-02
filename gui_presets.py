@@ -166,6 +166,7 @@ def create_preset_tab_content(
         else None,
         tooltip="选择一个预设以加载其设置到下方的编辑区域",  # Updated tooltip
         expand=True,
+        on_change=None, # Handler assigned later
     )
 
     # Label to display the currently active preset name
@@ -586,23 +587,15 @@ def create_preset_tab_content(
 
         status_text.update()  # Update status text within the tab
 
+    # --- Assign Dropdown Handler ---
+    preset_select_dd.on_change = load_selected_preset # Assign the handler here
+
     # --- Tab Content Layout ---
     content_column = ft.Column(
         [
             # --- Preset Selection/Loading ---
-            ft.Text("选择和加载预设", weight=ft.FontWeight.BOLD),
-            ft.Row(
-                [
-                    preset_select_dd,
-                    ft.ElevatedButton(
-                        "加载选中",
-                        icon=ft.icons.INPUT,
-                        on_click=load_selected_preset,
-                        tooltip="将选定预设的内容加载到下方的编辑区域",
-                    ),
-                ],
-                alignment=ft.MainAxisAlignment.START,
-            ),
+            ft.Text("选择预设", weight=ft.FontWeight.BOLD), # Changed title slightly
+            preset_select_dd, # Dropdown is now the only element here
             active_preset_name_label,  # Display active preset name here
             ft.Divider(),
             # --- Preset Editing Area ---
