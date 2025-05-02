@@ -773,8 +773,6 @@ def main(page: ft.Page):
     )
     logger.debug("Created partial for updating Config Tab preset dropdown.")
 
-    )
-
     # Callback for Config Save/Reload -> Preset Tab (updates label)
     # This needs the label control from the Preset Tab, which is created below.
     update_preset_tab_label_partial = (
