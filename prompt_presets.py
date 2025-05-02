@@ -1,9 +1,9 @@
-import json
+# import json # No longer needed for presets file
 import pathlib
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 
-import yaml # Add yaml import
+import yaml
 
 # REMOVED: Direct import of config instance and _DEFAULT_CONFIG
 # try:
@@ -32,33 +32,35 @@ EXAMPLE_CONFIG_PATH = CWD / EXAMPLE_CONFIG_FILENAME # Define example config path
 # ---
 
 def load_presets() -> Dict[str, Dict[str, Any]]:
-    """Loads presets from the JSON file."""
+    """Loads presets from the YAML file.""" # Docstring updated
     if not PRESETS_PATH.exists():
         logger.info(f"Presets file '{PRESETS_PATH}' not found. Returning empty presets.")
         return {}
     try:
         with open(PRESETS_PATH, "r", encoding="utf-8") as f:
-            presets_data = json.load(f)
+            presets_data = yaml.safe_load(f) # Use yaml.safe_load
             if not isinstance(presets_data, dict):
-                logger.warning(f"Presets file '{PRESETS_PATH}' does not contain a valid JSON dictionary. Returning empty presets.")
+                # Handle case where YAML is valid but not a dictionary
+                logger.warning(f"Presets file '{PRESETS_PATH}' does not contain a valid YAML dictionary structure. Returning empty presets.")
                 return {}
             # Basic validation of structure could be added here if needed
             logger.info(f"Successfully loaded presets from '{PRESETS_PATH}'.")
             return presets_data
-    except json.JSONDecodeError:
-        logger.error(f"Error decoding JSON from presets file '{PRESETS_PATH}'. Returning empty presets.", exc_info=True)
+    except yaml.YAMLError: # Catch YAML specific errors
+        logger.error(f"Error parsing YAML from presets file '{PRESETS_PATH}'. Returning empty presets.", exc_info=True)
         return {}
     except Exception as e:
         logger.error(f"Error loading presets file '{PRESETS_PATH}': {e}", exc_info=True)
         return {}
 
 def save_presets(presets_data: Dict[str, Dict[str, Any]]) -> bool:
-    """Saves the presets dictionary to the JSON file."""
+    """Saves the presets dictionary to the YAML file.""" # Docstring updated
     try:
         # Ensure the directory exists
         PRESETS_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(PRESETS_PATH, "w", encoding="utf-8") as f:
-            json.dump(presets_data, f, ensure_ascii=False, indent=2) # Use indent for readability
+            # Use yaml.dump with options for readability
+            yaml.dump(presets_data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
         logger.info(f"Presets successfully saved to '{PRESETS_PATH}'.")
         return True
     except Exception as e:
