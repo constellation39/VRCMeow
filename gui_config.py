@@ -612,12 +612,15 @@ def create_config_tab_content(
     # --- Create the top button row (reload and open folder buttons) ---
     button_row = ft.Row(
         [
-            open_folder_button, # Add open folder button
-            ft.VerticalDivider(width=10), # Add some space
+            # Add text label next to the icon button
+            ft.Text("打开配置文件夹:", size=12, weight=ft.FontWeight.W_500),
+            open_folder_button, # The icon button itself
+            ft.VerticalDivider(width=20), # Add more space before reload
             reload_button,
         ],
         alignment=ft.MainAxisAlignment.END,
-        vertical_alignment=ft.CrossAxisAlignment.CENTER, # Align icons nicely
+        vertical_alignment=ft.CrossAxisAlignment.CENTER, # Align items nicely
+        spacing=5, # Adjust spacing between text and icon
     )
 
     # --- Create the scrollable column for config sections ---
