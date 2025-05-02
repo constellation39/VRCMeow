@@ -1,5 +1,6 @@
 import flet as ft
 import logging
+import functools # Add missing import
 from typing import Dict, Any, Callable, List, Optional, TYPE_CHECKING
 
 # Import preset logic functions
