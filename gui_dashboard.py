@@ -429,7 +429,7 @@ def update_status_display(
                 ]
                 if controls_to_update:
                     # Log the state being set right before update
-                    logger.debug(f"Updating status UI: is_running={is_running}, is_processing={is_processing}, button_icon={toggle_button.icon}, button_color={toggle_button.style.color if toggle_button.style else 'None'}, button_disabled={toggle_button.disabled}")
+                    logger.info(f"Updating status UI: is_running={is_running}, is_processing={is_processing}, button_icon={toggle_button.icon}, button_color={toggle_button.style.color if toggle_button.style else 'None'}, button_disabled={toggle_button.disabled}") # Changed to INFO
                     page.update(*controls_to_update)
             elif page:
                 logger.warning(
