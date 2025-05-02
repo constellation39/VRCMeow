@@ -162,13 +162,12 @@ def create_preset_tab_content(
                 return
         else:
             logger.error("Could not find few-shot examples column control in Config Tab to save preset.")
-            status_text.value = "错误：找不到 Few-Shot 示例控件。"
+            status_text.value = "错误：找不到配置表单中的 Few-Shot 示例控件。" # Corrected error message
             status_text.color = ft.colors.ERROR
-            # Removed window_exists check
-            dialog_ref.update()
+            status_text.update() # Update status text in the tab instead of dialog
             return
 
-        logger.info(f"Attempting to save current UI values as preset '{preset_name_to_save}'...")
+        logger.info(f"Attempting to save current Config Tab UI values as preset '{preset_name_to_save}'...") # Corrected log message
         if save_preset(preset_name_to_save, current_system_prompt, current_few_shot_examples):
             status_text.value = f"预设 '{preset_name_to_save}' 已保存。"
             status_text.color = ft.colors.GREEN_700
