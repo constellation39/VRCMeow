@@ -271,20 +271,9 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         tooltip="用于标识最终答案开始的文本 (仅当 '提取最终答案' 启用时)", # Clarify tooltip
     )
 
-    # --- Preset Management ---
-    # Label to display the currently active preset name (updated by callbacks)
-    controls["llm.active_preset_name_label"] = ft.Text(
-        f"当前预设: {llm_conf.get('active_preset_name', 'Default')}", # Initial value from config data
-        italic=True,
-        color=ft.colors.SECONDARY,
-        size=12,
-    )
-    # Button to open the preset management dialog (handler assigned in gui.py)
-    controls["llm.manage_presets_button"] = ft.ElevatedButton(
-        "管理提示预设",
-        icon=ft.icons.EDIT_NOTE,
-        tooltip="加载、保存或删除系统提示和 Few-Shot 示例预设",
-    )
+    # --- Preset Management (REMOVED from here, moved to Preset Tab) ---
+    # controls["llm.active_preset_name_label"] = ft.Text(...)
+    # controls["llm.manage_presets_button"] = ft.ElevatedButton(...)
 
     # --- Prompt Display/Editing Area (reflects loaded preset) ---
     # The existing system_prompt definition should remain untouched here,
@@ -303,31 +292,32 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
 # --- New Helper Function to Update LLM UI Section ---
 def update_llm_config_ui(
     page: ft.Page, # Need page for update
-    all_config_controls: Dict[str, ft.Control],
+    all_config_controls: Dict[str, ft.Control], # Config tab controls
     system_prompt_value: str,
     few_shot_examples_list: List[Dict[str, str]],
+    active_preset_name_label_ctrl: ft.Text, # Pass the label control from Preset Tab
     active_preset_name_value: str,
     create_example_row_func: Callable[[str, str], ft.Row], # Need row creation func
 ) -> None:
-    """Updates the LLM System Prompt and Few-Shot examples UI controls."""
-    logger.debug(f"Updating LLM config UI for preset: '{active_preset_name_value}'")
+    """Updates the LLM System Prompt and Few-Shot examples UI controls in the Config Tab."""
+    logger.debug(f"Updating LLM config UI (Config Tab) for preset: '{active_preset_name_value}'")
 
     # Update System Prompt TextField
     system_prompt_tf = all_config_controls.get("llm.system_prompt")
     if isinstance(system_prompt_tf, ft.TextField):
         system_prompt_tf.value = system_prompt_value
     else:
-        logger.error("System prompt textfield not found in controls for UI update.")
+        logger.error("System prompt textfield not found in Config Tab controls for UI update.")
 
-    # Update Active Preset Name Label
-    active_preset_label = all_config_controls.get("llm.active_preset_name_label")
-    if isinstance(active_preset_label, ft.Text):
-        active_preset_label.value = f"当前预设: {active_preset_name_value}"
+    # Update Active Preset Name Label (in the Preset Tab)
+    if isinstance(active_preset_name_label_ctrl, ft.Text):
+        active_preset_name_label_ctrl.value = f"当前活动预设: {active_preset_name_value}"
+        active_preset_name_label_ctrl.update() # Update the label in the Preset Tab
     else:
-        logger.error("Active preset name label not found in controls for UI update.")
+        logger.error("Active preset name label control (from Preset Tab) is invalid.")
 
 
-    # Update Few-Shot Examples Column
+    # Update Few-Shot Examples Column (in the Config Tab)
     few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
     if isinstance(few_shot_column, ft.Column):
         few_shot_column.controls.clear() # Clear existing rows
@@ -346,16 +336,15 @@ def update_llm_config_ui(
                 else:
                     logger.warning(f"Skipping invalid few-shot example during UI update: {example}")
         else:
-            logger.warning(f"Preset '{active_preset_name_value}' has invalid 'few_shot_examples' (not a list) during UI update.")
+            logger.warning(f"Preset '{active_preset_name_value}' has invalid 'few_shot_examples' (not a list) during Config Tab UI update.")
         # Ensure the column updates visually
-        # few_shot_column.update() # Updating the whole page is usually sufficient
+        few_shot_column.update() # Update column within the Config Tab
     else:
-        logger.error("Few-shot examples column not found in controls for UI update.")
+        logger.error("Few-shot examples column not found in Config Tab controls for UI update.")
 
-    # Update the page to reflect changes
-    # Consider if only specific controls need updating for performance
-    if page.window_exists():
-         page.update()
+    # Update the page to reflect changes in the Config Tab
+    # The preset label update is handled above
+    page.update()
 
 
 def create_vrc_osc_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
@@ -521,18 +510,9 @@ def create_config_tab_content(
             get_ctrl("llm.extract_final_answer"), # Add missing controls
             get_ctrl("llm.final_answer_marker"), # Add missing controls
             ft.Divider(height=10),
-            # Handle Row separately to filter its contents
-            ft.Row(
-                [
-                    c for c in [ # Filter controls inside the Row
-                        get_ctrl("llm.active_preset_name_label"),
-                        get_ctrl("llm.manage_presets_button"),
-                    ] if c is not None
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            ft.Divider(height=10),
+            # REMOVED: Preset management row (moved to Preset Tab)
+            # ft.Row(...)
+            # ft.Divider(height=10),
             get_ctrl("llm.few_shot_examples_label"), # Add label for examples
             # ft.Text("这些示例指导 LLM 如何响应特定输入。", size=11, italic=True), # Remove redundant text
             few_shot_column, # Now shows preset examples (already checked for None)
@@ -724,12 +704,12 @@ async def save_config_handler(
     config_instance: "Config",  # Need config instance
     create_example_row_func: Callable,  # Function to create few-shot rows for reload
     dashboard_update_callback: Optional[Callable[[], None]],  # Dashboard update callback
-    # Add the missing callback parameter
-    update_llm_ui_callback: Callable[[str, List[Dict[str, str]], str], None],
+    # Add the missing callback parameter (now takes label control)
+    update_llm_ui_callback: Callable[[str, List[Dict[str, str]], ft.Text, str], None],
     # REMOVED: app_state: "AppState",
     # REMOVED: restart_callback: Callable[[], Awaitable[None]],
-    # Add active_preset_name_label reference
-    active_preset_name_label: Optional[ft.Text] = None,
+    # Add active_preset_name_label control reference (passed from gui.py)
+    active_preset_name_label_ctrl: Optional[ft.Text] = None,
     e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
     """
@@ -881,27 +861,25 @@ async def save_config_handler(
         # --- End existing logic ---
 
         # --- Save Active Preset Name ---
-        # Read the active preset name from the (potentially hidden) label updated by preset loading
-        active_preset_name = "Default" # Default if label not found
-        if active_preset_name_label and isinstance(active_preset_name_label, ft.Text):
-             # The label's value holds the name of the preset currently loaded in the UI
-             # Extract name after "当前预设: "
-             label_text = active_preset_name_label.value
-             prefix = "当前预设: "
+        # Read the active preset name from the label control in the Preset Tab
+        active_preset_name = "Default" # Default if label not found or invalid
+        if active_preset_name_label_ctrl and isinstance(active_preset_name_label_ctrl, ft.Text):
+             # Extract name after "当前活动预设: "
+             label_text = active_preset_name_label_ctrl.value
+             prefix = "当前活动预设: "
              if label_text and label_text.startswith(prefix):
                  loaded_preset_name = label_text[len(prefix):].strip()
                  if loaded_preset_name:
                      active_preset_name = loaded_preset_name
                  else:
-                     logger.warning("Active preset name label is empty after prefix, saving 'Default'.")
+                     logger.warning("Active preset name label (Preset Tab) is empty after prefix, saving 'Default'.")
              else:
-                 logger.warning(f"Active preset name label has unexpected format ('{label_text}'), saving 'Default'.")
-
+                 logger.warning(f"Active preset name label (Preset Tab) has unexpected format ('{label_text}'), saving 'Default'.")
         else:
-             logger.warning("Active preset name label control not found or invalid, saving 'Default'.")
+             logger.warning("Active preset name label control (from Preset Tab) not found or invalid, saving 'Default'.")
 
         update_nested_dict(new_config_data, "llm.active_preset_name", active_preset_name)
-        logger.debug(f"Saving active_preset_name: {active_preset_name}")
+        logger.debug(f"Saving active_preset_name to config: {active_preset_name}")
 
         # --- IMPORTANT: Do NOT save system_prompt or few_shot_examples to config.yaml ---
         # These are now managed in prompt_presets.json
@@ -1081,6 +1059,7 @@ async def save_config_handler(
             config_instance,
             create_example_row_func,
             update_llm_ui_callback, # Pass the callback here
+            active_preset_name_label_ctrl, # Pass the label control here
         )
         logger.info("GUI controls updated.")
 
@@ -1124,7 +1103,9 @@ def reload_config_controls(
     # Need specific function ref for creating rows
     create_example_row_func: Callable[[str, str], ft.Row],
     # Need the callback to update the LLM UI section after reload based on preset
-    update_llm_ui_callback: Callable[[str, List[Dict[str, str]], str], None],
+    update_llm_ui_callback: Callable[[str, List[Dict[str, str]], ft.Text, str], None],
+    # Need the label control from the Preset Tab to pass to the callback
+    active_preset_name_label_ctrl: Optional[ft.Text] = None,
 ):
     """Updates the GUI controls with values from the reloaded config."""
     logger.info("Reloading config values into GUI controls.")
@@ -1365,11 +1346,20 @@ def reload_config_controls(
 
     # --- Update UI using the callback ---
     # This centralizes the UI update logic for system prompt and few-shot examples
-    try:
-        update_llm_ui_callback(loaded_system_prompt, loaded_few_shot_examples, active_preset_name)
-        logger.info(f"LLM config UI updated with data from preset '{active_preset_name}'.")
-    except Exception as ui_update_err:
-        logger.error(f"Error calling update_llm_ui_callback during reload: {ui_update_err}", exc_info=True)
+    if active_preset_name_label_ctrl:
+        try:
+            # Pass the label control to the callback
+            update_llm_ui_callback(
+                loaded_system_prompt,
+                loaded_few_shot_examples,
+                active_preset_name_label_ctrl, # Pass label control
+                active_preset_name, # Pass preset name
+            )
+            logger.info(f"LLM config UI updated with data from preset '{active_preset_name}'.")
+        except Exception as ui_update_err:
+            logger.error(f"Error calling update_llm_ui_callback during reload: {ui_update_err}", exc_info=True)
+    else:
+        logger.error("Cannot update LLM UI during reload: Active preset name label control is missing.")
 
     # Update the page to show changes
     try:
@@ -1391,9 +1381,10 @@ async def reload_config_handler(
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
     create_example_row_func: Callable,  # Need row creation func
-    dashboard_update_callback: Optional[
-        Callable[[], Awaitable[None]]
-    ] = None,  # Add dashboard update callback
+    dashboard_update_callback: Optional[Callable[[], None]] = None, # Callback type corrected
+    # Add the LLM UI update callback and label control needed by reload_config_controls
+    update_llm_ui_callback: Optional[Callable] = None,
+    active_preset_name_label_ctrl: Optional[ft.Text] = None,
     e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
     """Reloads configuration from file and updates the GUI."""
@@ -1406,8 +1397,24 @@ async def reload_config_handler(
         # Run synchronous reload in thread
         await asyncio.to_thread(config_instance.reload)
         # Update GUI fields with new values from the reloaded config_instance.data
+        # Need to pass the active_preset_name_label_ctrl here as well
+        # Find the label control (assuming it's passed correctly to this handler's partial)
+        # This requires modification in gui.py where the partial is created.
+        # For now, assume it's available via a mechanism TBD in gui.py or passed directly.
+        # Let's modify the signature to expect it.
+
+        # Placeholder: Need to get active_preset_name_label_ctrl here
+        active_preset_label_ctrl_for_reload = None # TODO: Get this from gui.py partial binding
+        # Find the label control (assuming it's passed correctly to this handler's partial)
+        # This requires modification in gui.py where the partial is created.
+        # Let's modify the signature to expect it.
         reload_config_controls(
-            page, all_config_controls, config_instance, create_example_row_func
+            page,
+            all_config_controls,
+            config_instance,
+            create_example_row_func,
+            update_llm_ui_callback, # Pass the callback
+            active_preset_name_label_ctrl, # Pass the label control
         )
         # Show success banner
         gui_utils.show_success_banner(page, "配置已从 config.yaml 重新加载")

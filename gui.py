@@ -54,8 +54,8 @@ from gui_config import (
     save_config_handler,
     update_llm_config_ui, # Import the missing function
 )
-# --- New Preset UI Import ---
-import gui_presets # Keep this import
+# --- Preset UI Import ---
+from gui_presets import create_preset_tab_content # Import the new function
 from gui_dashboard import (
     create_dashboard_elements,
     create_dashboard_tab_content,
@@ -295,18 +295,9 @@ def main(page: ft.Page):
         all_config_controls["llm.add_example_button"] = (
             add_example_button  # Add fallback to dict
         )
-    # --- Extract and log preset button status ---
-    manage_presets_button = all_config_controls.get("llm.manage_presets_button") # Get the button
-    active_preset_name_label = all_config_controls.get("llm.active_preset_name_label") # Get the label
-
-    if manage_presets_button:
-        logger.debug("Successfully retrieved 'llm.manage_presets_button' control.")
-    else:
-        logger.error("'llm.manage_presets_button' control not found in all_config_controls.")
-    if active_preset_name_label:
-         logger.debug("Successfully retrieved 'llm.active_preset_name_label' control.")
-    else:
-         logger.error("'llm.active_preset_name_label' control not found in all_config_controls.")
+    # --- Preset controls are now created in gui_presets.py ---
+    # REMOVED: manage_presets_button = ...
+    # REMOVED: active_preset_name_label = ...
 
 
     # --- Create Config Save/Reload Buttons ---
@@ -730,16 +721,63 @@ def main(page: ft.Page):
     # --- Define LLM UI Update Callback (Moved BEFORE use in save/reload/preset handlers) ---
     # This function will be passed to the preset dialog and reload handler
     # It uses the update_llm_config_ui function from gui_config
+    # It now needs the active_preset_name_label control passed explicitly
+    # We will create this partial *after* creating the preset tab content below
+    update_llm_ui_partial = None # Placeholder
+
+    # Config tab buttons - Use functools.partial to bind arguments to async handlers
+    # We will create these partials *after* creating the preset tab content below
+    # Flet will automatically run the async handler in its event loop.
+    save_handler_partial = None # Placeholder
+    save_config_button.on_click = None # Placeholder
+
+    reload_handler_partial = None # Placeholder
+    reload_config_button.on_click = None # Placeholder
+
+
+    # --- Create Preset Tab Content ---
+    # This function now returns a dictionary with content and key controls
+    preset_tab_elements = create_preset_tab_content(
+        page=page,
+        all_config_controls=all_config_controls, # Pass config controls for saving
+        update_config_ui_callback=None, # Will be set after partial is created below
+    )
+    preset_tab_layout = preset_tab_elements.get("content")
+    # Extract the label control needed for callbacks
+    active_preset_name_label_ctrl = preset_tab_elements.get("active_preset_name_label")
+
+    # --- Now Create Partials that need the preset label control ---
     update_llm_ui_partial = functools.partial(
         update_llm_config_ui,
         page,
         all_config_controls,
         # system_prompt_value, few_shot_examples_list, active_preset_name_value are passed by caller
+        active_preset_name_label_ctrl, # Pass the label control from preset tab
         create_example_row_func=create_row_wrapper_for_reload, # Pass row creation func
     )
 
-    # Config tab buttons - Use functools.partial to bind arguments to async handlers
-    # Flet will automatically run the async handler in its event loop.
+    # --- Assign the update callback to the preset tab creation function result ---
+    # This is a bit awkward, but necessary because the preset tab needs the callback,
+    # and the callback needs the preset tab's label.
+    # We assume the preset tab content creation function stored the callback internally
+    # or we modify it to accept the callback after creation.
+    # Let's assume create_preset_tab_content needs the callback passed in.
+    # Re-create the elements with the callback now defined.
+    preset_tab_elements = create_preset_tab_content(
+        page=page,
+        all_config_controls=all_config_controls,
+        update_config_ui_callback=update_llm_ui_partial, # Pass the created partial
+    )
+    preset_tab_layout = preset_tab_elements.get("content")
+    active_preset_name_label_ctrl = preset_tab_elements.get("active_preset_name_label")
+    # Ensure the label control used in the partial is the same one returned
+    if not active_preset_name_label_ctrl:
+         logger.critical("CRITICAL: Active preset name label control not returned from create_preset_tab_content!")
+         # Handle error - maybe display message and exit?
+         active_preset_name_label_ctrl = ft.Text("Error: Label Missing", color=ft.colors.RED) # Fallback
+
+
+    # --- Assign Save/Reload Handlers (now that label control exists) ---
     save_handler_partial = functools.partial(
         save_config_handler,
         page,
@@ -748,7 +786,7 @@ def main(page: ft.Page):
         create_row_wrapper_for_reload,  # Function to create few-shot rows
         update_dashboard_info_partial,  # Callback to update dashboard info
         update_llm_ui_partial, # Pass the LLM UI update callback
-        active_preset_name_label=active_preset_name_label, # Pass the label reference
+        active_preset_name_label_ctrl=active_preset_name_label_ctrl, # Pass the label control
         # REMOVED: app_state argument
         # REMOVED: restart_callback argument
     )
@@ -761,88 +799,16 @@ def main(page: ft.Page):
         config,
         create_row_wrapper_for_reload,  # Pass the same row creation function
         update_dashboard_info_partial,  # Pass the dashboard update callback
+        # Pass the LLM update callback and label control needed by reload_config_controls
+        update_llm_ui_callback=update_llm_ui_partial,
+        active_preset_name_label_ctrl=active_preset_name_label_ctrl,
     )
     reload_config_button.on_click = reload_handler_partial
 
-
-    # --- Create Preset Management Dialog ---
-    preset_dialog = ft.AlertDialog(
-        modal=True,
-        title=ft.Text("管理 LLM 提示预设"),
-        content=None, # Content created by gui_presets
-        actions=[ft.TextButton("关闭", on_click=lambda _: close_dialog(preset_dialog))],
-        actions_alignment=ft.MainAxisAlignment.END,
-    )
-
-    # Create dialog content using the function from gui_presets
-    # Pass the necessary arguments, including the UI update callback
-    preset_dialog_content = gui_presets.create_preset_management_dialog_content(
-        page=page,
-        all_config_controls=all_config_controls,
-        update_config_ui_callback=update_llm_ui_partial, # Pass the partial callback
-        dialog_ref=preset_dialog, # Pass dialog reference for closing/updating
-    )
-    preset_dialog.content = preset_dialog_content # Assign content to dialog
-
-    # --- Dialog Open/Close Handlers (Defined BEFORE assignment) ---
-    async def open_preset_dialog(e: ft.ControlEvent):
-        logger.info("Manage Presets button clicked, executing open_preset_dialog...") # Add log here
-        # Refresh dropdown before opening? Optional, but good practice.
-        try:
-            # Access the dropdown within the dialog content to update it
-            # Let's make indexing safer by searching for the control type
-            preset_select_dd = None
-            if isinstance(preset_dialog.content, ft.Column):
-                for ctrl in preset_dialog.content.controls:
-                     # Find the Row containing the dropdown
-                     # Check if the first element in the row is the dropdown
-                     if isinstance(ctrl, ft.Row) and len(ctrl.controls) > 0 and isinstance(ctrl.controls[0], ft.Dropdown):
-                         preset_select_dd = ctrl.controls[0]
-                         logger.debug("Found preset dropdown in dialog content.")
-                         break # Found it
-
-            # preset_select_dd = preset_dialog.content.controls[1].controls[0] # Original fragile indexing
-
-            if preset_select_dd:
-                 presets_data = prompt_presets.load_presets()
-                 preset_names = sorted(list(presets_data.keys()))
-                 preset_select_dd.options = [ft.dropdown.Option(name) for name in preset_names]
-                 # Try to select the currently active preset shown in the label
-                 current_active_name = "Default"
-                 if active_preset_name_label and active_preset_name_label.value.startswith("当前预设: "):
-                     current_active_name = active_preset_name_label.value.split(": ")[1]
-                 if current_active_name in preset_names:
-                     preset_select_dd.value = current_active_name
-                 else:
-                     preset_select_dd.value = None # Reset if active name not in presets
-                 logger.debug(f"Preset dialog dropdown refreshed. Selected: {preset_select_dd.value}")
-            else:
-                 logger.error("Could not find preset dropdown to refresh in dialog.")
-        except Exception as refresh_err:
-            logger.error(f"Error refreshing preset dropdown: {refresh_err}", exc_info=True)
-
-        logger.debug("Setting page.dialog and opening preset dialog...")
-        page.dialog = preset_dialog
-        preset_dialog.open = True
-        # Removed window_exists check - page.update() handles closed pages
-        logger.debug("Calling page.update() to show preset dialog.")
-        page.update()
-
-
-    def close_dialog(dialog_instance: ft.AlertDialog):
-        dialog_instance.open = False
-        # Removed window_exists check - page.update() handles closed pages
-        page.update()
-
-    # Assign handler to the manage presets button
-    if manage_presets_button and isinstance(manage_presets_button, ft.ElevatedButton): # Add type check
-        logger.info("Assigning open_preset_dialog handler to manage_presets_button.on_click")
-        manage_presets_button.on_click = open_preset_dialog
-    elif manage_presets_button:
-         logger.error(f"Manage presets button found but is not an ElevatedButton (Type: {type(manage_presets_button)}). Cannot assign handler.")
-    else:
-        # Error already logged during retrieval check
-        logger.error("Cannot assign handler: Manage presets button control was not found or is invalid.")
+    # --- REMOVED: Preset Dialog Handlers ---
+    # async def open_preset_dialog(e: ft.ControlEvent): ...
+    # def close_dialog(dialog_instance: ft.AlertDialog): ...
+    # REMOVED: Assignment to manage_presets_button.on_click
 
     # Ensure add_example_button is valid before assigning handler
     if add_example_button:
@@ -1098,9 +1064,14 @@ def main(page: ft.Page):
                     icon=ft.icons.TEXT_FIELDS,
                     content=text_input_tab_content,
                 ),
-                ft.Tab(text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout), # Moved Config tab down
+                ft.Tab( # Add new Preset Tab
+                    text="预设",
+                    icon=ft.icons.EDIT_NOTE, # Use preset icon
+                    content=preset_tab_layout, # Use content created above
+                ),
+                ft.Tab(text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout), # Config tab
                 ft.Tab(
-                    text="日志", # Moved Log tab down (implicitly by moving others)
+                    text="日志", # Log tab
                     icon=ft.icons.LIST_ALT_ROUNDED,
                     content=log_tab_layout,
                 ),
@@ -1127,42 +1098,51 @@ def main(page: ft.Page):
 
     page.run_task(periodic_log_update)
 
-    # --- Initial Population of Few-Shot Examples ---
-    logger.debug("Initial population of few-shot examples UI.")
-    initial_examples = initial_config_data.get("llm", {}).get("few_shot_examples", [])
-    # Check if the column control exists and is the correct type
-    if few_shot_examples_column and isinstance(few_shot_examples_column, ft.Column):
-        if isinstance(initial_examples, list):
-            for example in initial_examples:
-                if (
-                    isinstance(example, dict)
-                    and "user" in example
-                    and "assistant" in example
-                ):
-                    # Use the imported function, passing page and column
-                    try:
-                        initial_row = create_config_example_row(
-                            page,  # Pass page
-                            few_shot_examples_column,  # Pass column ref
-                            example.get("user", ""),
-                            example.get("assistant", ""),
-                        )
-                        few_shot_examples_column.controls.append(initial_row)
-                    except Exception as row_ex:
-                        logger.error(
-                            f"Error creating initial few-shot row for example {example}: {row_ex}",
-                            exc_info=True,
-                        )
-                else:
-                    logger.warning(
-                        f"Skipping invalid few-shot example during initial load: {example}"
-                    )
+    # --- Initial Population of LLM Config UI (based on active preset) ---
+    # This replaces the direct population of few-shot examples
+    logger.debug("Initial population of LLM config UI based on active preset.")
+    try:
+        # Get active preset name from initial config data
+        initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
+        logger.info(f"Initial active preset from config: '{initial_active_preset}'")
+        # Load the preset data
+        initial_preset_data = prompt_presets.get_preset(initial_active_preset)
+        initial_system_prompt = ""
+        initial_examples = []
+        if initial_preset_data:
+            initial_system_prompt = initial_preset_data.get("system_prompt", "")
+            initial_examples = initial_preset_data.get("few_shot_examples", [])
         else:
-            logger.warning("'llm.few_shot_examples' in initial config is not a list.")
-    else:
-        logger.error(
-            "Cannot populate few-shot examples: Column control not found or invalid."
+            logger.warning(f"Initial active preset '{initial_active_preset}' not found. Loading default values.")
+            initial_system_prompt, initial_examples = prompt_presets.get_default_preset_values()
+            initial_active_preset = "Default" # Ensure name reflects fallback
+
+        # Call the update UI partial function to populate the controls
+        update_llm_ui_partial(
+            initial_system_prompt,
+            initial_examples,
+            # active_preset_name_label_ctrl is already bound in the partial
+            initial_active_preset, # Pass the name to set the label correctly
         )
+        logger.info(f"LLM Config Tab UI initialized with preset '{initial_active_preset}'.")
+
+        # Also set the initial value for the dropdown in the Preset Tab
+        preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
+        if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
+             # Ensure the active preset exists in the options before setting
+             if any(opt.key == initial_active_preset for opt in preset_select_dd_ctrl.options):
+                 preset_select_dd_ctrl.value = initial_active_preset
+                 logger.debug(f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'.")
+             else:
+                  logger.warning(f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected.")
+                  preset_select_dd_ctrl.value = None # Explicitly set to None
+        else:
+             logger.warning("Could not find preset dropdown control in Preset Tab elements to set initial value.")
+
+    except Exception as llm_init_err:
+        logger.error(f"Error during initial LLM config UI population: {llm_init_err}", exc_info=True)
+        gui_utils.show_error_banner(page, "初始化 LLM 配置 UI 时出错")
+
 
     # --- Initial Dashboard Info Population ---
     logger.debug("Initial population of dashboard info display.")
