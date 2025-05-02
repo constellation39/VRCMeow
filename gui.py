@@ -732,45 +732,120 @@ def main(page: ft.Page):
     # --- Create Preset Tab Content ---
     # This function now returns a dictionary with content and key controls
     # Pass the config instance to initialize with the active preset
+    # The update callback will be assigned later after the wrapper is defined.
     preset_tab_elements = create_preset_tab_content(
         page=page,
         config_instance=config, # Pass the config instance
-        update_config_ui_callback=None, # Will be set after partial is created below
+        update_config_ui_callback=None, # Assigned later
     )
     preset_tab_layout = preset_tab_elements.get("content")
     # Extract the label control needed for callbacks
     active_preset_name_label_ctrl = preset_tab_elements.get("active_preset_name_label")
+    if not active_preset_name_label_ctrl:
+         logger.critical("CRITICAL: Active preset name label control not returned from create_preset_tab_content!")
+         active_preset_name_label_ctrl = ft.Text("Error: Label Missing", color=ft.colors.RED) # Fallback
 
-    # --- Now Create Partials that need the preset label control ---
-    update_llm_ui_partial = functools.partial(
-        update_llm_config_ui,
-        page,
-        all_config_controls,
-        # active_preset_name_value is passed by caller
-        active_preset_name_label_ctrl, # Pass the label control from preset tab
-        # REMOVED: create_example_row_func=create_row_wrapper_for_reload,
+    # --- New Function to Update Text Input Few-Shot Display ---
+    async def update_text_input_few_shot_display(preset_name: str):
+        """Loads and displays few-shot examples for the given preset in the Text Input tab."""
+        logger.info(f"Updating Text Input tab few-shot display for preset: '{preset_name}'")
+        try:
+            preset_data = prompt_presets.get_preset(preset_name)
+            examples = preset_data.get("few_shot_examples", []) if preset_data else []
+
+            new_controls = []
+            if not examples:
+                new_controls.append(ft.Text("此预设无 Few-Shot 示例。", size=11, italic=True, color=ft.colors.SECONDARY))
+            else:
+                for i, example in enumerate(examples):
+                    user_text = example.get("user", "N/A")
+                    assistant_text = example.get("assistant", "N/A")
+                    new_controls.append(
+                        ft.Column( # Use Column for better spacing/structure
+                            [
+                                ft.Text(f"示例 {i+1}:", weight=ft.FontWeight.BOLD, size=11),
+                                ft.Text(f"  用户: {user_text}", size=11, selectable=True),
+                                ft.Text(f"  助手: {assistant_text}", size=11, selectable=True),
+                            ],
+                            spacing=2,
+                        )
+                    )
+                    if i < len(examples) - 1: # Add divider between examples
+                        new_controls.append(ft.Divider(height=5, thickness=0.5))
+
+
+            text_input_few_shot_display.controls = new_controls
+            # Update the column directly
+            if page and page.controls:
+                text_input_few_shot_display.update()
+            logger.debug(f"Text Input few-shot display updated with {len(examples)} examples.")
+
+        except Exception as e:
+            logger.error(f"Error updating text input few-shot display: {e}", exc_info=True)
+            text_input_few_shot_display.controls = [ft.Text(f"加载示例时出错: {e}", color=ft.colors.ERROR, size=11)]
+            if page and page.controls:
+                text_input_few_shot_display.update()
+
+    # --- Wrapper Callback to Update Both Preset Tab Label and Text Input Display ---
+    async def update_all_preset_displays(active_preset_name: str):
+        """Calls functions to update preset info in both Preset and Text Input tabs."""
+        logger.debug(f"Wrapper: Updating all preset displays for '{active_preset_name}'")
+        # 1. Update Preset Tab Label (using the original function)
+        try:
+            # We need to call the function from gui_config directly here
+            # It expects page, controls, label_ctrl, and the name
+            gui_config.update_llm_config_ui(
+                page,
+                all_config_controls,
+                active_preset_name_label_ctrl, # The label in the Preset Tab
+                active_preset_name,
+            )
+            logger.debug(f"Wrapper: Updated Preset Tab label for '{active_preset_name}'.")
+        except Exception as e:
+            logger.error(f"Wrapper: Error calling update_llm_config_ui: {e}", exc_info=True)
+
+        # 2. Update Text Input Tab Few-Shot Display (using the new function)
+        try:
+            # Run the async function
+            await update_text_input_few_shot_display(active_preset_name)
+            logger.debug(f"Wrapper: Updated Text Input few-shot display for '{active_preset_name}'.")
+        except Exception as e:
+            logger.error(f"Wrapper: Error calling update_text_input_few_shot_display: {e}", exc_info=True)
+
+        # 3. Final page update (might be redundant if individual updates work, but safer)
+        # try:
+        #     if page and page.controls:
+        #         page.update()
+        # except Exception as e:
+        #     logger.error(f"Wrapper: Error during final page update: {e}", exc_info=True)
+
+
+    # --- Create Partial using the Wrapper Function ---
+    # This partial will be passed around (to preset tab, save/reload handlers)
+    update_all_preset_displays_partial = functools.partial(
+        update_all_preset_displays
+        # The active_preset_name argument is provided when the partial is called
     )
 
-    # --- Assign the update callback to the preset tab creation function result ---
-    # This is a bit awkward, but necessary because the preset tab needs the callback,
-    # and the callback needs the preset tab's label.
-    # We assume the preset tab content creation function stored the callback internally
-    # or we modify it to accept the callback after creation.
-    # Let's assume create_preset_tab_content needs the callback passed in.
-    # Re-create the elements with the callback now defined.
-    # Pass config instance again during re-creation
+
+    # --- Re-create Preset Tab Content, passing the WRAPPER partial ---
+    # Re-create the preset tab elements, passing the *new wrapper partial* as the callback
     preset_tab_elements = create_preset_tab_content(
         page=page,
         config_instance=config, # Pass config instance again
-        update_config_ui_callback=update_llm_ui_partial, # Pass the created partial
+        update_config_ui_callback=update_all_preset_displays_partial, # Pass the WRAPPER partial
     )
     preset_tab_layout = preset_tab_elements.get("content")
-    active_preset_name_label_ctrl = preset_tab_elements.get("active_preset_name_label")
-    # Ensure the label control used in the partial is the same one returned
-    if not active_preset_name_label_ctrl:
-         logger.critical("CRITICAL: Active preset name label control not returned from create_preset_tab_content!")
-         # Handle error - maybe display message and exit?
-         active_preset_name_label_ctrl = ft.Text("Error: Label Missing", color=ft.colors.RED) # Fallback
+    # Re-fetch the label control from the potentially re-created elements
+    active_preset_name_label_ctrl_check = preset_tab_elements.get("active_preset_name_label")
+    if not active_preset_name_label_ctrl_check:
+         logger.critical("CRITICAL: Active preset name label control not returned from create_preset_tab_content (2nd attempt)!")
+         # Use the fallback created earlier if this fails again
+         if not active_preset_name_label_ctrl:
+             active_preset_name_label_ctrl = ft.Text("Error: Label Missing", color=ft.colors.RED)
+    elif not active_preset_name_label_ctrl:
+        # If the first attempt failed but second succeeded, use the new one
+        active_preset_name_label_ctrl = active_preset_name_label_ctrl_check
 
 
     # --- Assign LLM Model Refresh Handler ---
@@ -788,13 +863,14 @@ def main(page: ft.Page):
 
 
     # --- Update Save Handler Partial with Late-Bound Dependencies ---
-    # Now that dashboard update, LLM update, and preset label exist, update the partial's args
+    # Now that dashboard update, LLM update (wrapper), and preset label exist, update the partial's args
     save_handler_partial.keywords["dashboard_update_callback"] = update_dashboard_info_partial
-    save_handler_partial.keywords["update_llm_ui_callback"] = update_llm_ui_partial
+    # Use the WRAPPER partial for the LLM UI update callback
+    save_handler_partial.keywords["update_llm_ui_callback"] = update_all_preset_displays_partial
     save_handler_partial.keywords["active_preset_name_label_ctrl"] = active_preset_name_label_ctrl
-    logger.debug("Updated save_handler_partial with late-bound callbacks and controls.")
+    logger.debug("Updated save_handler_partial with late-bound callbacks (using wrapper) and controls.")
 
-    # --- Assign Reload Handler (Save button handler is assigned via on_change now) ---
+    # --- Assign Reload Handler ---
     # REMOVED: save_config_button.on_click assignment
 
     reload_handler_partial = functools.partial(
@@ -802,10 +878,9 @@ def main(page: ft.Page):
         page,
         all_config_controls,
         config,
-        # REMOVED: create_row_wrapper_for_reload,
         update_dashboard_info_partial,  # Pass the dashboard update callback
-        # Pass the LLM update callback and label control needed by reload_config_controls
-        update_llm_ui_callback=update_llm_ui_partial,
+        # Pass the WRAPPER LLM update callback and label control needed by reload_config_controls
+        update_llm_ui_callback=update_all_preset_displays_partial, # Use WRAPPER partial
         active_preset_name_label_ctrl=active_preset_name_label_ctrl,
     )
     reload_config_button.on_click = reload_handler_partial
@@ -848,6 +923,16 @@ def main(page: ft.Page):
         icon=ft.icons.SEND,
         tooltip="处理并发送输入的文本 (Enter 键也可发送)",
         on_click=None,  # Assigned later
+    )
+
+    # --- Text Input Tab Few-Shot Display ---
+    text_input_few_shot_display = ft.Column(
+        controls=[ft.Text("当前预设的 Few-Shot 示例将显示在此处。", size=11, italic=True, color=ft.colors.SECONDARY)],
+        spacing=5,
+        scroll=ft.ScrollMode.ADAPTIVE,
+        # Let the container below handle expansion and height
+        # expand=True, # Remove expand from inner column
+        # height=100, # Remove fixed height
     )
 
 
@@ -1053,10 +1138,21 @@ def main(page: ft.Page):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=10,
             ),
+            ft.Divider(height=10),
+            ft.Text("当前预设 Few-Shot 示例:", weight=ft.FontWeight.BOLD, size=12),
+            # Container for the few-shot display column to control height/scrolling
+            ft.Container(
+                content=text_input_few_shot_display, # The column created earlier
+                expand=True, # Allow container to take remaining space
+                # height=150, # Optional: Set a max height if needed
+                border=ft.border.all(1, ft.colors.with_opacity(0.5, ft.colors.OUTLINE)),
+                border_radius=ft.border_radius.all(5),
+                padding=5,
+            ),
         ],
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         spacing=10,
-        expand=True,
+        expand=True, # Keep outer column expanding
     )
 
     # --- Add Tabs to Page ---
@@ -1107,38 +1203,40 @@ def main(page: ft.Page):
 
     page.run_task(periodic_log_update)
 
-    # --- Initial Population of LLM Active Preset Label (REMOVED) ---
-    # This is now handled directly within create_preset_tab_content using the config instance.
-    # logger.debug("Initial population of LLM active preset label.")
-    # try:
+    # --- Initial Population of LLM Active Preset Label and Text Input Few-Shot ---
+    logger.debug("Initial population of LLM active preset label and text input few-shot display.")
+    try:
     #     # Get active preset name from initial config data
     #     initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
     #     logger.info(f"Initial active preset from config: '{initial_active_preset}'")
     #
-    #     # Call the update UI partial function to set the label
-    #     # The partial now only takes the label control (already bound) and the name
-    #     update_llm_ui_partial(
-    #         # active_preset_name_label_ctrl is already bound in the partial
-    #         initial_active_preset, # Pass the name to set the label correctly
-    #     )
-    #     logger.info(f"LLM Active Preset label initialized with preset '{initial_active_preset}'.")
-    #
-    #     # Also set the initial value for the dropdown in the Preset Tab
-    #     preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
-    #     if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
-    #          # Ensure the active preset exists in the options before setting
-    #          if any(opt.key == initial_active_preset for opt in preset_select_dd_ctrl.options):
-    #              preset_select_dd_ctrl.value = initial_active_preset
-    #              logger.debug(f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'.")
-    #          else:
-    #               logger.warning(f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected.")
-    #               preset_select_dd_ctrl.value = None # Explicitly set to None
-    #     else:
-    #          logger.warning("Could not find preset dropdown control in Preset Tab elements to set initial value.")
-    #
-    # except Exception as llm_init_err:
-    #     logger.error(f"Error during initial LLM config UI population: {llm_init_err}", exc_info=True)
-    #     gui_utils.show_error_banner(page, "初始化 LLM 配置 UI 时出错")
+        # Get active preset name from initial config data
+        initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
+        logger.info(f"Initial active preset from config: '{initial_active_preset}'")
+
+        # Call the WRAPPER function directly (not the partial) to perform initial update
+        # Run it in the background as it's async and involves UI updates
+        async def initial_preset_update_task():
+            await update_all_preset_displays(initial_active_preset)
+            logger.info(f"Initial preset displays updated for preset '{initial_active_preset}'.")
+
+        page.run_task(initial_preset_update_task)
+        # Also set the initial value for the dropdown in the Preset Tab (this part remains)
+        preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
+        if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
+             # Ensure the active preset exists in the options before setting
+             if any(opt.key == initial_active_preset for opt in preset_select_dd_ctrl.options):
+                 preset_select_dd_ctrl.value = initial_active_preset
+                 logger.debug(f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'.")
+             else:
+                  logger.warning(f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected.")
+                  preset_select_dd_ctrl.value = None # Explicitly set to None
+        else:
+             logger.warning("Could not find preset dropdown control in Preset Tab elements to set initial value.")
+
+    except Exception as llm_init_err:
+        logger.error(f"Error during initial LLM config/preset UI population: {llm_init_err}", exc_info=True)
+        gui_utils.show_error_banner(page, "初始化 LLM/预设 UI 时出错")
 
 
     # --- Initial Dashboard Info Population ---
