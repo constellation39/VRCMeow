@@ -30,13 +30,50 @@ DEFAULT_CONFIG_PATH = CWD / DEFAULT_CONFIG_FILENAME
 DEFAULT_EXAMPLE_CONFIG_PATH = CWD / DEFAULT_EXAMPLE_CONFIG_FILENAME
 
 
-# --- 默认配置字典 ---
-# 这个字典定义了所有配置项的默认值。
-# 它应该与 `config.example.yaml` 中的结构和默认值保持一致。
-_DEFAULT_CONFIG: Dict[str, Any] = {
-    # -------------------------------------------------------------------------
-    # Dashscope (阿里云灵积) 服务设置
-    # -------------------------------------------------------------------------
+# --- 加载默认配置 ---
+# 尝试从 config.example.yaml 加载默认值，如果失败则使用硬编码的后备值。
+_DEFAULT_CONFIG: Dict[str, Any] = {}
+
+def _load_default_config_from_example() -> Dict[str, Any]:
+    """Loads the default configuration structure from config.example.yaml."""
+    fallback_defaults = { # 定义一个最小的后备配置，以防 example 文件加载失败
+        "dashscope": {"api_key": "", "stt": {"selected_model": "gummy-realtime-v1", "models": {}}},
+        "audio": {"channels": 1, "dtype": "int16", "debug_echo_mode": False},
+        "llm": {"enabled": False, "api_key": "", "model": "gpt-3.5-turbo", "system_prompt": "You are a helpful assistant.", "few_shot_examples": []},
+        "outputs": {"vrc_osc": {"enabled": True, "address": "127.0.0.1", "port": 9000}, "console": {"enabled": True}, "file": {"enabled": False}},
+        "logging": {"level": "INFO", "file": {"enabled": True, "path": "vrcmeow_app.log"}},
+    }
+    if not DEFAULT_EXAMPLE_CONFIG_PATH.exists():
+        logger.warning(f"Example config file '{DEFAULT_EXAMPLE_CONFIG_PATH}' not found. Using minimal hardcoded defaults for internal default structure.")
+        return fallback_defaults
+    try:
+        with open(DEFAULT_EXAMPLE_CONFIG_PATH, "r", encoding="utf-8") as f:
+            example_config = yaml.safe_load(f)
+        if isinstance(example_config, dict):
+            logger.info(f"Successfully loaded default configuration structure from '{DEFAULT_EXAMPLE_CONFIG_PATH}'.")
+            # Basic validation can be added here if needed
+            return example_config
+        else:
+            logger.warning(f"Example config file '{DEFAULT_EXAMPLE_CONFIG_PATH}' is not a valid dictionary. Using minimal hardcoded defaults.")
+            return fallback_defaults
+    except yaml.YAMLError as e:
+        logger.error(f"Error parsing YAML from '{DEFAULT_EXAMPLE_CONFIG_PATH}': {e}. Using minimal hardcoded defaults.", exc_info=True)
+        return fallback_defaults
+    except Exception as e:
+        logger.error(f"Error reading or processing '{DEFAULT_EXAMPLE_CONFIG_PATH}': {e}. Using minimal hardcoded defaults.", exc_info=True)
+        return fallback_defaults
+
+# 在模块加载时执行加载
+_DEFAULT_CONFIG = _load_default_config_from_example()
+
+# --- Config Class Definition ---
+# (Config class definition follows, using the loaded _DEFAULT_CONFIG)
+
+# (Original _DEFAULT_CONFIG dictionary content removed below)
+# {
+#     # -------------------------------------------------------------------------
+#     # Dashscope (阿里云灵积) 服务设置
+#     # -------------------------------------------------------------------------
     "dashscope": {
         # API 密钥 (必需) - 强烈建议通过环境变量 `DASHSCOPE_API_KEY` 设置。
         "api_key": "",
@@ -168,9 +205,7 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
             "enabled": True,
             # 应用程序日志文件路径 (必需, 如果 enabled 为 true)
             "path": "vrcmeow_app.log",
-        },
-    },
-}
+# } # End of removed original _DEFAULT_CONFIG dictionary
 
 
 def _recursive_update(d: Dict, u: Dict) -> Dict:
