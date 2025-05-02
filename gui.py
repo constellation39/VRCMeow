@@ -130,6 +130,7 @@ def main(page: ft.Page):
     page.window_width = 600
     page.window_height = 450
     page.window_resizable = True
+    page.window_frameless = True # 启用无边框窗口
     page.padding = 10
 
     app_state = AppState()
