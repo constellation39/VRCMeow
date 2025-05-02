@@ -1018,7 +1018,7 @@ def main(page: ft.Page):
         ft.Tabs(
             [
                 ft.Tab(
-                    text="语音",  # Renamed from "仪表盘"
+                    text=" 语音 ",  # Padded with spaces
                     icon=ft.icons.MIC, # Changed icon from DASHBOARD
                     content=dashboard_tab_layout,  # Content remains the same layout
                 ),
@@ -1028,13 +1028,13 @@ def main(page: ft.Page):
                     content=text_input_tab_content,
                 ),
                 ft.Tab( # Add new Preset Tab
-                    text="预设",
+                    text=" 预设 ", # Padded with spaces
                     icon=ft.icons.EDIT_NOTE, # Use preset icon
                     content=preset_tab_layout, # Use content created above
                 ),
-                ft.Tab(text="配置", icon=ft.icons.SETTINGS, content=config_tab_layout), # Config tab
+                ft.Tab(text=" 配置 ", icon=ft.icons.SETTINGS, content=config_tab_layout), # Config tab, Padded
                 ft.Tab(
-                    text="日志", # Log tab
+                    text=" 日志 ", # Log tab, Padded
                     icon=ft.icons.LIST_ALT_ROUNDED,
                     content=log_tab_layout,
                 ),
