@@ -4,22 +4,17 @@ import pathlib
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 
-# Directly import the config instance and default config for fallback values
-# Need to handle potential circular import or delayed import if config uses this module
-try:
-    from config import config, _DEFAULT_CONFIG
-except ImportError:
-    # Fallback if config cannot be imported directly (e.g., during initial setup)
-    # This might happen if config.py itself tries to import this module too early.
-    # In this case, get_default_preset_values might rely on a hardcoded default.
-    config = None
-    _DEFAULT_CONFIG = { # Hardcoded minimal default for fallback
-        "llm": {
-            "system_prompt": "You are a helpful assistant.",
-            "few_shot_examples": []
-        }
-    }
-    logging.warning("Could not import 'config' module in prompt_presets. Using fallback defaults.")
+import yaml # Add yaml import
+import pathlib
+import logging
+import json
+from typing import Dict, Any, List, Optional, Tuple
+
+# REMOVED: Direct import of config instance and _DEFAULT_CONFIG
+# try:
+#     from config import config, _DEFAULT_CONFIG
+# except ImportError:
+#     ... (Fallback logic removed as defaults come from example file now)
 
 
 logger = logging.getLogger(__name__)
@@ -27,7 +22,9 @@ logger = logging.getLogger(__name__)
 # Determine paths relative to the Current Working Directory (CWD)
 CWD = pathlib.Path.cwd()
 PRESETS_FILENAME = "prompt_presets.json"
+EXAMPLE_CONFIG_FILENAME = "config.example.yaml" # Define example config filename
 PRESETS_PATH = CWD / PRESETS_FILENAME
+EXAMPLE_CONFIG_PATH = CWD / EXAMPLE_CONFIG_FILENAME # Define example config path
 
 # --- Preset Data Structure ---
 # {
@@ -134,20 +131,50 @@ def delete_preset(preset_name: str) -> bool:
         return False
 
 def get_default_preset_values() -> Tuple[str, List[Dict[str, str]]]:
-    """Gets the default system prompt and few-shot examples from _DEFAULT_CONFIG."""
-    # Use the imported _DEFAULT_CONFIG (might be fallback)
-    default_sys_prompt = _DEFAULT_CONFIG.get("llm", {}).get(
-        "system_prompt", "You are a helpful assistant."
-    )
-    default_examples = _DEFAULT_CONFIG.get("llm", {}).get(
-        "few_shot_examples", []
-    )
-    # Ensure examples are a list of dicts (basic check)
-    if not isinstance(default_examples, list) or not all(isinstance(ex, dict) for ex in default_examples):
-        logger.warning("Default few_shot_examples in _DEFAULT_CONFIG is invalid, using empty list.")
-        default_examples = []
+    """Gets the default system prompt and few-shot examples from config.example.yaml."""
+    # Define hardcoded fallback values in case the example file is missing or invalid
+    fallback_prompt = "You are a helpful assistant."
+    fallback_examples = []
 
-    return default_sys_prompt, default_examples
+    if not EXAMPLE_CONFIG_PATH.exists():
+        logger.warning(f"Example config file '{EXAMPLE_CONFIG_PATH}' not found. Using hardcoded default preset values.")
+        return fallback_prompt, fallback_examples
+
+    try:
+        with open(EXAMPLE_CONFIG_PATH, "r", encoding="utf-8") as f:
+            example_config_data = yaml.safe_load(f)
+
+        if not isinstance(example_config_data, dict):
+            logger.warning(f"Example config file '{EXAMPLE_CONFIG_PATH}' is not a valid dictionary. Using hardcoded defaults.")
+            return fallback_prompt, fallback_examples
+
+        # Extract values, providing defaults if keys are missing in the example file
+        llm_config = example_config_data.get("llm", {})
+        default_sys_prompt = llm_config.get("system_prompt", fallback_prompt)
+        default_examples = llm_config.get("few_shot_examples", fallback_examples)
+
+        # Validate few_shot_examples structure from the example file
+        if not isinstance(default_examples, list):
+            logger.warning(f"'llm.few_shot_examples' in '{EXAMPLE_CONFIG_PATH}' is not a list. Using fallback examples.")
+            default_examples = fallback_examples
+        else:
+            valid_examples = []
+            for i, example in enumerate(default_examples):
+                if isinstance(example, dict) and "user" in example and "assistant" in example:
+                    valid_examples.append(example)
+                else:
+                    logger.warning(f"Invalid structure for few_shot_example at index {i} in '{EXAMPLE_CONFIG_PATH}'. Skipping.")
+            default_examples = valid_examples # Use only the valid examples
+
+        logger.info(f"Loaded default preset values from '{EXAMPLE_CONFIG_PATH}'.")
+        return default_sys_prompt, default_examples
+
+    except yaml.YAMLError as e:
+        logger.error(f"Error parsing YAML from '{EXAMPLE_CONFIG_PATH}': {e}. Using hardcoded defaults.", exc_info=True)
+        return fallback_prompt, fallback_examples
+    except Exception as e:
+        logger.error(f"Error reading or processing '{EXAMPLE_CONFIG_PATH}': {e}. Using hardcoded defaults.", exc_info=True)
+        return fallback_prompt, fallback_examples
 
 
 def ensure_default_preset() -> None:
