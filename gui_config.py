@@ -781,6 +781,9 @@ def get_control_value(
 
 # --- Configuration Save/Reload Logic ---
 async def save_config_handler(
+    # Make 'e' the first positional argument (required by Flet event handlers)
+    e: Optional[ft.ControlEvent],
+    *,  # Make all subsequent arguments keyword-only
     page: ft.Page,  # Need page for banner
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
@@ -796,7 +799,6 @@ async def save_config_handler(
     active_preset_name_label_ctrl: Optional[ft.Text] = None,
     # Add the new callback for text input info
     text_input_info_update_callback: Optional[Callable[[], None]] = None,
-    e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
     """
     保存按钮点击事件处理程序 (配置选项卡)。
