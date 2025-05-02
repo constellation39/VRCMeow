@@ -724,6 +724,8 @@ async def save_config_handler(
     config_instance: "Config",  # Need config instance
     create_example_row_func: Callable,  # Function to create few-shot rows for reload
     dashboard_update_callback: Optional[Callable[[], None]],  # Dashboard update callback
+    # Add the missing callback parameter
+    update_llm_ui_callback: Callable[[str, List[Dict[str, str]], str], None],
     # REMOVED: app_state: "AppState",
     # REMOVED: restart_callback: Callable[[], Awaitable[None]],
     # Add active_preset_name_label reference
@@ -1074,7 +1076,11 @@ async def save_config_handler(
         # Update the GUI controls with the newly saved and reloaded values
         logger.info("Updating GUI controls with reloaded configuration...")
         reload_config_controls(
-            page, all_config_controls, config_instance, create_example_row_func
+            page,
+            all_config_controls,
+            config_instance,
+            create_example_row_func,
+            update_llm_ui_callback, # Pass the callback here
         )
         logger.info("GUI controls updated.")
 

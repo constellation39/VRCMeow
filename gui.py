@@ -229,6 +229,16 @@ def main(page: ft.Page):
         "Logging setup complete with Flet handler."
     )  # Now logger is fully configured
 
+    # --- Ensure Default Preset Exists ---
+    # Call this after logging is set up and before UI relies on presets
+    try:
+        logger.info("Ensuring default prompt preset exists...")
+        prompt_presets.ensure_default_preset()
+        logger.info("Default prompt preset check complete.")
+    except Exception as preset_err:
+        logger.error(f"Error ensuring default preset: {preset_err}", exc_info=True)
+        # Optionally show a banner, but the error is logged.
+
     # --- Initialize Core Components (based on config) ---
     logger.info("Initializing core components (Dispatcher/VRCClient will be async)...")
     try:
@@ -726,6 +736,8 @@ def main(page: ft.Page):
         config,  # Config instance
         create_row_wrapper_for_reload,  # Function to create few-shot rows
         update_dashboard_info_partial,  # Callback to update dashboard info
+        update_llm_ui_partial, # Pass the LLM UI update callback
+        active_preset_name_label=active_preset_name_label, # Pass the label reference
         # REMOVED: app_state argument
         # REMOVED: restart_callback argument
     )
