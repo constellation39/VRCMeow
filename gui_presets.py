@@ -1,6 +1,6 @@
 import functools
 import logging
-from typing import TYPE_CHECKING, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Awaitable, Callable, Dict, Optional
 
 import flet as ft
 
