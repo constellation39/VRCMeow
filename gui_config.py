@@ -43,7 +43,10 @@ def create_config_section(title: str, controls: list[ft.Control]) -> ft.Card:
 # --- Control Creation Functions (called from gui.py) ---
 
 
-def create_dashscope_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
+def create_dashscope_controls(
+    initial_config: Dict[str, Any],
+    save_callback: Optional[Callable[[ft.ControlEvent], Awaitable[None]]] = None, # Add save callback param
+) -> Dict[str, ft.Control]:
     """Creates controls for the Dashscope section."""
     controls = {}
     dashscope_conf = initial_config.get("dashscope", {})
@@ -56,6 +59,7 @@ def create_dashscope_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Co
         can_reveal_password=True,
         hint_text="从环境变量 DASHSCOPE_API_KEY 覆盖",
         tooltip="阿里云 Dashscope 服务所需的 API Key",
+        on_change=save_callback, # Assign callback
     )
 
     # --- Dynamically create STT Model Dropdown ---
@@ -98,6 +102,7 @@ def create_dashscope_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Co
         value=selected_model_value, # Use validated or fallback value
         options=model_options,
         tooltip="选择要使用的 Dashscope STT 模型 (来自 config.yaml)",
+        on_change=save_callback, # Assign callback
     )
     # --- End STT Model Dropdown ---
 
@@ -106,9 +111,11 @@ def create_dashscope_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Co
         value=stt_conf.get("translation_target_language") or "",  # Handle None
         hint_text="留空则禁用翻译 (例如: en, ja, ko)",
         tooltip="如果使用 Gummy 并希望翻译，在此处输入目标语言代码",
+        on_change=save_callback, # Assign callback
     )
     controls["dashscope.stt.intermediate_result_behavior"] = ft.Dropdown(
         label="中间结果处理 (VRC OSC)",
+        on_change=save_callback, # Assign callback
         value=stt_conf.get("intermediate_result_behavior", "ignore"),
         options=[
             ft.dropdown.Option("ignore", "忽略"),
@@ -120,7 +127,10 @@ def create_dashscope_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Co
     return controls
 
 
-def create_audio_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
+def create_audio_controls(
+    initial_config: Dict[str, Any],
+    save_callback: Optional[Callable[[ft.ControlEvent], Awaitable[None]]] = None, # Add save callback param
+) -> Dict[str, ft.Control]:
     """Creates controls for the Audio Input section."""
     controls = {}
     audio_conf = initial_config.get("audio", {})
@@ -178,7 +188,7 @@ def create_audio_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Contro
         value=selected_device_value,
         options=device_options,
         tooltip="选择要使用的音频输入设备",
-        # Add on_change handler? Maybe later for dynamic sample rate update.
+        on_change=save_callback, # Assign callback
     )
     # --- End Microphone Selection ---
 
@@ -202,11 +212,15 @@ def create_audio_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Contro
         label="调试回声模式",
         value=audio_conf.get("debug_echo_mode", False),
         tooltip="将输入音频直接路由到输出以进行测试",
+        on_change=save_callback, # Assign callback
     )
     return controls
 
 
-def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
+def create_llm_controls(
+    initial_config: Dict[str, Any],
+    save_callback: Optional[Callable[[ft.ControlEvent], Awaitable[None]]] = None, # Add save callback param
+) -> Dict[str, ft.Control]:
     """Creates controls for the LLM section."""
     controls = {}
     llm_conf = initial_config.get("llm", {})
@@ -216,12 +230,15 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         label="启用 LLM 处理",
         value=llm_conf.get("enabled", False),
         tooltip="是否将识别/翻译后的文本发送给 LLM 进行处理",
+        on_change=save_callback, # Assign callback
     )
     controls["llm.api_key"] = ft.TextField(
         label="API Key",
+        on_change=save_callback, # Assign callback
         value=llm_conf.get("api_key", ""),
         password=True,
         can_reveal_password=True,
+        # on_change=save_callback, # Already added above
         hint_text="从环境变量 OPENAI_API_KEY 覆盖",
         tooltip="用于 LLM 处理的 OpenAI 兼容 API Key (如果启用)",
     )
@@ -230,6 +247,7 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         value=llm_conf.get("base_url") or "",
         hint_text="留空则使用 OpenAI 默认 URL",
         tooltip="用于本地 LLM 或代理 (例如 http://localhost:11434/v1)",
+        on_change=save_callback, # Assign callback
     )
     # --- LLM Model Dropdown and Refresh Button ---
     initial_model = llm_conf.get("model", "gpt-3.5-turbo") # Get initial value
@@ -243,6 +261,7 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         ],
         tooltip="选择要使用的 OpenAI 兼容模型 (点击右侧按钮刷新列表)",
         expand=True, # Allow dropdown to expand in Row
+        on_change=save_callback, # Assign callback
     )
     controls["llm.model_refresh_button"] = ft.IconButton(
         icon=ft.icons.REFRESH,
@@ -262,9 +281,11 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         value=str(llm_conf.get("temperature", 0.7)),
         keyboard_type=ft.KeyboardType.NUMBER,
         tooltip="控制 LLM 输出的随机性 (0.0-2.0)",
+        on_change=save_callback, # Assign callback
     )
     controls["llm.max_tokens"] = ft.TextField(
         label="LLM Max Tokens",
+        on_change=save_callback, # Assign callback
         value=str(llm_conf.get("max_tokens", 150)),
         keyboard_type=ft.KeyboardType.NUMBER,
         tooltip="LLM 响应的最大长度",
@@ -274,9 +295,11 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         label="提取最终答案",
         value=llm_conf.get("extract_final_answer", False),
         tooltip="尝试从 LLM 输出中提取标记后的最终答案",
+        on_change=save_callback, # Assign callback
     )
     controls["llm.final_answer_marker"] = ft.TextField(
         label="最终答案标记",
+        on_change=save_callback, # Assign callback
         value=llm_conf.get("final_answer_marker", "Final Answer:"),
         tooltip="用于标识最终答案开始的文本 (仅当 '提取最终答案' 启用时)", # Clarify tooltip
     )
@@ -326,7 +349,10 @@ def update_llm_config_ui(
     page.update()
 
 
-def create_vrc_osc_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
+def create_vrc_osc_controls(
+    initial_config: Dict[str, Any],
+    save_callback: Optional[Callable[[ft.ControlEvent], Awaitable[None]]] = None, # Add save callback param
+) -> Dict[str, ft.Control]:
     """Creates controls for the VRC OSC Output section."""
     controls = {}
     output_conf = initial_config.get("outputs", {})
@@ -334,13 +360,16 @@ def create_vrc_osc_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
     controls["outputs.vrc_osc.enabled"] = ft.Switch(
         label="启用 VRChat OSC 输出",
         value=vrc_conf.get("enabled", True),
+        on_change=save_callback, # Assign callback
     )
     controls["outputs.vrc_osc.address"] = ft.TextField(
         label="VRC OSC 地址",
         value=vrc_conf.get("address", "127.0.0.1"),
+        on_change=save_callback, # Assign callback
     )
     controls["outputs.vrc_osc.port"] = ft.TextField(
         label="VRC OSC 端口",
+        on_change=save_callback, # Assign callback
         value=str(vrc_conf.get("port", 9000)),
         keyboard_type=ft.KeyboardType.NUMBER,
     )
@@ -349,9 +378,11 @@ def create_vrc_osc_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
         value=str(vrc_conf.get("message_interval", 1.333)),
         keyboard_type=ft.KeyboardType.NUMBER,
         tooltip="发送到 VRChat 的最小时间间隔",
+        on_change=save_callback, # Assign callback
     )
     controls["outputs.vrc_osc.format"] = ft.TextField(
         label="VRC OSC 消息格式",
+        on_change=save_callback, # Assign callback
         value=vrc_conf.get("format", "{text}"),  # Default format from example
         tooltip="发送到 VRChat 的消息格式。可用占位符: {text}",
     )
@@ -360,6 +391,7 @@ def create_vrc_osc_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
 
 def create_console_output_controls(
     initial_config: Dict[str, Any],
+    save_callback: Optional[Callable[[ft.ControlEvent], Awaitable[None]]] = None, # Add save callback param
 ) -> Dict[str, ft.Control]:
     """Creates controls for the Console Output section."""
     controls = {}
@@ -368,16 +400,19 @@ def create_console_output_controls(
     controls["outputs.console.enabled"] = ft.Switch(
         label="启用控制台输出",
         value=console_conf.get("enabled", True),
+        on_change=save_callback, # Assign callback
     )
     controls["outputs.console.prefix"] = ft.TextField(
         label="控制台输出前缀",
         value=console_conf.get("prefix", "[Final Text]"),
+        on_change=save_callback, # Assign callback
     )
     return controls
 
 
 def create_file_output_controls(
     initial_config: Dict[str, Any],
+    save_callback: Optional[Callable[[ft.ControlEvent], Awaitable[None]]] = None, # Add save callback param
 ) -> Dict[str, ft.Control]:
     """Creates controls for the File Output section."""
     controls = {}
@@ -386,20 +421,26 @@ def create_file_output_controls(
     controls["outputs.file.enabled"] = ft.Switch(
         label="启用文件输出",
         value=file_conf.get("enabled", False),
+        on_change=save_callback, # Assign callback
     )
     controls["outputs.file.path"] = ft.TextField(
         label="文件输出路径",
         value=file_conf.get("path", "output_log.txt"),
+        on_change=save_callback, # Assign callback
     )
     controls["outputs.file.format"] = ft.TextField(
         label="文件输出格式",
+        on_change=save_callback, # Assign callback
         value=file_conf.get("format", "{timestamp} - {text}"),
         tooltip="可用占位符: {timestamp}, {text}",
     )
     return controls
 
 
-def create_logging_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]:
+def create_logging_controls(
+    initial_config: Dict[str, Any],
+    save_callback: Optional[Callable[[ft.ControlEvent], Awaitable[None]]] = None, # Add save callback param
+) -> Dict[str, ft.Control]:
     """Creates controls for the Logging section."""
     controls = {}
     log_conf = initial_config.get("logging", {})
@@ -414,6 +455,7 @@ def create_logging_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
             ft.dropdown.Option("CRITICAL"),
         ],
         tooltip="控制应用程序记录信息的详细程度",
+        on_change=save_callback, # Assign callback
     )
     # Add controls for application log file
     log_file_conf = log_conf.get("file", {})  # Get file sub-dict
@@ -421,21 +463,23 @@ def create_logging_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Cont
         label="启用应用程序日志文件",
         value=log_file_conf.get("enabled", False),
         tooltip="将应用程序的详细运行日志 (DEBUG, INFO, ERROR 等) 输出到文件",
+        on_change=save_callback, # Assign callback
     )
     controls["logging.file.path"] = ft.TextField(
         label="应用程序日志文件路径",
         value=log_file_conf.get("path", "vrcmeow_app.log"),
         tooltip="指定保存应用程序运行日志的文件路径",
+        on_change=save_callback, # Assign callback
     )
     return controls
 
 
 # --- Configuration Layout Function ---
-# Takes created controls and buttons as arguments
+# Takes created controls and reload button as arguments
 
 
 def create_config_tab_content(
-    save_button: ft.ElevatedButton,
+    # REMOVED: save_button parameter
     reload_button: ft.ElevatedButton,
     all_controls: Dict[str, ft.Control],  # Pass the complete dictionary
 ) -> ft.Column:
@@ -561,9 +605,9 @@ def create_config_tab_content(
         logging_controls,
     )
 
-    # --- Create the top button row ---
+    # --- Create the top button row (only reload button now) ---
     button_row = ft.Row(
-        [save_button, reload_button],
+        [reload_button], # Only reload button
         alignment=ft.MainAxisAlignment.END,
     )
 
@@ -699,7 +743,17 @@ async def save_config_handler(
     保存按钮点击事件处理程序 (配置选项卡)。
     保存成功后将重新加载配置并更新 UI。不再触发重启。
     """
-    logger.info("Save configuration button clicked.")
+    # Add logging to indicate if triggered by event (auto-save) or manually (if button existed)
+    trigger_source = "auto-save (on_change)" if e else "programmatic call"
+    logger.info(f"Save configuration triggered by: {trigger_source}.")
+
+    # Prevent saving if called without a valid event object from a control change
+    # This helps avoid accidental saves if the function is called incorrectly elsewhere.
+    # Allow programmatic calls (e=None) for now, but be mindful.
+    # if not e:
+    #     logger.warning("save_config_handler called without a ControlEvent. Skipping save.")
+    #     return
+
     if not config_instance:
         logger.error("Cannot save config, config object not available.")
         # Show error banner

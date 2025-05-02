@@ -262,17 +262,33 @@ def main(page: ft.Page):
         # Depending on the error, we might want to return or disable features
         # For now, log and show banner, hoping some parts might still work.
 
+    # --- Define Save Handler Partial (BEFORE creating controls) ---
+    # This needs several elements that are defined later, but the partial captures references.
+    # Dependencies: page, all_config_controls, config, update_dashboard_info_partial,
+    #               update_llm_ui_partial, active_preset_name_label_ctrl
+    # We will define the partial here, but some dependencies (like update_llm_ui_partial
+    # and active_preset_name_label_ctrl) will be None initially. They get updated later.
+    # The partial will use the *latest* values of these variables when it's actually called.
+    save_handler_partial = functools.partial(
+        save_config_handler,
+        page,
+        all_config_controls, # Captures the dict reference
+        config,
+        None, # dashboard_update_callback - will be assigned later
+        None, # update_llm_ui_callback - will be assigned later
+        None, # active_preset_name_label_ctrl - will be assigned later
+    )
+
     # --- Create Config Tab Controls ---
     # These are created here because the layout function in gui_config needs them.
-    # Functions imported from gui_config are used.
-    all_config_controls.update(create_dashscope_controls(initial_config_data))
-
-    all_config_controls.update(create_audio_controls(initial_config_data))
-    all_config_controls.update(create_llm_controls(initial_config_data))
-    all_config_controls.update(create_vrc_osc_controls(initial_config_data))
-    all_config_controls.update(create_console_output_controls(initial_config_data))
-    all_config_controls.update(create_file_output_controls(initial_config_data))
-    all_config_controls.update(create_logging_controls(initial_config_data))
+    # Functions imported from gui_config are used. Pass the save handler partial.
+    all_config_controls.update(create_dashscope_controls(initial_config_data, save_handler_partial))
+    all_config_controls.update(create_audio_controls(initial_config_data, save_handler_partial))
+    all_config_controls.update(create_llm_controls(initial_config_data, save_handler_partial))
+    all_config_controls.update(create_vrc_osc_controls(initial_config_data, save_handler_partial))
+    all_config_controls.update(create_console_output_controls(initial_config_data, save_handler_partial))
+    all_config_controls.update(create_file_output_controls(initial_config_data, save_handler_partial))
+    all_config_controls.update(create_logging_controls(initial_config_data, save_handler_partial))
 
     # REMOVED: Extract key config controls for few-shot examples
     # few_shot_examples_column = ...
@@ -283,16 +299,11 @@ def main(page: ft.Page):
     # REMOVED: active_preset_name_label = ...
 
 
-    # --- Create Config Save/Reload Buttons ---
-    save_config_button = ft.ElevatedButton(
-        "保存配置",
-        on_click=None,  # Handlers assigned later
-        icon=ft.icons.SAVE,
-        tooltip="将当前设置写入 config.yaml",
-    )
+    # --- Create Config Reload Button (Save button removed) ---
+    # REMOVED: save_config_button definition
     reload_config_button = ft.ElevatedButton(
         "从文件重载",
-        on_click=None,  # Handlers assigned later
+        on_click=None,  # Handler assigned later
         icon=ft.icons.REFRESH,
         tooltip="放弃当前更改并从 config.yaml 重新加载",
     )
@@ -318,6 +329,8 @@ def main(page: ft.Page):
 
     # --- Core Application Logic Handlers (Start/Stop) ---
     # These remain in gui.py as they orchestrate multiple components
+    # REMOVED: Definitions of update_status_display, update_output_display
+    # REMOVED: Definition of get_control_value
     # REMOVED: Definitions of update_status_display, update_output_display
     # REMOVED: Definition of get_control_value
     # REMOVED: Definitions of save_config_handler, reload_config_controls, reload_config_handler
@@ -698,8 +711,8 @@ def main(page: ft.Page):
     # Config tab buttons - Use functools.partial to bind arguments to async handlers
     # We will create these partials *after* creating the preset tab content below
     # Flet will automatically run the async handler in its event loop.
-    save_handler_partial = None # Placeholder
-    save_config_button.on_click = None # Placeholder
+    # save_handler_partial is defined earlier now
+    # REMOVED: save_config_button.on_click assignment
 
     reload_handler_partial = None # Placeholder
     reload_config_button.on_click = None # Placeholder
@@ -763,20 +776,15 @@ def main(page: ft.Page):
         logger.warning("LLM model refresh button not found or invalid, handler not assigned.")
 
 
-    # --- Assign Save/Reload Handlers (now that label control exists) ---
-    save_handler_partial = functools.partial(
-        save_config_handler,
-        page,
-        all_config_controls,
-        config,  # Config instance
-        # REMOVED: create_row_wrapper_for_reload,
-        update_dashboard_info_partial,  # Callback to update dashboard info
-        update_llm_ui_partial, # Pass the LLM UI update callback
-        active_preset_name_label_ctrl=active_preset_name_label_ctrl, # Pass the label control
-        # REMOVED: app_state argument
-        # REMOVED: restart_callback argument
-    )
-    save_config_button.on_click = save_handler_partial
+    # --- Update Save Handler Partial with Late-Bound Dependencies ---
+    # Now that dashboard update, LLM update, and preset label exist, update the partial's args
+    save_handler_partial.keywords["dashboard_update_callback"] = update_dashboard_info_partial
+    save_handler_partial.keywords["update_llm_ui_callback"] = update_llm_ui_partial
+    save_handler_partial.keywords["active_preset_name_label_ctrl"] = active_preset_name_label_ctrl
+    logger.debug("Updated save_handler_partial with late-bound callbacks and controls.")
+
+    # --- Assign Reload Handler (Save button handler is assigned via on_change now) ---
+    # REMOVED: save_config_button.on_click assignment
 
     reload_handler_partial = functools.partial(
         reload_config_handler,
@@ -991,7 +999,7 @@ def main(page: ft.Page):
     )  # Pass created elements dict
 
     config_tab_layout = create_config_tab_content(
-        save_button=save_config_button,
+        # REMOVED: save_button argument
         reload_button=reload_config_button,
         all_controls=all_config_controls,  # Pass controls dict
     )
