@@ -16,47 +16,18 @@ class LLMClient:
         self.api_key = config.get("llm.api_key")
         self.base_url = config.get("llm.base_url")  # Can be None
         self.model = config.get("llm.model", "gpt-3.5-turbo")
-        # This now gets the prompt loaded from file by config.py, or the fallback/default if loading failed.
-        self.system_prompt = config.get(
-            "llm.system_prompt", "You are a helpful assistant."
-        )  # Fallback default
+        # REMOVED: system_prompt and few_shot_examples are loaded dynamically per request
         self.temperature = config.get("llm.temperature", 0.7)
         self.max_tokens = config.get(
-            "llm.max_tokens", 256
-        )  # Default updated to 256 to match config.py
-        self.few_shot_examples = config.get("llm.few_shot_examples", [])
+            "llm.max_tokens", 1024
+        )  # Match default from config.py
         self.extract_final_answer = config.get("llm.extract_final_answer", False)
         self.final_answer_marker = config.get(
             "llm.final_answer_marker", "Final Answer:"
         )
+        # active_preset_name is read dynamically from config object in process_text
 
         self.client: Optional[AsyncOpenAI] = None
-
-        # Validate few_shot_examples structure
-        if self.enabled and self.few_shot_examples:
-            if not isinstance(self.few_shot_examples, list):
-                logger.warning(
-                    "LLM 'few_shot_examples' is not a list in config. Disabling examples."
-                )
-                self.few_shot_examples = []
-            else:
-                valid_examples = []
-                for i, example in enumerate(self.few_shot_examples):
-                    if (
-                        isinstance(example, dict)
-                        and "user" in example
-                        and "assistant" in example
-                    ):
-                        valid_examples.append(example)
-                    else:
-                        logger.warning(
-                            f"Invalid structure for few_shot_example at index {i}. Skipping. Expected dict with 'user' and 'assistant' keys."
-                        )
-                self.few_shot_examples = valid_examples  # Keep only valid ones
-                if self.few_shot_examples:
-                    logger.info(
-                        f"Loaded {len(self.few_shot_examples)} valid LLM few-shot examples."
-                    )
 
         if self.enabled:
             if not self.api_key:
@@ -98,16 +69,38 @@ class LLMClient:
             return None
 
         logger.debug(f"LLMClient: Processing text: '{text[:50]}...'")
-        try:
-            # Construct the messages list dynamically
-            messages = [{"role": "system", "content": self.system_prompt}]
 
-            # Add few-shot examples if available
-            if self.few_shot_examples:
+        # --- Dynamically load active preset ---
+        active_preset_name = config.get("llm.active_preset_name", "Default")
+        logger.debug(f"LLMClient: Using active preset: '{active_preset_name}'")
+
+        # Import here to avoid circular dependency at module level if prompt_presets imports config
+        from prompt_presets import get_preset
+
+        preset_data = get_preset(active_preset_name)
+
+        if not preset_data:
+            logger.error(
+                f"LLMClient: Failed to load preset '{active_preset_name}'. Cannot process text."
+            )
+            # Optionally, fallback to a hardcoded default prompt? Or just fail.
+            # For now, fail:
+            return None
+
+        system_prompt = preset_data.get("system_prompt", "")
+        few_shot_examples = preset_data.get("few_shot_examples", [])
+        # --- End dynamic preset loading ---
+
+        try:
+            # Construct the messages list dynamically using loaded preset data
+            messages = [{"role": "system", "content": system_prompt}]
+
+            # Add few-shot examples if available from the loaded preset
+            if few_shot_examples:
                 logger.debug(
-                    f"Adding {len(self.few_shot_examples)} few-shot examples to LLM request."
+                    f"Adding {len(few_shot_examples)} few-shot examples from preset '{active_preset_name}' to LLM request."
                 )
-                for example in self.few_shot_examples:
+                for example in few_shot_examples:
                     # Ensure correct roles are used as per OpenAI API
                     messages.append({"role": "user", "content": example["user"]})
                     messages.append(
@@ -118,7 +111,7 @@ class LLMClient:
             messages.append({"role": "user", "content": text})
 
             logger.debug(
-                f"LLM API call messages: {messages}"
+                f"LLM API call messages (Preset: {active_preset_name}): {messages}"
             )  # Log the full message structure for debugging
 
             response = await self.client.chat.completions.create(

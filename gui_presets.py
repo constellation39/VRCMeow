@@ -110,12 +110,17 @@ async def add_example_handler_preset(
 # Define the type for the callback function to update the Config Tab's preset dropdown
 # It receives: active_preset_name_value
 UpdateConfigTabCallback = Callable[[str], None]
+# Define the type for the callback function to save the main config
+# It receives: event (optional), and keyword args defined in gui_config.save_config_handler
+SaveConfigCallback = Callable[..., Awaitable[None]] # Use ... for flexible args
 
 
 def create_preset_tab_content(
     page: ft.Page,
     config_instance: "Config",  # Add config instance parameter
-    update_config_tab_callback: UpdateConfigTabCallback,  # Callback to update Config Tab's dropdown
+    all_config_controls: Dict[str, ft.Control], # Need all controls to update dropdown value
+    update_config_tab_callback: UpdateConfigTabCallback,  # Callback to update Config Tab's dropdown UI
+    save_config_callback: SaveConfigCallback, # Callback to trigger main config save
 ) -> Dict[str, ft.Control]:
     """
     Creates the content Column for the Preset Management Tab, initializes it
@@ -274,11 +279,18 @@ def create_preset_tab_content(
         if current_value not in preset_names:
             preset_select_dd.value = None
         # Update the controls within this tab
-        preset_select_dd.update()
+        try:
+            if page and page.controls:
+                preset_select_dd.update()
+        except Exception as update_err:
+             logger.error(f"Error updating preset dropdown after refresh: {update_err}", exc_info=True)
         # active_preset_name_label.update() # No need to update label here
 
     async def load_selected_preset(e: ft.ControlEvent):
-        """Loads the selected preset's content into this tab's editing controls."""
+        """
+        Loads the selected preset's content into this tab's editing controls,
+        updates the active preset in the Config Tab's dropdown, and saves the config.
+        """
         selected_name = preset_select_dd.value
         if not selected_name:
             status_text.value = "请先选择一个预设。"
@@ -329,17 +341,32 @@ def create_preset_tab_content(
                 active_preset_name_label.value = f"当前活动预设: {selected_name}"
                 active_preset_name_label.update()
 
-                # 4. Call the callback to update the dropdown in the *Config Tab*
-                # This ensures the Config Tab reflects the preset being edited here.
-                update_config_tab_callback(selected_name)
+                # 4. Update the value of the active preset dropdown in the *Config Tab's controls*
+                config_preset_dropdown = all_config_controls.get("llm.active_preset_name")
+                if isinstance(config_preset_dropdown, ft.Dropdown):
+                    # Check if the selected name is a valid option in that dropdown
+                    if any(opt.key == selected_name for opt in config_preset_dropdown.options):
+                        config_preset_dropdown.value = selected_name
+                        logger.debug(f"Set Config Tab dropdown value to '{selected_name}'.")
+                    else:
+                        logger.warning(f"Preset '{selected_name}' not found in Config Tab dropdown options during load.")
+                        # Optionally update the Config Tab dropdown UI here? Or let save handler do it?
+                        # Let save handler handle UI update for consistency.
+                else:
+                    logger.error("Config Tab preset dropdown not found or invalid during load.")
 
-                status_text.value = f"预设 '{selected_name}' 的内容已加载到编辑区域。"
+                # 5. Call the main config save handler to persist the active_preset_name change
+                logger.info(f"Triggering config save after loading preset '{selected_name}'...")
+                await save_config_callback(e=None) # Call save handler programmatically
+
+                # 6. Update status text in this tab
+                status_text.value = f"预设 '{selected_name}' 已加载并设为活动预设。" # Updated message
                 status_text.color = ft.colors.GREEN_700
                 logger.info(
-                    f"Preset '{selected_name}' content loaded into Preset Tab UI."
+                    f"Preset '{selected_name}' content loaded into Preset Tab UI and set as active."
                 )
                 status_text.update()
-                return  # Exit after successful load
+                return # Exit after successful load and save trigger
 
             except Exception as load_err:
                 error_msg = (
@@ -421,8 +448,26 @@ def create_preset_tab_content(
             preset_select_dd.update()
             active_preset_name_label.update()
 
-            # 5. Call the callback to update the dropdown in the *Config Tab* to select the newly saved preset
-            update_config_tab_callback(preset_name_to_save)
+            # 5. Update the value of the active preset dropdown in the *Config Tab's controls*
+            config_preset_dropdown = all_config_controls.get("llm.active_preset_name")
+            if isinstance(config_preset_dropdown, ft.Dropdown):
+                 # Refresh options in config tab dropdown first
+                presets_data_refresh = load_presets()
+                preset_names_refresh = sorted(list(presets_data_refresh.keys()))
+                config_preset_dropdown.options = [ft.dropdown.Option(name) for name in preset_names_refresh]
+                # Set value
+                if preset_name_to_save in preset_names_refresh:
+                    config_preset_dropdown.value = preset_name_to_save
+                    logger.debug(f"Set Config Tab dropdown value to newly saved '{preset_name_to_save}'.")
+                else:
+                     logger.error(f"Newly saved preset '{preset_name_to_save}' not found in refreshed options?!")
+                     config_preset_dropdown.value = "Default" # Fallback
+            else:
+                logger.error("Config Tab preset dropdown not found or invalid during save.")
+
+            # 6. Call the main config save handler to persist the active_preset_name change
+            logger.info(f"Triggering config save after saving preset '{preset_name_to_save}'...")
+            await save_config_callback(e=None) # Call save handler programmatically
 
         else:
             status_text.value = f"错误：保存预设 '{preset_name_to_save}' 失败。"
@@ -489,8 +534,22 @@ def create_preset_tab_content(
                     active_preset_name_label.value = "当前活动预设: Default"
                     active_preset_name_label.update()
 
-                    # Call the callback to update the dropdown in the Config Tab
-                    update_config_tab_callback("Default")
+                    # Update the value of the active preset dropdown in the *Config Tab's controls* to Default
+                    config_preset_dropdown = all_config_controls.get("llm.active_preset_name")
+                    if isinstance(config_preset_dropdown, ft.Dropdown):
+                        if any(opt.key == "Default" for opt in config_preset_dropdown.options):
+                            config_preset_dropdown.value = "Default"
+                            logger.debug("Set Config Tab dropdown value to 'Default' after deleting active preset.")
+                        else:
+                            logger.error("'Default' preset not found in Config Tab dropdown options after delete?!")
+                            config_preset_dropdown.value = None # Fallback
+                    else:
+                        logger.error("Config Tab preset dropdown not found or invalid during delete.")
+
+                    # Call the main config save handler to persist the active_preset_name change to Default
+                    logger.info(f"Triggering config save after deleting preset '{selected_name}' (activating Default)...")
+                    await save_config_callback(e=None) # Call save handler programmatically
+
                 else:
                     logger.error(
                         "Could not load 'Default' preset data after deleting active one. Clearing preset UI."
@@ -505,10 +564,19 @@ def create_preset_tab_content(
                         "当前活动预设: None (Default missing!)"
                     )
                     active_preset_name_label.update()
-                    # Update dropdown elsewhere (pass a non-existent name or handle None in callback)
-                    update_config_tab_callback(
-                        "Default"
-                    )  # Still try to select Default in config tab
+
+                    # Update the value of the active preset dropdown in the *Config Tab's controls* to None
+                    config_preset_dropdown = all_config_controls.get("llm.active_preset_name")
+                    if isinstance(config_preset_dropdown, ft.Dropdown):
+                        config_preset_dropdown.value = None
+                        logger.debug("Set Config Tab dropdown value to None after deleting active preset and failing to load Default.")
+                    else:
+                        logger.error("Config Tab preset dropdown not found or invalid during delete fallback.")
+
+                    # Call the main config save handler to persist the active_preset_name change to None/Default
+                    logger.info(f"Triggering config save after deleting preset '{selected_name}' (activating Default failed)...")
+                    await save_config_callback(e=None) # Call save handler programmatically
+
 
         else:
             # Error message handled within delete_preset logging

@@ -773,11 +773,19 @@ def main(page: ft.Page):
     )
     logger.debug("Created partial for updating Config Tab preset dropdown.")
 
+    )
+
     # Callback for Config Save/Reload -> Preset Tab (updates label)
     # This needs the label control from the Preset Tab, which is created below.
     update_preset_tab_label_partial = (
         None  # Placeholder, created after preset tab elements
     )
+
+    # Callback for Text Input Info Update
+    update_text_input_info_partial = (
+        None # Placeholder, created after text input elements
+    )
+
 
     # Config tab buttons - Use functools.partial to bind arguments to async handlers
     # Flet will automatically run the async handler in its event loop.
@@ -791,11 +799,13 @@ def main(page: ft.Page):
     open_config_folder_button.on_click = None  # Placeholder
 
     # --- Create Preset Tab Content ---
-    # Pass the callback that updates the *Config Tab's dropdown*
+    # Pass the callback that updates the *Config Tab's dropdown* AND the main save handler
     preset_tab_elements = create_preset_tab_content(
         page=page,
         config_instance=config,
+        all_config_controls=all_config_controls, # Pass controls dict
         update_config_tab_callback=update_config_tab_dropdown_partial,  # Pass the correct partial
+        save_config_callback=save_handler_partial, # Pass the main save handler partial
     )
     preset_tab_layout = preset_tab_elements.get("content")
     # Extract the label control from the Preset Tab (needed for the *other* callback)
@@ -1000,6 +1010,7 @@ def main(page: ft.Page):
     logger.debug(
         "Updated save_handler_partial with late-bound callbacks (Preset Tab label, Text Input Info)."
     )
+    # NOTE: save_handler_partial is now also passed to create_preset_tab_content above
 
     # --- Assign Reload Handler ---
     reload_handler_partial = functools.partial(

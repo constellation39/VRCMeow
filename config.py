@@ -105,19 +105,10 @@ def _load_default_config_from_example() -> Dict[str, Any]:
             "api_key": "",
             "base_url": None,  # Use None for null in YAML
             "model": "gpt-3.5-turbo",
-            "system_prompt": """你是一名专业的文本风格转换助理。请将用户提供的文本转换为轻松愉快的、略带俏皮的口语风格，类似于和朋友聊天。
-规则：
-1. 保持原始文本的核心含义不变。
-2. 使用更口语化的词语和表达方式。
-3. 可以在句末适当添加一些语气词，如“呀”、“啦”、“哦”。
-4. 避免过于正式或书面化的语言。
-5. 直接输出转换后的文本，不要包含任何解释或标签。""",
+            # system_prompt and few_shot_examples are now managed by prompt_presets.py
+            "active_preset_name": "Default",  # Name of the preset to use
             "temperature": 0.7,
             "max_tokens": 1024,
-            "few_shot_examples": [
-                {"user": "今天天气真不错。", "assistant": "今天天气真好呀！"},
-                {"user": "我需要完成这项工作。", "assistant": "我得把这活儿干完啦。"},
-            ],
             "extract_final_answer": False,
             "final_answer_marker": "Final Answer:",
         },
@@ -413,8 +404,25 @@ class Config:
             # Ensure a safe fallback if structure was bad
             if "llm" not in config or not isinstance(config.get("llm"), dict):
                 config["llm"] = {}
-            config["llm"]["system_prompt"] = _DEFAULT_CONFIG.get("llm", {}).get(
-                "system_prompt", "You are a helpful assistant."
+            # Ensure 'active_preset_name' exists
+            if "active_preset_name" not in config.get("llm", {}):
+                config["llm"]["active_preset_name"] = _DEFAULT_CONFIG.get("llm", {}).get(
+                    "active_preset_name", "Default"
+                )
+                logger.info("LLM active_preset_name not found in config, using default.")
+            else:
+                logger.debug("Using LLM active_preset_name from configuration.")
+
+        except Exception as e:
+            logger.error(
+                f"Error processing LLM active_preset_name configuration: {e}. Using default.",
+                exc_info=True,
+            )
+            # Ensure a safe fallback if structure was bad
+            if "llm" not in config or not isinstance(config.get("llm"), dict):
+                config["llm"] = {}
+            config["llm"]["active_preset_name"] = _DEFAULT_CONFIG.get("llm", {}).get(
+                "active_preset_name", "Default"
             )
 
         # 4. Validate and transform (Log level)
@@ -532,9 +540,12 @@ class Config:
         # Create a deep copy to avoid modifying the live config dict directly during preparation
         config_to_save = copy.deepcopy(self._config_data)
 
-        # Remove runtime/derived values that shouldn't be saved
+        # Remove runtime/derived values and preset content that shouldn't be saved in config.yaml
         if isinstance(config_to_save.get("logging"), dict):
             config_to_save["logging"].pop("level_int", None)
+        if isinstance(config_to_save.get("llm"), dict):
+            config_to_save["llm"].pop("system_prompt", None) # Ensure removed
+            config_to_save["llm"].pop("few_shot_examples", None) # Ensure removed
 
         # Decide how to handle secrets potentially loaded from env vars.
         # Option 1: Save the current values (might expose secrets if they came from env)

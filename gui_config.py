@@ -999,14 +999,11 @@ async def save_config_handler(
         #     "llm.extract_final_answer",
         #     get_control_value(all_config_controls, "llm.extract_final_answer", bool, False),
         # )
-        # update_nested_dict(
-        #     new_config_data,
-        #     "llm.final_answer_marker",
-        #     get_control_value(all_config_controls, "llm.final_answer_marker", str, "Final Answer:"),
         # )
         # --- End existing logic ---
 
         # --- Save Active Preset Name (from Config Tab Dropdown) ---
+        # This remains correct, reads the value from the dropdown in this tab
         active_preset_name = get_control_value(
             all_config_controls, "llm.active_preset_name", str, "Default"
         )
@@ -1028,10 +1025,8 @@ async def save_config_handler(
             )
 
         # REMOVED: Saving few-shot examples from UI (they are not in this tab anymore)
-        # examples_list = [] ...
-        # update_nested_dict(new_config_data, "llm.few_shot_examples", examples_list)
 
-        update_nested_dict(
+        update_nested_dict( # Keep VRC OSC Enabled
             new_config_data,
             "outputs.vrc_osc.enabled",
             get_control_value(
@@ -1273,8 +1268,8 @@ def reload_config_controls(
     for key, control in all_config_controls.items():
         # Skip special controls that don't map directly to config keys
         if key in [
-            "llm.few_shot_examples_column",  # No longer exists in Config tab
-            "llm.add_example_button",  # No longer exists in Config tab
+            # "llm.few_shot_examples_column", # Already removed
+            # "llm.add_example_button", # Already removed
             "llm.model_refresh_button",
             # Handle specific dropdowns below
             "llm.model_dropdown",
