@@ -107,15 +107,15 @@ async def add_example_handler_preset(
         # gui_utils.show_error_banner(page, "无法添加示例：UI 元素丢失。")
 
 
-# Define the type for the callback function (partial) to update the main config UI's preset label
+# Define the type for the callback function to update the Config Tab's preset dropdown
 # It receives: active_preset_name_value
-UpdateConfigUICallback = Callable[[str], None]
+UpdateConfigTabCallback = Callable[[str], None]
 
 
 def create_preset_tab_content(
     page: ft.Page,
     config_instance: "Config",  # Add config instance parameter
-    update_config_ui_callback: UpdateConfigUICallback,  # Callback to update main Config Tab UI's label
+    update_config_tab_callback: UpdateConfigTabCallback,  # Callback to update Config Tab's dropdown
 ) -> Dict[str, ft.Control]:
     """
     Creates the content Column for the Preset Management Tab, initializes it
@@ -329,9 +329,9 @@ def create_preset_tab_content(
                 active_preset_name_label.value = f"当前活动预设: {selected_name}"
                 active_preset_name_label.update()
 
-                # 4. Call the callback to update the label in the *other* tabs (via gui.py -> gui_config.py)
-                # This indicates which preset *will be saved* if the user hits save in the config tab.
-                update_config_ui_callback(selected_name)
+                # 4. Call the callback to update the dropdown in the *Config Tab*
+                # This ensures the Config Tab reflects the preset being edited here.
+                update_config_tab_callback(selected_name)
 
                 status_text.value = f"预设 '{selected_name}' 的内容已加载到编辑区域。"
                 status_text.color = ft.colors.GREEN_700
@@ -420,8 +420,9 @@ def create_preset_tab_content(
             new_preset_name_tf.update()
             preset_select_dd.update()
             active_preset_name_label.update()
-            # The active preset name *in the config file* will be updated on next save/reload
-            # based on the active_preset_name_label.
+
+            # 5. Call the callback to update the dropdown in the *Config Tab* to select the newly saved preset
+            update_config_tab_callback(preset_name_to_save)
 
         else:
             status_text.value = f"错误：保存预设 '{preset_name_to_save}' 失败。"
@@ -488,8 +489,8 @@ def create_preset_tab_content(
                     active_preset_name_label.value = "当前活动预设: Default"
                     active_preset_name_label.update()
 
-                    # Call the callback to update the label elsewhere
-                    update_config_ui_callback("Default")
+                    # Call the callback to update the dropdown in the Config Tab
+                    update_config_tab_callback("Default")
                 else:
                     logger.error(
                         "Could not load 'Default' preset data after deleting active one. Clearing preset UI."
@@ -504,8 +505,8 @@ def create_preset_tab_content(
                         "当前活动预设: None (Default missing!)"
                     )
                     active_preset_name_label.update()
-                    # Update label elsewhere
-                    update_config_ui_callback("None")
+                    # Update dropdown elsewhere (pass a non-existent name or handle None in callback)
+                    update_config_tab_callback("Default") # Still try to select Default in config tab
 
         else:
             # Error message handled within delete_preset logging

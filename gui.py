@@ -297,11 +297,10 @@ def main(page: ft.Page):
     # --- Define Save Handler Partial (BEFORE creating controls) ---
     # This needs several elements that are defined later, but the partial captures references.
     # Dependencies: page, all_config_controls, config, update_dashboard_info_partial,
-    #               update_llm_ui_partial, active_preset_name_label_ctrl
-    # We will define the partial here, but some dependencies (like update_llm_ui_partial
-    # and active_preset_name_label_ctrl) will be None initially. They get updated later.
-    # The partial will use the *latest* values of these variables when it's actually called.
-    # Bind arguments using keywords to avoid conflict with the event object 'e' passed by Flet.
+    #               update_preset_tab_callback, text_input_info_update_callback
+    # We will define the partial here, but some dependencies will be None initially.
+    # They get updated later. The partial will use the *latest* values of these variables
+    # when it's actually called.
     save_handler_partial = functools.partial(
         save_config_handler,
         # Bind arguments by keyword name matching the function definition
@@ -310,9 +309,8 @@ def main(page: ft.Page):
         config_instance=config,
         # Callbacks will be added later using keywords dict
         dashboard_update_callback=None,
-        update_llm_ui_callback=None,
-        active_preset_name_label_ctrl=None,
-        text_input_info_update_callback=None,  # Add placeholder for the new callback too
+        update_preset_tab_callback=None, # Callback to update Preset Tab's label
+        text_input_info_update_callback=None,
     )
     # Note: The actual callback functions are assigned below using save_handler_partial.keywords[...]
 
@@ -758,27 +756,28 @@ def main(page: ft.Page):
     # --- Create Dashboard Info Update Callback ---
     # This partial binds the necessary arguments for updating the dashboard info display
     # --- Create Dashboard Info Update Callback ---
-    # This partial binds the necessary arguments for updating the dashboard info display
-    # Pass the config *instance* so the callback can access the latest .data
     update_dashboard_info_partial = functools.partial(
         update_dashboard_info_display,
         page,
-        dashboard_elements,  # Pass the dashboard elements dict
-        config,  # Pass the config instance itself
-        # Now, inside update_dashboard_info_display, it will access config.data
-        # If not, we might need to pass the config object itself and access .data inside the callback.
-        # For now, let's try passing the data dictionary directly.
+        dashboard_elements,
+        config,
     )
 
-    # --- Define LLM UI Update Callback (Moved BEFORE use in save/reload/preset handlers) ---
-    # This function will be passed to the preset dialog and reload handler
-    # It uses the update_llm_config_ui function from gui_config
-    # It now needs the active_preset_name_label control passed explicitly
-    # We will create this partial *after* creating the preset tab content below
-    update_llm_ui_partial = None  # Placeholder
+    # --- Define Callback Partials (Moved BEFORE use) ---
+    # Callback for Preset Tab -> Config Tab (updates dropdown)
+    update_config_tab_dropdown_partial = functools.partial(
+        gui_config.update_llm_config_ui, # Use the function that updates the dropdown
+        page,
+        all_config_controls, # Pass the controls dict for the Config Tab
+        # The active_preset_name_value argument is provided when called
+    )
+    logger.debug("Created partial for updating Config Tab preset dropdown.")
+
+    # Callback for Config Save/Reload -> Preset Tab (updates label)
+    # This needs the label control from the Preset Tab, which is created below.
+    update_preset_tab_label_partial = None # Placeholder, created after preset tab elements
 
     # Config tab buttons - Use functools.partial to bind arguments to async handlers
-    # We will create these partials *after* creating the preset tab content below
     # Flet will automatically run the async handler in its event loop.
     # save_handler_partial is defined earlier now
     # REMOVED: save_config_button.on_click assignment
@@ -790,16 +789,14 @@ def main(page: ft.Page):
     open_config_folder_button.on_click = None  # Placeholder
 
     # --- Create Preset Tab Content ---
-    # This function now returns a dictionary with content and key controls
-    # Pass the config instance to initialize with the active preset
-    # The update callback will be assigned later after the wrapper is defined.
+    # Pass the callback that updates the *Config Tab's dropdown*
     preset_tab_elements = create_preset_tab_content(
         page=page,
-        config_instance=config,  # Pass the config instance
-        update_config_ui_callback=None,  # Assigned later
+        config_instance=config,
+        update_config_tab_callback=update_config_tab_dropdown_partial, # Pass the correct partial
     )
     preset_tab_layout = preset_tab_elements.get("content")
-    # Extract the label control needed for callbacks
+    # Extract the label control from the Preset Tab (needed for the *other* callback)
     active_preset_name_label_ctrl = preset_tab_elements.get("active_preset_name_label")
     if not active_preset_name_label_ctrl:
         logger.critical(
@@ -810,19 +807,24 @@ def main(page: ft.Page):
         )  # Fallback
 
     # --- REMOVED: update_text_input_few_shot_display function ---
-    # --- REMOVED: update_all_preset_displays wrapper function ---
-    # --- REMOVED: update_all_preset_displays_partial partial function ---
 
     # --- Create Partial for Updating ONLY the Preset Tab Label ---
-    # This uses the function from gui_config directly.
-    update_preset_tab_label_partial = functools.partial(
-        gui_config.update_llm_config_ui,  # Function from gui_config
-        page,
-        all_config_controls,
-        active_preset_name_label_ctrl,  # The label control *in the Preset Tab*
-        # The active_preset_name argument is provided when the partial is called
-    )
-    logger.debug("Created partial for updating Preset Tab label.")
+    # This is called by save/reload handlers in gui_config.py
+    # It needs the label control from the Preset Tab.
+    if active_preset_name_label_ctrl:
+         update_preset_tab_label_partial = functools.partial(
+             # Define a simple inline function or a dedicated helper if needed
+             # to update just the label's value.
+             lambda label_ctrl, name: setattr(label_ctrl, 'value', f"当前活动预设: {name}") or page.update(label_ctrl),
+             active_preset_name_label_ctrl, # Bind the label control
+             # The 'name' argument is provided when the partial is called by save/reload
+         )
+         logger.debug("Created partial for updating Preset Tab label.")
+    else:
+         logger.error("Could not create partial for updating Preset Tab label: Label control not found.")
+         # Define a dummy partial to avoid errors later
+         update_preset_tab_label_partial = lambda name: logger.error("Preset Tab label update callback is not configured.")
+
 
     # --- New Function to Update Text Input Info Display (Moved Here) ---
     def update_text_input_info_display(
@@ -940,15 +942,10 @@ def main(page: ft.Page):
     )
     logger.debug("Created partial for updating Text Input info display.")
 
-    # --- Re-create Preset Tab Content, passing the direct partial ---
-    # Re-create the preset tab elements, passing the *new wrapper partial* as the callback
-    preset_tab_elements = create_preset_tab_content(
-        page=page,
-        config_instance=config,  # Pass config instance again
-        update_config_ui_callback=update_preset_tab_label_partial,  # Pass the direct partial
-    )
-    preset_tab_layout = preset_tab_elements.get("content")
-    # Re-fetch the label control from the potentially re-created elements
+    # --- Re-create Preset Tab Content (Not needed anymore, initial creation is sufficient) ---
+    # preset_tab_elements = create_preset_tab_content(...) # Remove this block
+
+    # --- Assign LLM Model Refresh Handler ---
     active_preset_name_label_ctrl_check = preset_tab_elements.get(
         "active_preset_name_label"
     )
@@ -981,38 +978,31 @@ def main(page: ft.Page):
         )
 
     # --- Update Save Handler Partial with Late-Bound Dependencies ---
-    # Now that dashboard update, Preset Tab label update, and preset label control exist, update the partial's args
     save_handler_partial.keywords["dashboard_update_callback"] = (
         update_dashboard_info_partial
     )
-    # Use the direct partial for updating the Preset Tab label
-    save_handler_partial.keywords["update_llm_ui_callback"] = (
-        update_preset_tab_label_partial
+    # Pass the partial that updates the Preset Tab's label
+    save_handler_partial.keywords["update_preset_tab_callback"] = (
+        update_preset_tab_label_partial # Use the newly created partial
     )
-    save_handler_partial.keywords["active_preset_name_label_ctrl"] = (
-        active_preset_name_label_ctrl
-    )
-    # Add the text input info update callback
+    # REMOVED: active_preset_name_label_ctrl keyword
     save_handler_partial.keywords["text_input_info_update_callback"] = (
         update_text_input_info_partial
     )
     logger.debug(
-        "Updated save_handler_partial with late-bound callbacks (Preset Tab label, Text Input Info) and controls."
+        "Updated save_handler_partial with late-bound callbacks (Preset Tab label, Text Input Info)."
     )
 
     # --- Assign Reload Handler ---
-    # REMOVED: save_config_button.on_click assignment
-
     reload_handler_partial = functools.partial(
         reload_config_handler,
         page,
         all_config_controls,
         config,
-        update_dashboard_info_partial,  # Pass the dashboard update callback
-        # Pass the direct Preset Tab label update callback and label control
-        update_llm_ui_callback=update_preset_tab_label_partial,  # Use direct partial
-        active_preset_name_label_ctrl=active_preset_name_label_ctrl,
-        # Add the text input info update callback
+        update_dashboard_info_partial,
+        # Pass the partial that updates the Preset Tab's label
+        update_preset_tab_callback=update_preset_tab_label_partial, # Use the newly created partial
+        # REMOVED: active_preset_name_label_ctrl keyword
         text_input_info_update_callback=update_text_input_info_partial,
     )
     reload_config_button.on_click = reload_handler_partial
@@ -1402,8 +1392,8 @@ def main(page: ft.Page):
 
     page.run_task(periodic_log_update)
 
-    # --- Initial Population of LLM Active Preset Label (Preset Tab) ---
-    logger.debug("Initial population of LLM active preset label (Preset Tab).")
+    # --- Initial Population of LLM Active Preset Displays ---
+    logger.debug("Initial population of LLM active preset displays (Config Dropdown & Preset Label).")
     try:
         # Get active preset name from initial config data
         initial_active_preset = initial_config_data.get("llm", {}).get(
@@ -1411,115 +1401,47 @@ def main(page: ft.Page):
         )
         logger.info(f"Initial active preset from config: '{initial_active_preset}'")
 
-        # Call the partial function directly to update the Preset Tab label
-        # The partial already has page, controls, and the label control bound.
-        # We just need to provide the preset name.
-        # Run it in the background as it involves UI updates.
+        # 1. Update Config Tab Dropdown (using the partial directly)
+        # This partial is bound to gui_config.update_llm_config_ui
+        async def initial_config_dropdown_update_task():
+             try:
+                  # The partial expects the preset name
+                  update_config_tab_dropdown_partial(initial_active_preset)
+                  logger.info(f"Initial Config Tab dropdown updated for preset '{initial_active_preset}'.")
+             except Exception as dropdown_update_err:
+                  logger.error(f"Error during initial config dropdown update task: {dropdown_update_err}", exc_info=True)
+        page.run_task(initial_config_dropdown_update_task)
+
+
+        # 2. Update Preset Tab Label (using the partial directly)
+        # This partial is bound to the lambda updating the label control
         async def initial_preset_label_update_task():
             try:
-                # The partial itself is not async, but the underlying function might update UI
-                # Let's call it directly. If it needs async, wrap it.
-                # update_preset_tab_label_partial is bound to gui_config.update_llm_config_ui
-                # which updates UI controls. It should be called within the Flet event loop context.
-                # Calling it directly here might be okay if Flet handles it, or use page.run_task.
+                # The partial expects the preset name
                 update_preset_tab_label_partial(initial_active_preset)
-                logger.info(
-                    f"Initial Preset Tab label updated for preset '{initial_active_preset}'."
-                )
+                logger.info(f"Initial Preset Tab label updated for preset '{initial_active_preset}'.")
             except Exception as label_update_err:
-                logger.error(
-                    f"Error during initial preset label update task: {label_update_err}",
-                    exc_info=True,
-                )
-
-        # Schedule the update task
+                logger.error(f"Error during initial preset label update task: {label_update_err}", exc_info=True)
         page.run_task(initial_preset_label_update_task)
-        # Also set the initial value for the dropdown in the Preset Tab (this part remains)
+
+
+        # 3. Also set the initial value for the *editing* dropdown in the Preset Tab
         preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
         if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
             # Ensure the active preset exists in the options before setting
-            if any(
-                opt.key == initial_active_preset
-                for opt in preset_select_dd_ctrl.options
-            ):
+            if any(opt.key == initial_active_preset for opt in preset_select_dd_ctrl.options):
                 preset_select_dd_ctrl.value = initial_active_preset
-                logger.debug(
-                    f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'."
-                )
+                logger.debug(f"Set initial value of Preset Tab *editing* dropdown to '{initial_active_preset}'.")
             else:
-                logger.warning(
-                    f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected."
-                )
-                preset_select_dd_ctrl.value = None  # Explicitly set to None
+                logger.warning(f"Initial active preset '{initial_active_preset}' not found in Preset Tab *editing* dropdown options. Leaving dropdown unselected.")
+                preset_select_dd_ctrl.value = None # Explicitly set to None
         else:
-            logger.warning(
-                "Could not find preset dropdown control in Preset Tab elements to set initial value."
-            )
+            logger.warning("Could not find preset *editing* dropdown control in Preset Tab elements to set initial value.")
 
     except Exception as llm_init_err:
-        logger.error(
-            f"Error during initial LLM config/preset UI population: {llm_init_err}",
-            exc_info=True,
-        )
+        logger.error(f"Error during initial LLM config/preset UI population: {llm_init_err}", exc_info=True)
         gui_utils.show_error_banner(page, "初始化 LLM/预设 UI 时出错")
-    try:
-        # Get active preset name from initial config data
-        initial_active_preset = initial_config_data.get("llm", {}).get(
-            "active_preset_name", "Default"
-        )
-        logger.info(f"Initial active preset from config: '{initial_active_preset}'")
 
-        # Call the partial function directly to update the Preset Tab label
-        # The partial already has page, controls, and the label control bound.
-        # We just need to provide the preset name.
-        # Run it in the background as it involves UI updates.
-        async def initial_preset_label_update_task():
-            try:
-                # The partial itself is not async, but the underlying function might update UI
-                # Let's call it directly. If it needs async, wrap it.
-                # update_preset_tab_label_partial is bound to gui_config.update_llm_config_ui
-                # which updates UI controls. It should be called within the Flet event loop context.
-                # Calling it directly here might be okay if Flet handles it, or use page.run_task.
-                update_preset_tab_label_partial(initial_active_preset)
-                logger.info(
-                    f"Initial Preset Tab label updated for preset '{initial_active_preset}'."
-                )
-            except Exception as label_update_err:
-                logger.error(
-                    f"Error during initial preset label update task: {label_update_err}",
-                    exc_info=True,
-                )
-
-        # Schedule the update task
-        page.run_task(initial_preset_label_update_task)
-        # Also set the initial value for the dropdown in the Preset Tab (this part remains)
-        preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
-        if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
-            # Ensure the active preset exists in the options before setting
-            if any(
-                opt.key == initial_active_preset
-                for opt in preset_select_dd_ctrl.options
-            ):
-                preset_select_dd_ctrl.value = initial_active_preset
-                logger.debug(
-                    f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'."
-                )
-            else:
-                logger.warning(
-                    f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected."
-                )
-                preset_select_dd_ctrl.value = None  # Explicitly set to None
-        else:
-            logger.warning(
-                "Could not find preset dropdown control in Preset Tab elements to set initial value."
-            )
-
-    except Exception as llm_init_err:
-        logger.error(
-            f"Error during initial LLM config/preset UI population: {llm_init_err}",
-            exc_info=True,
-        )
-        gui_utils.show_error_banner(page, "初始化 LLM/预设 UI 时出错")
 
     # --- Initial Dashboard Info Population ---
     logger.debug("Initial population of dashboard info display.")
