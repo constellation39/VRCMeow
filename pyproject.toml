@@ -31,9 +31,11 @@ select = [
     "I",  # isort
     "C",  # flake8-comprehensions
     "B",  # flake8-bugbear
+    "ERA", # flake8-eradicate (commented out code)
 ]
 ignore = [
     "E501", # Line too long, handled by formatter
+    # "F841", # Ensure F841 (unused variable) is NOT ignored if you want ruff --fix to remove them
     # Add other rules to ignore if necessary
 ]
 # Allow unused variables in `__init__.py` and specific functions if needed.
