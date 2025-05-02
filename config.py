@@ -37,15 +37,53 @@ _DEFAULT_CONFIG: Dict[str, Any] = {}
 
 def _load_default_config_from_example() -> Dict[str, Any]:
     """Loads the default configuration structure from config.example.yaml."""
-    fallback_defaults = {  # 定义一个最小的后备配置，以防 example 文件加载失败
+    # Fallback defaults matching config.example.yaml structure and values
+    fallback_defaults = {
         "dashscope": {
             "api_key": "",
-            "stt": {"selected_model": "gummy-realtime-v1", "models": {}},
+            "stt": {
+                "translation_target_language": "",
+                "selected_model": "gummy-realtime-v1",
+                "models": {
+                    "gummy-chat-v1": {
+                        "type": "gummy",
+                        "sample_rate": 16000,
+                        "supports_translation": True,
+                    },
+                    "gummy-realtime-v1": {
+                        "type": "gummy",
+                        "sample_rate": 16000,
+                        "supports_translation": True,
+                    },
+                    "paraformer-realtime-v2": {
+                        "type": "paraformer",
+                        "sample_rate": 16000,
+                        "supports_translation": False,
+                    },
+                    "paraformer-realtime-8k-v2": {
+                        "type": "paraformer",
+                        "sample_rate": 8000,
+                        "supports_translation": False,
+                    },
+                    "paraformer-mtl-v1": {
+                        "type": "paraformer",
+                        "sample_rate": 16000,
+                        "supports_translation": False,
+                    },
+                },
+                "intermediate_result_behavior": "ignore",
+            },
         },
-        "audio": {"channels": 1, "dtype": "int16", "debug_echo_mode": False},
+        "audio": {
+            "device": None, # Use None for null in YAML
+            "channels": 1,
+            "dtype": "int16",
+            "debug_echo_mode": False,
+        },
         "llm": {
             "enabled": False,
             "api_key": "",
+            "base_url": None, # Use None for null in YAML
             "model": "gpt-3.5-turbo",
             "system_prompt": """你是一名专业的文本风格转换助理。请将用户提供的文本转换为轻松愉快的、略带俏皮的口语风格，类似于和朋友聊天。
 规则：
@@ -54,19 +92,41 @@ def _load_default_config_from_example() -> Dict[str, Any]:
 3. 可以在句末适当添加一些语气词，如“呀”、“啦”、“哦”。
 4. 避免过于正式或书面化的语言。
 5. 直接输出转换后的文本，不要包含任何解释或标签。""",
+            "temperature": 0.7,
+            "max_tokens": 256,
             "few_shot_examples": [
                 {"user": "今天天气真不错。", "assistant": "今天天气真好呀！"},
                 {"user": "我需要完成这项工作。", "assistant": "我得把这活儿干完啦。"},
             ],
+            "extract_final_answer": False,
+            "final_answer_marker": "Final Answer:",
         },
         "outputs": {
-            "vrc_osc": {"enabled": True, "address": "127.0.0.1", "port": 9000},
-            "console": {"enabled": True},
-            "file": {"enabled": False},
+            "vrc_osc": {
+                "enabled": True,
+                "address": "127.0.0.1",
+                "port": 9000,
+                "message_interval": 1.333,
+                "format": "{text}",
+                "send_immediately": True,
+                "play_notification_sound": True,
+            },
+            "console": {
+                "enabled": True,
+                "prefix": "[VRCMeow Output]",
+            },
+            "file": {
+                "enabled": False,
+                "path": "vrcmeow_output.log",
+                "format": "{timestamp} - {text}",
+            },
         },
         "logging": {
             "level": "INFO",
-            "file": {"enabled": True, "path": "vrcmeow_app.log"},
+            "file": {
+                "enabled": False, # Match example file default
+                "path": "vrcmeow_app.log",
+            },
         },
     }
     if not DEFAULT_EXAMPLE_CONFIG_PATH.exists():
