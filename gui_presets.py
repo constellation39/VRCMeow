@@ -13,9 +13,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Define the type for the callback function to update the main config UI
-# It receives: system_prompt, few_shot_examples, active_preset_name_label_control, active_preset_name_value
-UpdateConfigUICallback = Callable[[str, List[Dict[str, str]], ft.Text, str], None]
+# Define the type for the callback function (partial) to update the main config UI's preset label
+# It receives: active_preset_name_value
+UpdateConfigUICallback = Callable[[str], None]
 
 
 def create_preset_tab_content(
@@ -84,15 +84,12 @@ def create_preset_tab_content(
         preset_data = get_preset(selected_name)
         if preset_data:
             try:
-                # Call the callback provided by gui.py to update the main Config Tab UI controls
-                # Pass the label control itself for the callback to update
+                # Call the callback provided by gui.py to update the main Config Tab UI's active preset label
+                # The partial function already has the label control bound. Only pass the name.
                 update_config_ui_callback(
-                    preset_data.get("system_prompt", ""),
-                    preset_data.get("few_shot_examples", []),
-                    active_preset_name_label, # Pass the label control
-                    selected_name, # Pass the name of the loaded preset
+                    selected_name # Pass the name of the loaded preset
                 )
-                status_text.value = f"预设 '{selected_name}' 已加载到配置表单。"
+                status_text.value = f"活动预设标签已更新为 '{selected_name}'。" # Adjusted message
                 status_text.color = ft.colors.GREEN_700
                 logger.info(f"Preset '{selected_name}' loaded successfully into Config Tab UI.")
                 # No dialog to close, just update status text
