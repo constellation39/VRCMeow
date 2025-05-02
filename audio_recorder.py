@@ -136,16 +136,13 @@ class AudioManager:
         )  # Use threading.Event for cross-thread signaling
         self._audio_thread: Optional[threading.Thread] = None
         self._stt_thread: Optional[threading.Thread] = None
-        # Remove asyncio related attributes
-        # self._stt_task: Optional[asyncio.Task] = None
-        # self._stt_loop: Optional[asyncio.AbstractEventLoop] = None
 
         # Load necessary config values during initialization
-        self.sample_rate = config.get("audio.sample_rate")  # Get initial value
-        self.channels = config.get("audio.channels", 1)  # Use get for robustness
+        self.sample_rate = config.get("audio.sample_rate")
+        self.channels = config.get("audio.channels", 1)
         self.dtype = config.get("audio.dtype", "int16")
         self.debug_echo_mode = config.get("audio.debug_echo_mode", False)
-        self.device = config.get("audio.device", "Default")  # Load selected device
+        self.device = config.get("audio.device", "Default")
 
         # --- Get STT Model and Sample Rate from Config ---
         selected_model_name = config.get("dashscope.stt.selected_model")
@@ -189,11 +186,6 @@ class AudioManager:
         logger.info(f"  - Dtype: {self.dtype}")
         logger.info(f"  - Debug Echo Mode: {self.debug_echo_mode}")
         # --- End Detailed Logging ---
-
-    # REMOVED: _determine_sample_rate method and its body. Sample rate is now determined from config.
-
-    # Remove the old _update_status signature that didn't take kwargs # This comment is still relevant
-    # def _update_status(self, message: str): ... # REMOVED
 
     # Keep the correctly defined overload signature
     def _update_status(
@@ -254,14 +246,6 @@ class AudioManager:
             f"STT processing loop (Dashscope, model: {self.stt_model}) starting in thread {threading.current_thread().ident}..."
         )
         recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
-        # No event loop needed here
-        #     from output_dispatcher import OutputDispatcher # Not typically needed here
-        # except ImportError:
-        #     OutputDispatcher = None
-
-        #     from output_dispatcher import OutputDispatcher # Not typically needed here
-        # except ImportError:
-        #     OutputDispatcher = None
         engine_type = "Unknown"
 
         # --- Reconnect Parameters ---
@@ -396,19 +380,12 @@ class AudioManager:
                             # Check stop event if queue is empty
                             if self._stop_event.is_set():
                                 break
-                            # No need for double check
                             continue  # Continue waiting for data
-
-                        # DEBUG: Log that we got data and are sending it
-                        # logger.debug(f"STT Processor: Got audio data block, size: {len(audio_data)}")
 
                         # Send audio frame (can raise errors on connection issues)
                         recognizer.send_audio_frame(
                             audio_data.tobytes()
                         )  # audio_data is np.ndarray here
-
-                        # DEBUG: Log successful send
-                        # logger.debug("STT Processor: Sent audio frame successfully.")
 
                         self._audio_queue.task_done()  # Mark task as done for the queue
                     except Exception as send_error:
@@ -535,8 +512,6 @@ class AudioManager:
                 logger.info(
                     f"Final Dashscope {engine_type} Recognizer instance stopped."
                 )
-                # Don't update status here yet, wait for the whole stop process
-                # self._update_status("STT Recognizer Stopped.") # Removed intermediate update
             except Exception as e:
                 logger.error(
                     f"Error stopping final recognizer instance: {e}", exc_info=True
@@ -566,7 +541,6 @@ class AudioManager:
 
         logger.info(f"STT processing loop (Dashscope {engine_type}) fully stopped.")
         # Final status update for STT thread stop is handled by the main stop() method
-        # self._update_status("STT Thread Stopped.") # Removed
 
         # --- Audio Stream Handling --- # Adjusted comment
 
@@ -584,14 +558,10 @@ class AudioManager:
         if status:
             logger.warning(f"Audio callback status: {status}")
             # Potentially update status for critical flags?
-            # self._update_status(f"Audio Status: {status}")
 
         # Echo mode (using instance variable) - Restore functionality
-        # DEBUG: 在回调中记录 debug_echo_mode 的状态
-        # logger.debug(f"音频回调: debug_echo_mode = {self.debug_echo_mode}") # 取消注释以进行调试
         if self.debug_echo_mode:
             # Copy input directly to output for echo effect
-            # logger.debug(f"音频回调: 正在回显 {indata.shape} 到 {outdata.shape}") # 可选：记录形状
             outdata[:] = indata
         else:
             # Fill output buffer with silence when echo is off
@@ -638,7 +608,6 @@ class AudioManager:
         except queue.Full:
             logger.warning("Audio queue is full. Dropping audio frame.")
             # Consider adding a status update here if it happens frequently
-            # self._update_status("Warning: Audio queue full, dropping data")
             pass  # Continue processing
 
     def _run_audio_stream(self):
@@ -789,8 +758,6 @@ class AudioManager:
             self._stop_event.set()
             # Status update upon stopping is handled in the stop() method generally
 
-    # Removed _run_stt_processor (old async one) - the synchronous logic is now directly above
-
     def start(self):
         """Starts the audio stream and STT processing in background threads."""
         if self._audio_thread or self._stt_thread:
@@ -835,8 +802,6 @@ class AudioManager:
         # Signal stop event - this will be checked by loops and sd.Stream wait
         self._stop_event.set()
 
-        # No need to signal an event loop anymore
-
         # --- Graceful Shutdown ---
         stt_stopped = False
         if self._stt_thread and self._stt_thread.is_alive():
@@ -871,7 +836,6 @@ class AudioManager:
         # Clean up references
         self._audio_thread = None
         self._stt_thread = None
-        # No asyncio refs to clean
 
         if audio_stopped and stt_stopped:
             logger.info("AudioManager stopped successfully.")
@@ -882,7 +846,4 @@ class AudioManager:
             # Final status: Stopped (with issues), not running, not processing
             if self.status_callback: self._update_status("已停止 (有潜在问题)", is_running=False, is_processing=False)
 
-
-# --- Remove the old standalone start function ---
-# async def start_audio_processing(...): ...
 # The logic is now inside the AudioManager class.
