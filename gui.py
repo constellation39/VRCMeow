@@ -39,6 +39,7 @@ from audio_recorder import AudioManager
 from config import config  # Import singleton and class
 import gui_utils
 import prompt_presets # Import the missing module
+import gui_config # Import the module itself
 from gui_config import (
     create_audio_controls,
     # REMOVED: create_config_example_row,
