@@ -13,6 +13,95 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+# --- Few-Shot Example Row Creation/Deletion Logic (Adapted for Preset Tab) ---
+
+# This function now needs page and the column reference within the preset tab.
+# It defines the remove handler internally, capturing the necessary scope.
+def create_preset_example_row(
+    page: ft.Page,  # Need page for update
+    few_shot_column: ft.Column,  # Need column ref within preset tab
+    user_text: str = "",
+    assistant_text: str = "",
+) -> ft.Row:
+    """Creates a Flet Row for a single few-shot example within the preset tab."""
+    # Create controls for the row
+    user_input = ft.TextField(
+        label="用户输入 (User)",
+        value=user_text,
+        multiline=True,
+        max_lines=3,
+        expand=True,
+        dense=True, # Make denser for preset tab
+    )
+    assistant_output = ft.TextField(
+        label="助手响应 (Assistant)",
+        value=assistant_text,
+        multiline=True,
+        max_lines=3,
+        expand=True,
+        dense=True, # Make denser
+    )
+
+    # Define remove handler within this scope to capture page and column
+    async def remove_this_row(e_remove: ft.ControlEvent):
+        row_to_remove = e_remove.control.data  # Get the Row associated with the button
+        if few_shot_column and row_to_remove in few_shot_column.controls:
+            few_shot_column.controls.remove(row_to_remove)
+            logger.debug("Removed few-shot example row from preset tab.")
+            try:
+                # Update the column directly, page update might not be needed if contained
+                few_shot_column.update()
+                # if page and page.controls: page.update() # Avoid full page update if possible
+            except Exception as e:
+                logger.error(
+                    f"Error updating preset few-shot column after removing row: {e}",
+                    exc_info=True,
+                )
+        else:
+            logger.warning(
+                "Attempted to remove a row not found in the preset column or column is invalid."
+            )
+
+    remove_button = ft.IconButton(
+        icon=ft.icons.DELETE_OUTLINE,
+        tooltip="删除此示例",
+        on_click=remove_this_row,  # Use the handler defined above
+        icon_color=ft.colors.RED_ACCENT_400,
+    )
+
+    new_row = ft.Row(
+        controls=[user_input, assistant_output, remove_button],
+        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        vertical_alignment=ft.CrossAxisAlignment.START,
+    )
+    remove_button.data = new_row  # Associate the row with the button for removal
+    return new_row
+
+
+async def add_example_handler_preset(
+    page: ft.Page,  # Need page for row creation
+    few_shot_column: ft.Column, # Need column ref within preset tab
+    e: Optional[ft.ControlEvent] = None,  # Add optional event argument
+) -> None: # Explicitly type return as None
+    """Adds a new, empty example row to the preset tab's column."""
+    if few_shot_column and isinstance(few_shot_column, ft.Column):
+        # Pass page and column ref to the internal row creation function
+        try:
+            new_row = create_preset_example_row(page, few_shot_column) # Create row with handler
+            few_shot_column.controls.append(new_row)
+            logger.debug("Added new few-shot example row to preset tab.")
+            few_shot_column.update() # Update the column directly
+            # if page and page.controls: page.update() # Avoid full page update
+        except Exception as e:
+             logger.error(f"Error adding or updating preset few-shot column: {e}", exc_info=True)
+             # Show banner? Maybe just log for preset tab internal error.
+             # gui_utils.show_error_banner(page, f"添加示例时出错: {e}")
+    else:
+        logger.error("Could not add few-shot example row to preset tab: Column control not found or invalid.")
+        # gui_utils.show_error_banner(page, "无法添加示例：UI 元素丢失。")
+
+
 # Define the type for the callback function (partial) to update the main config UI's preset label
 # It receives: active_preset_name_value
 UpdateConfigUICallback = Callable[[str], None]
@@ -20,9 +109,8 @@ UpdateConfigUICallback = Callable[[str], None]
 
 def create_preset_tab_content(
     page: ft.Page,
-    all_config_controls: Dict[str, ft.Control], # Need controls to read current values from Config Tab
-    update_config_ui_callback: UpdateConfigUICallback, # Callback to update main Config Tab UI
-    # REMOVED: dialog_ref: ft.AlertDialog,
+    # REMOVED: all_config_controls: Dict[str, ft.Control],
+    update_config_ui_callback: UpdateConfigUICallback, # Callback to update main Config Tab UI's label
 ) -> Dict[str, ft.Control]:
     """Creates the content Column for the Preset Management Tab and returns key controls."""
 
@@ -47,16 +135,46 @@ def create_preset_tab_content(
         size=12,
     )
 
+    # --- Preset Content Editing Controls ---
+    system_prompt_tf = ft.TextField(
+        label="系统提示 (System Prompt)",
+        value="", # Start empty, populated on load
+        multiline=True,
+        min_lines=4,
+        max_lines=8,
+        tooltip="指导 LLM 如何回应 (编辑此处以修改当前选定预设)",
+        expand=True,
+    )
+
+    few_shot_column = ft.Column(
+        controls=[], # Start empty, populated on load
+        spacing=5,
+        scroll=ft.ScrollMode.ADAPTIVE, # Allow scrolling within the column if needed
+        # Set a max height to prevent infinite growth? Or let the tab scroll? Let tab scroll for now.
+        # height=200,
+    )
+
+    add_example_button = ft.TextButton(
+        "添加 Few-Shot 示例",
+        icon=ft.icons.ADD,
+        on_click=None, # Assigned later after column is defined
+        tooltip="向当前预设添加用户/助手交互示例",
+    )
+    # --- End Preset Content Editing Controls ---
+
 
     new_preset_name_tf = ft.TextField(
         label="新预设名称",
-        tooltip="输入要保存的新预设的名称 (将使用主配置表单中的当前值)",
+        tooltip="输入要保存的新预设的名称 (将使用下方编辑区域中的当前值)", # Updated tooltip
         expand=True,
     )
 
     status_text = ft.Text("", size=11, color=ft.colors.SECONDARY, height=30) # For feedback, reserve height
 
     # --- Handlers ---
+    # Assign add example handler now that the column exists
+    add_example_partial = functools.partial(add_example_handler_preset, page, few_shot_column)
+    add_example_button.on_click = add_example_partial
     def update_dropdown():
         """Reloads presets and updates the dropdown options."""
         nonlocal presets_data, preset_names # Allow modification
@@ -69,10 +187,10 @@ def create_preset_tab_content(
             preset_select_dd.value = None
         # Update the controls within this tab
         preset_select_dd.update()
-        active_preset_name_label.update() # Also update label if needed
+        # active_preset_name_label.update() # No need to update label here
 
     async def load_selected_preset(e: ft.ControlEvent):
-        """Loads the selected preset into the main config UI."""
+        """Loads the selected preset's content into this tab's editing controls."""
         selected_name = preset_select_dd.value
         if not selected_name:
             status_text.value = "请先选择一个预设。"
@@ -80,27 +198,46 @@ def create_preset_tab_content(
             status_text.update() # Update status text within the tab
             return
 
-        logger.info(f"Loading preset '{selected_name}' into main config UI...")
+        logger.info(f"Loading preset '{selected_name}' content into Preset Tab UI...")
         preset_data = get_preset(selected_name)
         if preset_data:
             try:
-                # Call the callback provided by gui.py to update the main Config Tab UI's active preset label
-                # The partial function already has the label control bound. Only pass the name.
-                update_config_ui_callback(
-                    selected_name # Pass the name of the loaded preset
-                )
-                status_text.value = f"活动预设标签已更新为 '{selected_name}'。" # Adjusted message
-                status_text.color = ft.colors.GREEN_700
-                logger.info(f"Preset '{selected_name}' loaded successfully into Config Tab UI.")
-                # No dialog to close, just update status text
-                status_text.update()
-                # Update the active preset label in this tab as well
+                # 1. Update the editing controls in this tab
+                system_prompt_tf.value = preset_data.get("system_prompt", "")
+                few_shot_column.controls.clear() # Clear existing examples
+                loaded_examples = preset_data.get("few_shot_examples", [])
+                if isinstance(loaded_examples, list):
+                    for example in loaded_examples:
+                         if isinstance(example, dict) and "user" in example and "assistant" in example:
+                             new_row = create_preset_example_row(
+                                 page, few_shot_column, example.get("user", ""), example.get("assistant", "")
+                             )
+                             few_shot_column.controls.append(new_row)
+                         else:
+                             logger.warning(f"Skipping invalid few-shot example structure in preset '{selected_name}'.")
+                else:
+                     logger.warning(f"Few-shot examples in preset '{selected_name}' is not a list.")
+
+                # Update the controls visually
+                system_prompt_tf.update()
+                few_shot_column.update()
+
+                # 2. Update the active preset label in this tab
                 active_preset_name_label.value = f"当前活动预设: {selected_name}"
                 active_preset_name_label.update()
-                # Main page update is handled by the callback if needed
+
+                # 3. Call the callback to update the label in the *other* tabs (via gui.py -> gui_config.py)
+                # This indicates which preset *will be saved* if the user hits save in the config tab.
+                update_config_ui_callback(selected_name)
+
+                status_text.value = f"预设 '{selected_name}' 的内容已加载到编辑区域。"
+                status_text.color = ft.colors.GREEN_700
+                logger.info(f"Preset '{selected_name}' content loaded into Preset Tab UI.")
+                status_text.update()
                 return # Exit after successful load
+
             except Exception as load_err:
-                error_msg = f"加载预设 '{selected_name}' 到配置表单 UI 时出错: {load_err}"
+                error_msg = f"加载预设 '{selected_name}' 内容到预设编辑区域时出错: {load_err}"
                 logger.error(error_msg, exc_info=True)
                 status_text.value = error_msg
                 status_text.color = ft.colors.ERROR
@@ -112,7 +249,7 @@ def create_preset_tab_content(
         status_text.update() # Update status text within the tab
 
     async def save_current_as_preset(e: ft.ControlEvent):
-        """Saves the current values from the main config UI as a preset."""
+        """Saves the current values from this tab's editing controls as a preset."""
         preset_name_to_save = new_preset_name_tf.value
         if not preset_name_to_save or not preset_name_to_save.strip():
             status_text.value = "请输入要保存的预设名称。"
@@ -122,49 +259,31 @@ def create_preset_tab_content(
 
         preset_name_to_save = preset_name_to_save.strip()
 
-        # --- Get current values from the main config UI controls ---
-        system_prompt_control = all_config_controls.get("llm.system_prompt")
-        few_shot_column_control = all_config_controls.get("llm.few_shot_examples_column")
+        # --- Get current values from the controls within THIS tab ---
+        current_system_prompt = system_prompt_tf.value or ""
 
-        current_system_prompt = ""
-        if isinstance(system_prompt_control, ft.TextField):
-            current_system_prompt = system_prompt_control.value or ""
-        else:
-            logger.error("Could not find system prompt control to save preset.")
-            status_text.value = "错误：找不到配置表单中的系统提示控件。"
+        current_few_shot_examples = []
+        try:
+            for row_control in few_shot_column.controls:
+                if isinstance(row_control, ft.Row) and len(row_control.controls) >= 2:
+                    user_tf = row_control.controls[0]
+                    assistant_tf = row_control.controls[1]
+                    if isinstance(user_tf, ft.TextField) and isinstance(assistant_tf, ft.TextField):
+                        user_text = user_tf.value or ""
+                        assistant_text = assistant_tf.value or ""
+                        if user_text.strip() or assistant_text.strip(): # Only save non-empty examples
+                            current_few_shot_examples.append({
+                                "user": user_text,
+                                "assistant": assistant_text,
+                            })
+        except Exception as ex:
+            logger.error(f"Error reading few-shot examples from Preset Tab UI: {ex}", exc_info=True)
+            status_text.value = "错误：从预设编辑区域读取 Few-Shot 示例时出错。"
             status_text.color = ft.colors.ERROR
             status_text.update()
             return
 
-        current_few_shot_examples = []
-        if isinstance(few_shot_column_control, ft.Column):
-            try:
-                for row_control in few_shot_column_control.controls:
-                    if isinstance(row_control, ft.Row) and len(row_control.controls) >= 2:
-                        user_tf = row_control.controls[0]
-                        assistant_tf = row_control.controls[1]
-                        if isinstance(user_tf, ft.TextField) and isinstance(assistant_tf, ft.TextField):
-                            user_text = user_tf.value or ""
-                            assistant_text = assistant_tf.value or ""
-                            if user_text.strip() or assistant_text.strip(): # Only save non-empty examples
-                                current_few_shot_examples.append({
-                                    "user": user_text,
-                                    "assistant": assistant_text,
-                                })
-            except Exception as ex:
-                logger.error(f"Error reading few-shot examples from UI: {ex}", exc_info=True)
-                status_text.value = "错误：从配置表单读取 Few-Shot 示例时出错。"
-                status_text.color = ft.colors.ERROR
-                status_text.update()
-                return
-        else:
-            logger.error("Could not find few-shot examples column control in Config Tab to save preset.")
-            status_text.value = "错误：找不到配置表单中的 Few-Shot 示例控件。" # Corrected error message
-            status_text.color = ft.colors.ERROR
-            status_text.update() # Update status text in the tab instead of dialog
-            return
-
-        logger.info(f"Attempting to save current Config Tab UI values as preset '{preset_name_to_save}'...") # Corrected log message
+        logger.info(f"Attempting to save current Preset Tab UI values as preset '{preset_name_to_save}'...")
         if save_preset(preset_name_to_save, current_system_prompt, current_few_shot_examples):
             status_text.value = f"预设 '{preset_name_to_save}' 已保存。"
             status_text.color = ft.colors.GREEN_700
@@ -179,8 +298,8 @@ def create_preset_tab_content(
             new_preset_name_tf.update()
             preset_select_dd.update()
             active_preset_name_label.update()
-            # The main config UI doesn't need immediate update here,
-            # but the active preset name *in the config file* will be updated on next save/reload.
+            # The active preset name *in the config file* will be updated on next save/reload
+            # based on the active_preset_name_label.
 
         else:
             status_text.value = f"错误：保存预设 '{preset_name_to_save}' 失败。"
@@ -213,27 +332,42 @@ def create_preset_tab_content(
             logger.info(f"Preset '{selected_name}' deleted successfully.")
             # Check if the deleted preset was the one currently active (shown in this tab's label)
             if active_preset_name_label.value == f"当前活动预设: {selected_name}":
-                 logger.info(f"Deleted preset '{selected_name}' was active. Loading 'Default' preset into Config Tab UI.")
-                 # Load the 'Default' preset into the main Config Tab UI
+                 logger.info(f"Deleted preset '{selected_name}' was active. Loading 'Default' preset content into Preset Tab UI.")
+                 # Load the 'Default' preset content into this tab's UI
                  default_preset_data = get_preset("Default")
                  if default_preset_data:
-                     # Pass the label control to the callback
-                     update_config_ui_callback(
-                         default_preset_data.get("system_prompt", ""),
-                         default_preset_data.get("few_shot_examples", []),
-                         active_preset_name_label, # Pass label control
-                         "Default", # Pass preset name
-                     )
-                     # Also update the label in this tab
-                     active_preset_name_label.value = "当前活动预设: Default"
-                 else:
-                      logger.error("Could not load 'Default' preset after deleting active one.")
-                      # Clear UI or show error? Clear Config Tab UI for now.
-                      update_config_ui_callback("", [], active_preset_name_label, "None")
-                      active_preset_name_label.value = "当前活动预设: None" # Update this tab's label
+                     # Update this tab's editing controls
+                     system_prompt_tf.value = default_preset_data.get("system_prompt", "")
+                     few_shot_column.controls.clear()
+                     default_examples = default_preset_data.get("few_shot_examples", [])
+                     if isinstance(default_examples, list):
+                         for example in default_examples:
+                             if isinstance(example, dict) and "user" in example and "assistant" in example:
+                                 new_row = create_preset_example_row(
+                                     page, few_shot_column, example.get("user", ""), example.get("assistant", "")
+                                 )
+                                 few_shot_column.controls.append(new_row)
+                     system_prompt_tf.update()
+                     few_shot_column.update()
 
-                 # Update label in this tab
-                 active_preset_name_label.update()
+                     # Update the active label in this tab
+                     active_preset_name_label.value = "当前活动预设: Default"
+                     active_preset_name_label.update()
+
+                     # Call the callback to update the label elsewhere
+                     update_config_ui_callback("Default")
+                 else:
+                      logger.error("Could not load 'Default' preset data after deleting active one. Clearing preset UI.")
+                      # Clear editing controls if Default fails to load
+                      system_prompt_tf.value = ""
+                      few_shot_column.controls.clear()
+                      system_prompt_tf.update()
+                      few_shot_column.update()
+                      # Update label to indicate no active preset loaded
+                      active_preset_name_label.value = "当前活动预设: None (Default missing!)"
+                      active_preset_name_label.update()
+                      # Update label elsewhere
+                      update_config_ui_callback("None")
 
         else:
             # Error message handled within delete_preset logging
@@ -246,15 +380,40 @@ def create_preset_tab_content(
     # --- Tab Content Layout ---
     content_column = ft.Column(
         [
-            ft.Text("加载预设到配置表单", weight=ft.FontWeight.BOLD),
-            ft.Row([preset_select_dd, ft.ElevatedButton("加载选中", icon=ft.icons.INPUT, on_click=load_selected_preset, tooltip="将选定预设的系统提示和示例加载到主配置表单中。")]),
+            # --- Preset Selection/Loading ---
+            ft.Text("选择和加载预设", weight=ft.FontWeight.BOLD),
+            ft.Row(
+                [
+                    preset_select_dd,
+                    ft.ElevatedButton("加载选中", icon=ft.icons.INPUT, on_click=load_selected_preset, tooltip="将选定预设的内容加载到下方的编辑区域"),
+                ],
+                alignment=ft.MainAxisAlignment.START,
+            ),
             active_preset_name_label, # Display active preset name here
             ft.Divider(),
-            ft.Text("保存当前配置表单中的提示/示例为预设", weight=ft.FontWeight.BOLD),
-            ft.Row([new_preset_name_tf, ft.ElevatedButton("保存", icon=ft.icons.SAVE, on_click=save_current_as_preset, tooltip="使用上面输入的名称保存主配置表单中当前的系统提示和示例。")]),
+
+            # --- Preset Editing Area ---
+            ft.Text("编辑预设内容", weight=ft.FontWeight.BOLD),
+            system_prompt_tf,
+            ft.Text("Few-Shot 示例:", style=ft.TextThemeStyle.BODY_MEDIUM),
+            few_shot_column, # Column for examples
+            add_example_button, # Button to add examples
             ft.Divider(),
+
+            # --- Saving New/Existing Preset ---
+            ft.Text("保存预设", weight=ft.FontWeight.BOLD),
+            ft.Row(
+                [
+                    new_preset_name_tf,
+                    ft.ElevatedButton("保存", icon=ft.icons.SAVE, on_click=save_current_as_preset, tooltip="使用上方输入的名称保存当前编辑区域的内容 (覆盖同名预设)"),
+                ],
+                alignment=ft.MainAxisAlignment.START,
+            ),
+            ft.Divider(),
+
+            # --- Deleting Preset ---
             ft.Text("删除预设", weight=ft.FontWeight.BOLD),
-            ft.ElevatedButton("删除选中预设", icon=ft.icons.DELETE_FOREVER, on_click=delete_selected_preset, color=ft.colors.RED, tooltip="删除上面下拉框中选定的预设 ('Default' 除外)"),
+            ft.ElevatedButton("删除选中预设", icon=ft.icons.DELETE_FOREVER, on_click=delete_selected_preset, color=ft.colors.RED, tooltip="删除上方下拉框中选定的预设 ('Default' 除外)"),
             ft.Divider(),
             status_text, # Feedback area
         ],

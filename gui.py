@@ -708,7 +708,7 @@ def main(page: ft.Page):
     # This function now returns a dictionary with content and key controls
     preset_tab_elements = create_preset_tab_content(
         page=page,
-        all_config_controls=all_config_controls, # Pass config controls for saving
+        # REMOVED: all_config_controls=all_config_controls,
         update_config_ui_callback=None, # Will be set after partial is created below
     )
     preset_tab_layout = preset_tab_elements.get("content")
@@ -734,7 +734,7 @@ def main(page: ft.Page):
     # Re-create the elements with the callback now defined.
     preset_tab_elements = create_preset_tab_content(
         page=page,
-        all_config_controls=all_config_controls,
+        # REMOVED: all_config_controls=all_config_controls,
         update_config_ui_callback=update_llm_ui_partial, # Pass the created partial
     )
     preset_tab_layout = preset_tab_elements.get("content")
