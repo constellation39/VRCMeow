@@ -110,17 +110,20 @@ def get_preset(preset_name: str) -> Optional[Dict[str, Any]]:
         # Ensure expected keys exist, provide defaults if missing
         if "system_prompt" not in preset_data:
             preset_data["system_prompt"] = ""  # Default empty string
-            logger.warning(
+            # Changed level to DEBUG
+            logger.debug(
                 f"Preset '{preset_name}' missing 'system_prompt', using empty string."
             )
         if "few_shot_examples" not in preset_data:
             preset_data["few_shot_examples"] = []  # Default empty list
-            logger.warning(
+            # Changed level to DEBUG
+            logger.debug(
                 f"Preset '{preset_name}' missing 'few_shot_examples', using empty list."
             )
         # Validate few_shot_examples structure
         if not isinstance(preset_data["few_shot_examples"], list):
-            logger.warning(
+            # Changed level to DEBUG
+            logger.debug(
                 f"Preset '{preset_name}' has invalid 'few_shot_examples' (not a list). Using empty list."
             )
             preset_data["few_shot_examples"] = []
