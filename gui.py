@@ -1267,8 +1267,6 @@ def main(page: ft.Page):
             ],
             expand=True, # Tabs control itself should expand within its container
         )
-    )
-
     # --- Add Tabs to Container and Container to Page ---
     tabs_container.content = tabs_control # Put the Tabs inside the container
     page.add(tabs_container) # Add the container to the page
