@@ -804,11 +804,13 @@ async def save_config_handler(
             "llm.base_url",
             get_control_value(all_config_controls, "llm.base_url", str, None),
         )
+        # --- Get model value from Dropdown ---
         update_nested_dict(
             new_config_data,
             "llm.model",
-            get_control_value(all_config_controls, "llm.model", str, "gpt-3.5-turbo"),
-        )  # Provide default
+            get_control_value(all_config_controls, "llm.model_dropdown", str, "gpt-3.5-turbo"), # Use dropdown key
+        )
+        # --- End get model value ---
         update_nested_dict(
             new_config_data,
             "llm.system_prompt",
@@ -1271,8 +1273,26 @@ def reload_config_controls(
         # Handle None correctly for TextField
         base_url_val = config_instance.get("llm.base_url")
         all_config_controls["llm.base_url"].value = str(base_url_val) if base_url_val is not None else ""
-    if "llm.model" in all_config_controls:
-        all_config_controls["llm.model"].value = config_instance.get("llm.model", "gpt-3.5-turbo")
+    # --- Reload LLM Model Dropdown ---
+    llm_model_dropdown = all_config_controls.get("llm.model_dropdown")
+    if llm_model_dropdown and isinstance(llm_model_dropdown, ft.Dropdown):
+        saved_model_value = config_instance.get("llm.model", "gpt-3.5-turbo")
+        current_options = llm_model_dropdown.options or []
+        # Check if the saved value exists in the current options
+        if any(opt.key == saved_model_value for opt in current_options):
+            llm_model_dropdown.value = saved_model_value
+            logger.debug(f"Reload: Set LLM model dropdown value to '{saved_model_value}' (found in options).")
+        else:
+            # Saved value not in current options. Add it as a single option and select it.
+            logger.warning(
+                f"Reload: Saved LLM model '{saved_model_value}' not found in current dropdown options. "
+                f"Adding it temporarily. Consider refreshing the model list."
+            )
+            # Add the saved model as the only option (or prepend it)
+            llm_model_dropdown.options = [ft.dropdown.Option(key=saved_model_value, text=f"{saved_model_value} (Saved)")] + current_options
+            # Select the saved value
+            llm_model_dropdown.value = saved_model_value
+
     if "llm.temperature" in all_config_controls:
         # Handle Slider update
         temp_control = all_config_controls["llm.temperature"]

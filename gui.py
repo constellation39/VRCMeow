@@ -746,6 +746,20 @@ def main(page: ft.Page):
          active_preset_name_label_ctrl = ft.Text("Error: Label Missing", color=ft.colors.RED) # Fallback
 
 
+    # --- Assign LLM Model Refresh Handler ---
+    llm_refresh_button = all_config_controls.get("llm.model_refresh_button")
+    if llm_refresh_button and isinstance(llm_refresh_button, ft.IconButton):
+        llm_refresh_handler_partial = functools.partial(
+            gui_config.fetch_and_update_llm_models_dropdown, # Use function from gui_config
+            page,
+            all_config_controls,
+        )
+        llm_refresh_button.on_click = llm_refresh_handler_partial
+        logger.debug("Assigned LLM model refresh handler.")
+    else:
+        logger.warning("LLM model refresh button not found or invalid, handler not assigned.")
+
+
     # --- Assign Save/Reload Handlers (now that label control exists) ---
     save_handler_partial = functools.partial(
         save_config_handler,
