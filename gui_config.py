@@ -1,5 +1,5 @@
 import flet as ft
-from typing import Dict, Any, Optional, Callable, TYPE_CHECKING, List
+from typing import Dict, Any, Optional, Callable, TYPE_CHECKING
 import logging
 import asyncio
 from openai import AsyncOpenAI, APIConnectionError, AuthenticationError, OpenAIError # Added OpenAI imports

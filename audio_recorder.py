@@ -1,5 +1,4 @@
 import threading
-import threading
 import queue  # Use standard queue for thread-safe communication
 from typing import Optional, TYPE_CHECKING, Union, Callable, Any, List, Dict
 
@@ -14,6 +13,7 @@ from logger_config import get_logger
 
 # Import Dashscope base recognizer types for type hinting
 from dashscope.audio.asr import TranslationRecognizerRealtime, Recognition
+
 # Import specific error type
 from dashscope.common.error import InvalidParameter
 
@@ -154,30 +154,36 @@ class AudioManager:
 
         if not selected_model_name or not model_info:
             # Fallback or error if selected model is invalid or not found
-            fallback_model = "gummy-realtime-v1" # Or choose another default
+            fallback_model = "gummy-realtime-v1"  # Or choose another default
             logger.error(
                 f"Selected STT model '{selected_model_name}' not found or invalid in config. Falling back to '{fallback_model}'."
             )
             selected_model_name = fallback_model
-            model_info = stt_models_config.get(selected_model_name, {}) # Try getting fallback info
+            model_info = stt_models_config.get(
+                selected_model_name, {}
+            )  # Try getting fallback info
 
-        self.stt_model = selected_model_name # Store the final selected model name
+        self.stt_model = selected_model_name  # Store the final selected model name
         self.sample_rate = model_info.get("sample_rate")
 
         # Validate if sample rate was found for the selected (or fallback) model
         if self.sample_rate is None:
-            default_sr = 16000 # Define a hardcoded default if config is broken
+            default_sr = 16000  # Define a hardcoded default if config is broken
             logger.critical(
                 f"Sample rate not defined for STT model '{self.stt_model}' in config! Using default: {default_sr} Hz. Audio stream might fail!"
             )
             self.sample_rate = default_sr
         else:
-            logger.info(f"Using STT Model: '{self.stt_model}' with Sample Rate: {self.sample_rate} Hz")
+            logger.info(
+                f"Using STT Model: '{self.stt_model}' with Sample Rate: {self.sample_rate} Hz"
+            )
 
         # --- Add Detailed Logging for Effective Settings ---
-        logger.info(f"AudioManager Init - Effective Settings:")
+        logger.info("AudioManager Init - Effective Settings:")
         logger.info(f"  - STT Model: '{self.stt_model}'")
-        logger.info(f"  - Sample Rate: {self.sample_rate} Hz (derived from model config)")
+        logger.info(
+            f"  - Sample Rate: {self.sample_rate} Hz (derived from model config)"
+        )
         logger.info(f"  - Audio Device: '{self.device}'")
         logger.info(f"  - Channels: {self.channels}")
         logger.info(f"  - Dtype: {self.dtype}")
@@ -273,15 +279,25 @@ class AudioManager:
             try:
                 # --- Check config and model compatibility (re-check each loop) ---
                 # Use instance variables set in __init__
-                current_model = self.stt_model # Get model name from instance var
-                stt_models_config = config.get("dashscope.stt.models", {}) # Reload models dict in case config changed
-                model_info = stt_models_config.get(current_model, {}) # Get current model's info
-                model_type = model_info.get("type") # 获取模型类型
+                current_model = self.stt_model  # Get model name from instance var
+                stt_models_config = config.get(
+                    "dashscope.stt.models", {}
+                )  # Reload models dict in case config changed
+                model_info = stt_models_config.get(
+                    current_model, {}
+                )  # Get current model's info
+                model_type = model_info.get("type")  # 获取模型类型
 
-                target_language = config.get("dashscope.stt.translation_target_language")
+                target_language = config.get(
+                    "dashscope.stt.translation_target_language"
+                )
                 # Determine translation support based on config
-                model_supports_translation = model_info.get("supports_translation", False)
-                enable_translation = bool(target_language) and model_supports_translation
+                model_supports_translation = model_info.get(
+                    "supports_translation", False
+                )
+                enable_translation = (
+                    bool(target_language) and model_supports_translation
+                )
 
                 # --- Validate Model Type ---
                 if not model_type or model_type not in ["gummy", "paraformer"]:
@@ -296,11 +312,11 @@ class AudioManager:
 
                 # Check if translation is requested but not supported by the selected model
                 if bool(target_language) and not model_supports_translation:
-                     logger.warning(
+                    logger.warning(
                         f"配置文件中请求了翻译 (目标语言: {target_language}), "
                         f"但所选模型 '{current_model}' 不支持翻译。将禁用翻译。"
                     )
-                     enable_translation = False # Ensure translation is off
+                    enable_translation = False  # Ensure translation is off
 
                 # --- Select and create recognizer based on type from config ---
                 # Indicate processing (connecting) state
@@ -316,9 +332,13 @@ class AudioManager:
                 # Use model_type read from config
                 if model_type == "gummy":
                     if create_gummy_recognizer is None:
-                        raise RuntimeError("Gummy STT module (stt_gummy.py) failed to load.")
-                    engine_type = "Gummy" # Keep track of engine type for logging
-                    logger.info(f"Creating Gummy Recognizer (translation enabled: {enable_translation})...")
+                        raise RuntimeError(
+                            "Gummy STT module (stt_gummy.py) failed to load."
+                        )
+                    engine_type = "Gummy"  # Keep track of engine type for logging
+                    logger.info(
+                        f"Creating Gummy Recognizer (translation enabled: {enable_translation})..."
+                    )
                     recognizer = create_gummy_recognizer(
                         sample_rate=self.sample_rate,
                         llm_client=self.llm_client,
@@ -327,8 +347,10 @@ class AudioManager:
                     )
                 elif model_type == "paraformer":
                     if create_paraformer_recognizer is None:
-                        raise RuntimeError("Paraformer STT module (stt_paraformer.py) failed to load.")
-                    engine_type = "Paraformer" # Keep track of engine type
+                        raise RuntimeError(
+                            "Paraformer STT module (stt_paraformer.py) failed to load."
+                        )
+                    engine_type = "Paraformer"  # Keep track of engine type
                     logger.info("Creating Paraformer Recognizer...")
                     recognizer = create_paraformer_recognizer(
                         sample_rate=self.sample_rate,
@@ -337,12 +359,16 @@ class AudioManager:
                     )
                 else:
                     # This case should be caught by the validation above, but handle defensively
-                    raise RuntimeError(f"未知的模型类型 '{model_type}' 在配置中为模型 '{current_model}' 指定。")
+                    raise RuntimeError(
+                        f"未知的模型类型 '{model_type}' 在配置中为模型 '{current_model}' 指定。"
+                    )
 
                 # Check if recognizer creation succeeded (it should have if no exception)
                 if not recognizer:
-                     # This path might be less likely now, but keep for robustness
-                     raise RuntimeError(f"未能为模型 '{current_model}' (类型: {model_type}) 创建识别器实例。")
+                    # This path might be less likely now, but keep for robustness
+                    raise RuntimeError(
+                        f"未能为模型 '{current_model}' (类型: {model_type}) 创建识别器实例。"
+                    )
 
                 # --- Start Recognizer ---
                 recognizer.start()
@@ -408,10 +434,15 @@ class AudioManager:
                         except InvalidParameter as ip_err:
                             # If the error is specifically that it's already stopped, just warn.
                             if str(ip_err) == "Speech recognition has stopped.":
-                                logger.warning(f"Attempted to stop an already stopped recognizer: {ip_err}")
+                                logger.warning(
+                                    f"Attempted to stop an already stopped recognizer: {ip_err}"
+                                )
                             else:
                                 # Log other InvalidParameter errors as errors
-                                logger.error(f"Error stopping failed recognizer (InvalidParameter): {ip_err}", exc_info=True)
+                                logger.error(
+                                    f"Error stopping failed recognizer (InvalidParameter): {ip_err}",
+                                    exc_info=True,
+                                )
                         except Exception as stop_err:
                             # Catch any other unexpected errors during stop
                             logger.error(
@@ -456,7 +487,7 @@ class AudioManager:
                     # Note: error_msg was defined within the IF block in the previous version,
                     # but here it seems to be referenced before definition if the loop gets here.
                     # Define error message here to ensure it's always available
-                    final_error_msg = f"STT 在 {max_retries} 次重试后连接失败 (模型: '{current_model}')。正在停止 STT 处理。" # Use current_model
+                    final_error_msg = f"STT 在 {max_retries} 次重试后连接失败 (模型: '{current_model}')。正在停止 STT 处理。"  # Use current_model
                     logger.critical(final_error_msg)
                     # Indicate final error state: not running, not processing
                     if self.status_callback:
@@ -679,7 +710,9 @@ class AudioManager:
             logger.info("Audio Stream Thread Configuration:")
             # Use the input_name determined earlier, which reflects the actual device used (including default)
             logger.info(f"  Device: {input_name} (Index: {stream_device_index})")
-            logger.info(f"  Sample Rate: {self.sample_rate} Hz (from model '{self.stt_model}')") # Clarify origin
+            logger.info(
+                f"  Sample Rate: {self.sample_rate} Hz (from model '{self.stt_model}')"
+            )  # Clarify origin
             logger.info(f"  Channels: {self.channels}")
             logger.info(f"  Dtype: {self.dtype}")
             logger.info(f"  Debug Echo: {self.debug_echo_mode}")

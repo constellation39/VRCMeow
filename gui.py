@@ -10,7 +10,6 @@ from typing import Optional, Dict, TYPE_CHECKING  # Added Callable here, Added T
 import flet as ft
 
 # --- Third-Party Imports ---
-import flet as ft
 
 # --- Project Setup & CWD Adjustment ---
 # This block MUST run before local imports to ensure modules are found,
@@ -58,7 +57,6 @@ from gui_config import (
     # REMOVED: add_example_handler,
     reload_config_handler,
     save_config_handler,
-    update_llm_config_ui, # Import the missing function
     open_config_folder_handler, # Import the new handler
 )
 # --- Preset UI Import ---
@@ -130,7 +128,7 @@ def main(page: ft.Page):
     page.window_width = 600
     page.window_height = 450
     page.window_resizable = True
-    page.window_frameless = True # 启用无边框窗口
+    # page.window_frameless = True # 启用无边框窗口
     page.padding = 10
 
     app_state = AppState()

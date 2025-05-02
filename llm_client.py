@@ -1,4 +1,3 @@
-import asyncio
 from typing import Optional
 
 from openai import AsyncOpenAI, OpenAIError  # Use AsyncOpenAI for async operations
