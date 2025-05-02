@@ -4,7 +4,10 @@ import functools
 import os
 import pathlib
 import sys
-from typing import Optional, Dict  # Added Callable here
+from typing import Optional, Dict, TYPE_CHECKING  # Added Callable here, Added TYPE_CHECKING
+
+# --- Third-Party Imports ---
+import flet as ft
 
 # --- Third-Party Imports ---
 import flet as ft
@@ -36,7 +39,9 @@ else:
 
 # --- Local Project Imports (after CWD setup) ---
 from audio_recorder import AudioManager
-from config import config  # Import singleton and class
+from config import config # Import singleton instance
+if TYPE_CHECKING:
+    from config import Config # Import class for type hints only
 import gui_utils
 import prompt_presets # Import the missing module
 import gui_config # Import the module itself
@@ -795,7 +800,97 @@ def main(page: ft.Page):
     )
     logger.debug("Created partial for updating Preset Tab label.")
 
+    # --- New Function to Update Text Input Info Display (Moved Here) ---
+    def update_text_input_info_display(
+        page: ft.Page,
+        elements: Dict[str, ft.Control], # Use the text_input_info_elements dict
+        config_instance: "Config",
+    ):
+        """线程安全地更新文本输入选项卡上的静态配置信息显示"""
+        if not page or not elements or not config_instance:
+            logger.warning("update_text_input_info_display called with missing arguments.")
+            return
+
+        try:
+            config_data = config_instance.data
+            if not config_data:
+                logger.warning("Config instance provided but its data is empty (Text Input Info).")
+                return
+        except Exception as e:
+            logger.error(f"Error accessing config_instance.data (Text Input Info): {e}", exc_info=True)
+            return
+
+        # Extract relevant info (LLM, Preset, VRC, File, Config Path)
+        llm_conf = config_data.get("llm", {})
+        llm_enabled = llm_conf.get("enabled", False)
+        llm_model = llm_conf.get("model", "未知")
+        llm_preset = llm_conf.get("active_preset_name", "Default")
+        llm_info = f"LLM: {'启用' if llm_enabled else '禁用'}"
+        if llm_enabled:
+            llm_info += f" ({llm_model})"
+        preset_info = f"LLM 预设: {llm_preset}"
+
+        vrc_conf = config_data.get("outputs", {}).get("vrc_osc", {})
+        vrc_enabled = vrc_conf.get("enabled", False)
+        vrc_addr = vrc_conf.get("address", "未知")
+        vrc_port = vrc_conf.get("port", "未知")
+        vrc_info = f"VRC OSC: {'启用' if vrc_enabled else '禁用'}"
+        if vrc_enabled:
+            vrc_info += f" ({vrc_addr}:{vrc_port})"
+
+        file_conf = config_data.get("outputs", {}).get("file", {})
+        file_enabled = file_conf.get("enabled", False)
+        file_path = file_conf.get("path", "未知")
+        file_info = f"文件输出: {'启用' if file_enabled else '禁用'}"
+        if file_enabled:
+            file_info += f" ({file_path})"
+
+        # Get control references from the passed elements dict
+        llm_label = elements.get("info_llm_label")
+        preset_label = elements.get("info_preset_label")
+        vrc_label = elements.get("info_vrc_label")
+        file_label = elements.get("info_file_label")
+        config_path_label = elements.get("info_config_path_label")
+
+        def update_info_ui():
+            controls_to_update = []
+            if llm_label and isinstance(llm_label, ft.Text):
+                llm_label.value = llm_info
+                controls_to_update.append(llm_label)
+            if preset_label and isinstance(preset_label, ft.Text):
+                preset_label.value = preset_info
+                controls_to_update.append(preset_label)
+            if vrc_label and isinstance(vrc_label, ft.Text):
+                vrc_label.value = vrc_info
+                controls_to_update.append(vrc_label)
+            if file_label and isinstance(file_label, ft.Text):
+                file_label.value = file_info
+                controls_to_update.append(file_label)
+            if config_path_label and isinstance(config_path_label, ft.Text):
+                loaded_path = getattr(config_instance, "loaded_config_path", "Unknown")
+                config_path_label.value = f"配置文件: {loaded_path}"
+                controls_to_update.append(config_path_label)
+
+            try:
+                if page and page.controls and controls_to_update:
+                    page.update(*controls_to_update)
+                elif page and not controls_to_update:
+                     logger.debug("No text input info controls found/updated.")
+                elif page:
+                    logger.warning("Page has no controls, skipping update in update_text_input_info_display.")
+            except Exception as e:
+                logger.error(f"Error during page.update in update_text_input_info_display: {e}", exc_info=True)
+
+        try:
+            if page and page.controls is not None:
+                page.run_thread(update_info_ui)
+            elif page:
+                logger.warning("Page object seems invalid, skipping run_thread in update_text_input_info_display.")
+        except Exception as e:
+            logger.error(f"Error calling page.run_thread in update_text_input_info_display: {e}", exc_info=True)
+
     # --- Create Partial for Text Input Info Update ---
+    # Define this *after* the function it uses is defined
     update_text_input_info_partial = functools.partial(
         update_text_input_info_display,
         page,
@@ -1194,10 +1289,8 @@ def main(page: ft.Page):
     page.run_task(periodic_log_update)
 
 
-    # --- New Function to Update Text Input Info Display ---
-    def update_text_input_info_display(
-        page: ft.Page,
-        elements: Dict[str, ft.Control], # Use the text_input_info_elements dict
+    # --- Initial Population of LLM Active Preset Label (Preset Tab) ---
+    logger.debug("Initial population of LLM active preset label (Preset Tab).")
         config_instance: "Config",
     ):
         """线程安全地更新文本输入选项卡上的静态配置信息显示"""
@@ -1283,9 +1376,15 @@ def main(page: ft.Page):
         except Exception as e:
             logger.error(f"Error calling page.run_thread in update_text_input_info_display: {e}", exc_info=True)
 
-
-    # --- Initial Population of LLM Active Preset Label (Preset Tab) ---
-    logger.debug("Initial population of LLM active preset label (Preset Tab).")
+    # --- Create Partial for Text Input Info Update ---
+    # Define this *after* the function it uses is defined
+    update_text_input_info_partial = functools.partial(
+        update_text_input_info_display,
+        page,
+        text_input_info_elements, # Pass the specific elements dict
+        config, # Pass the config instance
+    )
+    logger.debug("Created partial for updating Text Input info display.")
     try:
         # Get active preset name from initial config data
         initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
