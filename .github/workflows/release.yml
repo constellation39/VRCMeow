@@ -1,0 +1,39 @@
+name: Build and Release VRCMeow
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Trigger on tags like v1.0.0, v1.2.3, etc.
+
+jobs:
+  build-windows:
+    name: Build for Windows
+    runs-on: windows-latest # Use a Windows runner for Flet packaging
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11' # Specify your desired Python version
+
+    - name: Install uv
+      run: pip install uv
+      shell: cmd # Use cmd shell on Windows
+
+    - name: Install dependencies
+      run: uv pip install -r requirements.txt # Assuming you have requirements.txt
+      shell: cmd
+
+    - name: Package application with Flet
+      run: uv run flet pack main.py --name VRCMeow
+      shell: cmd
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: VRCMeow-windows-${{ github.ref_name }} # Use tag name in artifact name
+        path: dist/VRCMeow # Path to the packaged application directory
+        if-no-files-found: error # Fail if packaging didn't produce output
