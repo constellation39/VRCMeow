@@ -375,48 +375,44 @@ def update_status_display(
 
     def update_ui():
         status_label.value = message  # Update text
-        # Update icon and text color based on state
+
+        # --- Button State Logic ---
+        # Default: Stopped state
+        toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED
+        toggle_button.tooltip = "启动"
+        toggle_button.style = ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700)
+        toggle_button.disabled = False
+
+        # Running state
+        if is_running is True:
+            toggle_button.icon = ft.icons.STOP_ROUNDED
+            toggle_button.tooltip = "停止"
+            toggle_button.style = ft.ButtonStyle(color=ft.colors.RED_ACCENT_700)
+            toggle_button.disabled = False
+
+        # Processing state (overrides running/stopped for button appearance and disabled state)
         if is_processing:
-            # Transition State (Starting/Stopping) - Amber status, button handled below
+            toggle_button.icon = ft.icons.HOURGLASS_EMPTY_ROUNDED
+            toggle_button.tooltip = "处理中..."
+            toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER_700)
+            toggle_button.disabled = True
+
+        # --- Status Icon/Label Logic ---
+        if is_processing:
             status_icon.name = ft.icons.HOURGLASS_EMPTY_ROUNDED
             status_icon.color = ft.colors.AMBER_700
             status_label.color = ft.colors.AMBER_700
         elif is_running is True:
-            # Running State - Green status, Red button
             status_icon.name = ft.icons.CHECK_CIRCLE_ROUNDED
             status_icon.color = ft.colors.GREEN_ACCENT_700
             status_label.color = ft.colors.GREEN_ACCENT_700
-            # Update button to "Stop" state
-            toggle_button.icon = ft.icons.STOP_ROUNDED
-            toggle_button.tooltip = "停止"
-            toggle_button.style = ft.ButtonStyle(color=ft.colors.RED_ACCENT_700)
-            toggle_button.disabled = False  # Enable stop when running
-        else:  # Stopped State (is_running is False or None) - Red status, Green button
+        else: # Stopped
             status_icon.name = ft.icons.CIRCLE_OUTLINED
             status_icon.color = ft.colors.RED_ACCENT_700
             status_label.color = ft.colors.RED_ACCENT_700
-            # Update button to "Start" state
-            toggle_button.icon = ft.icons.PLAY_ARROW_ROUNDED
-            toggle_button.tooltip = "启动"
-            toggle_button.style = ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700)
-            toggle_button.disabled = False  # Enable start when stopped
 
         # Show/hide progress indicator
         progress_indicator.visible = is_processing
-
-        # Disable button during processing states (Starting/Stopping)
-        if is_processing:
-            toggle_button.disabled = True
-        # Re-enable button based on the final state (handled above for True/False)
-        elif is_running is not None:
-            toggle_button.disabled = False
-        # Ensure button color/icon during processing matches the transition state
-        if is_processing:
-            # Consistent "Processing" state for the button
-            toggle_button.icon = ft.icons.HOURGLASS_EMPTY_ROUNDED
-            toggle_button.tooltip = "处理中..."
-            toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER_700)
-            toggle_button.disabled = True  # Always disable during processing
 
         try:
             # Check if page and controls are still valid before updating
