@@ -34,34 +34,64 @@ DEFAULT_EXAMPLE_CONFIG_PATH = CWD / DEFAULT_EXAMPLE_CONFIG_FILENAME
 # 尝试从 config.example.yaml 加载默认值，如果失败则使用硬编码的后备值。
 _DEFAULT_CONFIG: Dict[str, Any] = {}
 
+
 def _load_default_config_from_example() -> Dict[str, Any]:
     """Loads the default configuration structure from config.example.yaml."""
-    fallback_defaults = { # 定义一个最小的后备配置，以防 example 文件加载失败
-        "dashscope": {"api_key": "", "stt": {"selected_model": "gummy-realtime-v1", "models": {}}},
+    fallback_defaults = {  # 定义一个最小的后备配置，以防 example 文件加载失败
+        "dashscope": {
+            "api_key": "",
+            "stt": {"selected_model": "gummy-realtime-v1", "models": {}},
+        },
         "audio": {"channels": 1, "dtype": "int16", "debug_echo_mode": False},
-        "llm": {"enabled": False, "api_key": "", "model": "gpt-3.5-turbo", "system_prompt": "You are a helpful assistant.", "few_shot_examples": []},
-        "outputs": {"vrc_osc": {"enabled": True, "address": "127.0.0.1", "port": 9000}, "console": {"enabled": True}, "file": {"enabled": False}},
-        "logging": {"level": "INFO", "file": {"enabled": True, "path": "vrcmeow_app.log"}},
+        "llm": {
+            "enabled": False,
+            "api_key": "",
+            "model": "gpt-3.5-turbo",
+            "system_prompt": "You are a helpful assistant.",
+            "few_shot_examples": [],
+        },
+        "outputs": {
+            "vrc_osc": {"enabled": True, "address": "127.0.0.1", "port": 9000},
+            "console": {"enabled": True},
+            "file": {"enabled": False},
+        },
+        "logging": {
+            "level": "INFO",
+            "file": {"enabled": True, "path": "vrcmeow_app.log"},
+        },
     }
     if not DEFAULT_EXAMPLE_CONFIG_PATH.exists():
-        logger.warning(f"Example config file '{DEFAULT_EXAMPLE_CONFIG_PATH}' not found. Using minimal hardcoded defaults for internal default structure.")
+        logger.warning(
+            f"Example config file '{DEFAULT_EXAMPLE_CONFIG_PATH}' not found. Using minimal hardcoded defaults for internal default structure."
+        )
         return fallback_defaults
     try:
         with open(DEFAULT_EXAMPLE_CONFIG_PATH, "r", encoding="utf-8") as f:
             example_config = yaml.safe_load(f)
         if isinstance(example_config, dict):
-            logger.info(f"Successfully loaded default configuration structure from '{DEFAULT_EXAMPLE_CONFIG_PATH}'.")
+            logger.info(
+                f"Successfully loaded default configuration structure from '{DEFAULT_EXAMPLE_CONFIG_PATH}'."
+            )
             # Basic validation can be added here if needed
             return example_config
         else:
-            logger.warning(f"Example config file '{DEFAULT_EXAMPLE_CONFIG_PATH}' is not a valid dictionary. Using minimal hardcoded defaults.")
+            logger.warning(
+                f"Example config file '{DEFAULT_EXAMPLE_CONFIG_PATH}' is not a valid dictionary. Using minimal hardcoded defaults."
+            )
             return fallback_defaults
     except yaml.YAMLError as e:
-        logger.error(f"Error parsing YAML from '{DEFAULT_EXAMPLE_CONFIG_PATH}': {e}. Using minimal hardcoded defaults.", exc_info=True)
+        logger.error(
+            f"Error parsing YAML from '{DEFAULT_EXAMPLE_CONFIG_PATH}': {e}. Using minimal hardcoded defaults.",
+            exc_info=True,
+        )
         return fallback_defaults
     except Exception as e:
-        logger.error(f"Error reading or processing '{DEFAULT_EXAMPLE_CONFIG_PATH}': {e}. Using minimal hardcoded defaults.", exc_info=True)
+        logger.error(
+            f"Error reading or processing '{DEFAULT_EXAMPLE_CONFIG_PATH}': {e}. Using minimal hardcoded defaults.",
+            exc_info=True,
+        )
         return fallback_defaults
+
 
 # 在模块加载时执行加载
 _DEFAULT_CONFIG = _load_default_config_from_example()
