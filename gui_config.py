@@ -297,7 +297,7 @@ def update_llm_config_ui(
     # Update Active Preset Name Label (in the Preset Tab) - This remains
     if isinstance(active_preset_name_label_ctrl, ft.Text):
         active_preset_name_label_ctrl.value = f"当前活动预设: {active_preset_name_value}"
-        active_preset_name_label_ctrl.update() # Update the label in the Preset Tab
+        # REMOVED: active_preset_name_label_ctrl.update() - Rely on page.update() below
     else:
         logger.error("Active preset name label control (from Preset Tab) is invalid.")
 
