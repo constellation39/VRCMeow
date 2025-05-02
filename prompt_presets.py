@@ -16,11 +16,13 @@ try:
 except ImportError:
     # Fallback or error handling if config module/APP_DIR isn't available
     # This indicates a potential setup issue.
-    logger = logging.getLogger(__name__) # Get logger instance for fallback message
-    logger.critical("Could not import config or APP_DIR from config module. Presets path cannot be determined.")
+    logger = logging.getLogger(__name__)  # Get logger instance for fallback message
+    logger.critical(
+        "Could not import config or APP_DIR from config module. Presets path cannot be determined."
+    )
     # Define a fallback path or raise an error
     # Using CWD as a last resort, but this deviates from the goal.
-    APP_DIR = pathlib.Path.cwd() # Fallback, but log critically
+    APP_DIR = pathlib.Path.cwd()  # Fallback, but log critically
     logger.warning(f"Falling back to CWD for presets path: {APP_DIR}")
     # Set config to None to indicate it's unavailable
     config = None
@@ -30,12 +32,12 @@ logger = logging.getLogger(__name__)
 
 # Define filenames
 PRESETS_FILENAME = "prompt_presets.yaml"
-EXAMPLE_CONFIG_FILENAME = "config.example.yaml" # Keep for reading defaults
+EXAMPLE_CONFIG_FILENAME = "config.example.yaml"  # Keep for reading defaults
 
 # Paths
-PRESETS_PATH = APP_DIR / PRESETS_FILENAME # Presets file lives in APP_DIR
-CWD = pathlib.Path.cwd() # Still need CWD for example config location
-EXAMPLE_CONFIG_PATH = CWD / EXAMPLE_CONFIG_FILENAME # Example config read from CWD
+PRESETS_PATH = APP_DIR / PRESETS_FILENAME  # Presets file lives in APP_DIR
+CWD = pathlib.Path.cwd()  # Still need CWD for example config location
+EXAMPLE_CONFIG_PATH = CWD / EXAMPLE_CONFIG_FILENAME  # Example config read from CWD
 
 # --- Preset Data Structure ---
 # {
@@ -47,41 +49,57 @@ EXAMPLE_CONFIG_PATH = CWD / EXAMPLE_CONFIG_FILENAME # Example config read from C
 # }
 # ---
 
+
 def load_presets() -> Dict[str, Dict[str, Any]]:
-    """Loads presets from the YAML file.""" # Docstring updated
+    """Loads presets from the YAML file."""  # Docstring updated
     if not PRESETS_PATH.exists():
-        logger.info(f"Presets file '{PRESETS_PATH}' not found. Returning empty presets.")
+        logger.info(
+            f"Presets file '{PRESETS_PATH}' not found. Returning empty presets."
+        )
         return {}
     try:
         with open(PRESETS_PATH, "r", encoding="utf-8") as f:
-            presets_data = yaml.safe_load(f) # Use yaml.safe_load
+            presets_data = yaml.safe_load(f)  # Use yaml.safe_load
             if not isinstance(presets_data, dict):
                 # Handle case where YAML is valid but not a dictionary
-                logger.warning(f"Presets file '{PRESETS_PATH}' does not contain a valid YAML dictionary structure. Returning empty presets.")
+                logger.warning(
+                    f"Presets file '{PRESETS_PATH}' does not contain a valid YAML dictionary structure. Returning empty presets."
+                )
                 return {}
             # Basic validation of structure could be added here if needed
             logger.info(f"Successfully loaded presets from '{PRESETS_PATH}'.")
             return presets_data
-    except yaml.YAMLError: # Catch YAML specific errors
-        logger.error(f"Error parsing YAML from presets file '{PRESETS_PATH}'. Returning empty presets.", exc_info=True)
+    except yaml.YAMLError:  # Catch YAML specific errors
+        logger.error(
+            f"Error parsing YAML from presets file '{PRESETS_PATH}'. Returning empty presets.",
+            exc_info=True,
+        )
         return {}
     except Exception as e:
         logger.error(f"Error loading presets file '{PRESETS_PATH}': {e}", exc_info=True)
         return {}
 
+
 def save_presets(presets_data: Dict[str, Dict[str, Any]]) -> bool:
-    """Saves the presets dictionary to the YAML file.""" # Docstring updated
+    """Saves the presets dictionary to the YAML file."""  # Docstring updated
     try:
         # Ensure the directory exists
         PRESETS_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(PRESETS_PATH, "w", encoding="utf-8") as f:
             # Use yaml.dump with options for readability
-            yaml.dump(presets_data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+            yaml.dump(
+                presets_data,
+                f,
+                allow_unicode=True,
+                default_flow_style=False,
+                sort_keys=False,
+            )
         logger.info(f"Presets successfully saved to '{PRESETS_PATH}'.")
         return True
     except Exception as e:
         logger.error(f"Failed to save presets to '{PRESETS_PATH}': {e}", exc_info=True)
         return False
+
 
 def get_preset(preset_name: str) -> Optional[Dict[str, Any]]:
     """Loads all presets and returns the specified one, or None if not found."""
@@ -91,22 +109,34 @@ def get_preset(preset_name: str) -> Optional[Dict[str, Any]]:
         logger.debug(f"Retrieved preset '{preset_name}'.")
         # Ensure expected keys exist, provide defaults if missing
         if "system_prompt" not in preset_data:
-            preset_data["system_prompt"] = "" # Default empty string
-            logger.warning(f"Preset '{preset_name}' missing 'system_prompt', using empty string.")
+            preset_data["system_prompt"] = ""  # Default empty string
+            logger.warning(
+                f"Preset '{preset_name}' missing 'system_prompt', using empty string."
+            )
         if "few_shot_examples" not in preset_data:
-            preset_data["few_shot_examples"] = [] # Default empty list
-            logger.warning(f"Preset '{preset_name}' missing 'few_shot_examples', using empty list.")
+            preset_data["few_shot_examples"] = []  # Default empty list
+            logger.warning(
+                f"Preset '{preset_name}' missing 'few_shot_examples', using empty list."
+            )
         # Validate few_shot_examples structure
         if not isinstance(preset_data["few_shot_examples"], list):
-             logger.warning(f"Preset '{preset_name}' has invalid 'few_shot_examples' (not a list). Using empty list.")
-             preset_data["few_shot_examples"] = []
+            logger.warning(
+                f"Preset '{preset_name}' has invalid 'few_shot_examples' (not a list). Using empty list."
+            )
+            preset_data["few_shot_examples"] = []
         else:
             valid_examples = []
             for i, example in enumerate(preset_data["few_shot_examples"]):
-                if isinstance(example, dict) and "user" in example and "assistant" in example:
+                if (
+                    isinstance(example, dict)
+                    and "user" in example
+                    and "assistant" in example
+                ):
                     valid_examples.append(example)
                 else:
-                    logger.warning(f"Invalid structure for few_shot_example at index {i} in preset '{preset_name}'. Skipping.")
+                    logger.warning(
+                        f"Invalid structure for few_shot_example at index {i} in preset '{preset_name}'. Skipping."
+                    )
             preset_data["few_shot_examples"] = valid_examples
 
         return preset_data
@@ -114,19 +144,23 @@ def get_preset(preset_name: str) -> Optional[Dict[str, Any]]:
         logger.warning(f"Preset '{preset_name}' not found in loaded presets.")
         return None
 
-def save_preset(preset_name: str, system_prompt: str, few_shot_examples: List[Dict[str, str]]) -> bool:
+
+def save_preset(
+    preset_name: str, system_prompt: str, few_shot_examples: List[Dict[str, str]]
+) -> bool:
     """Saves or updates a single preset."""
     if not preset_name or not preset_name.strip():
         logger.error("Cannot save preset with an empty name.")
         return False
 
     presets = load_presets()
-    presets[preset_name.strip()] = { # Ensure name is stripped
+    presets[preset_name.strip()] = {  # Ensure name is stripped
         "system_prompt": system_prompt,
         "few_shot_examples": few_shot_examples,
     }
     logger.info(f"Saving preset '{preset_name.strip()}'...")
     return save_presets(presets)
+
 
 def delete_preset(preset_name: str) -> bool:
     """Deletes a single preset."""
@@ -143,6 +177,7 @@ def delete_preset(preset_name: str) -> bool:
         logger.warning(f"Preset '{preset_name}' not found, cannot delete.")
         return False
 
+
 def get_default_preset_values() -> Tuple[str, List[Dict[str, str]]]:
     """Gets the default system prompt and few-shot examples from config.example.yaml."""
     # Define hardcoded fallback values in case the example file is missing or invalid
@@ -150,7 +185,9 @@ def get_default_preset_values() -> Tuple[str, List[Dict[str, str]]]:
     fallback_examples = []
 
     if not EXAMPLE_CONFIG_PATH.exists():
-        logger.warning(f"Example config file '{EXAMPLE_CONFIG_PATH}' not found. Using hardcoded default preset values.")
+        logger.warning(
+            f"Example config file '{EXAMPLE_CONFIG_PATH}' not found. Using hardcoded default preset values."
+        )
         return fallback_prompt, fallback_examples
 
     try:
@@ -158,7 +195,9 @@ def get_default_preset_values() -> Tuple[str, List[Dict[str, str]]]:
             example_config_data = yaml.safe_load(f)
 
         if not isinstance(example_config_data, dict):
-            logger.warning(f"Example config file '{EXAMPLE_CONFIG_PATH}' is not a valid dictionary. Using hardcoded defaults.")
+            logger.warning(
+                f"Example config file '{EXAMPLE_CONFIG_PATH}' is not a valid dictionary. Using hardcoded defaults."
+            )
             return fallback_prompt, fallback_examples
 
         # Extract values, providing defaults if keys are missing in the example file
@@ -168,25 +207,39 @@ def get_default_preset_values() -> Tuple[str, List[Dict[str, str]]]:
 
         # Validate few_shot_examples structure from the example file
         if not isinstance(default_examples, list):
-            logger.warning(f"'llm.few_shot_examples' in '{EXAMPLE_CONFIG_PATH}' is not a list. Using fallback examples.")
+            logger.warning(
+                f"'llm.few_shot_examples' in '{EXAMPLE_CONFIG_PATH}' is not a list. Using fallback examples."
+            )
             default_examples = fallback_examples
         else:
             valid_examples = []
             for i, example in enumerate(default_examples):
-                if isinstance(example, dict) and "user" in example and "assistant" in example:
+                if (
+                    isinstance(example, dict)
+                    and "user" in example
+                    and "assistant" in example
+                ):
                     valid_examples.append(example)
                 else:
-                    logger.warning(f"Invalid structure for few_shot_example at index {i} in '{EXAMPLE_CONFIG_PATH}'. Skipping.")
-            default_examples = valid_examples # Use only the valid examples
+                    logger.warning(
+                        f"Invalid structure for few_shot_example at index {i} in '{EXAMPLE_CONFIG_PATH}'. Skipping."
+                    )
+            default_examples = valid_examples  # Use only the valid examples
 
         logger.info(f"Loaded default preset values from '{EXAMPLE_CONFIG_PATH}'.")
         return default_sys_prompt, default_examples
 
     except yaml.YAMLError as e:
-        logger.error(f"Error parsing YAML from '{EXAMPLE_CONFIG_PATH}': {e}. Using hardcoded defaults.", exc_info=True)
+        logger.error(
+            f"Error parsing YAML from '{EXAMPLE_CONFIG_PATH}': {e}. Using hardcoded defaults.",
+            exc_info=True,
+        )
         return fallback_prompt, fallback_examples
     except Exception as e:
-        logger.error(f"Error reading or processing '{EXAMPLE_CONFIG_PATH}': {e}. Using hardcoded defaults.", exc_info=True)
+        logger.error(
+            f"Error reading or processing '{EXAMPLE_CONFIG_PATH}': {e}. Using hardcoded defaults.",
+            exc_info=True,
+        )
         return fallback_prompt, fallback_examples
 
 
@@ -194,7 +247,9 @@ def ensure_default_preset() -> None:
     """Checks if the 'Default' preset exists, creates it from _DEFAULT_CONFIG if not."""
     presets = load_presets()
     if "Default" not in presets:
-        logger.info("Preset 'Default' not found. Creating it from default configuration...")
+        logger.info(
+            "Preset 'Default' not found. Creating it from default configuration..."
+        )
         default_prompt, default_examples = get_default_preset_values()
         presets["Default"] = {
             "system_prompt": default_prompt,

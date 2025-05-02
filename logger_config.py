@@ -1,4 +1,5 @@
 import logging
+import pathlib
 import sys
 from typing import Optional, Callable  # Add Callable
 import os  # Ensure os module is imported
@@ -16,16 +17,25 @@ try:
 except ImportError as e:
     # Log critical error and potentially exit if config/APP_DIR cannot be imported
     # Using print as logger might not be configured yet
-    print(f"CRITICAL: Failed to import config or APP_DIR: {e}. Logging setup cannot proceed correctly.", file=sys.stderr)
+    print(
+        f"CRITICAL: Failed to import config or APP_DIR: {e}. Logging setup cannot proceed correctly.",
+        file=sys.stderr,
+    )
     # Fallback APP_DIR to CWD to allow *some* logging, but warn heavily
     APP_DIR = pathlib.Path.cwd()
-    print(f"WARNING: Falling back to CWD for log file path resolution: {APP_DIR}", file=sys.stderr)
+    print(
+        f"WARNING: Falling back to CWD for log file path resolution: {APP_DIR}",
+        file=sys.stderr,
+    )
     # Attempt to import just the config for level setting, might still fail
     try:
         from config import config as app_config
     except ImportError:
-        app_config = None # Indicate config is unavailable
-        print("WARNING: Config instance unavailable, using default log level INFO.", file=sys.stderr)
+        app_config = None  # Indicate config is unavailable
+        print(
+            "WARNING: Config instance unavailable, using default log level INFO.",
+            file=sys.stderr,
+        )
 
 
 # 配置日志格式
@@ -152,7 +162,7 @@ def setup_logging(
                 # 将文件处理器添加到根记录器
                 root_logger.addHandler(file_handler)
                 root_logger.info(
-                    f"Application file logging enabled. Logging to: {log_file_path_obj}" # Use resolved path in log
+                    f"Application file logging enabled. Logging to: {log_file_path_obj}"  # Use resolved path in log
                 )
         else:
             root_logger.info(

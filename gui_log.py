@@ -75,7 +75,7 @@ def create_log_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
 
     return ft.Column(
         [
-            ft.Divider(height=5, color=ft.colors.TRANSPARENT), # Add spacer at the top
+            ft.Divider(height=5, color=ft.colors.TRANSPARENT),  # Add spacer at the top
             ft.Row(
                 [level_dropdown, clear_button],
                 alignment=ft.MainAxisAlignment.END,

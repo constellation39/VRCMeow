@@ -3,7 +3,7 @@ import datetime
 # Directly import the config instance
 from typing import Optional  # 导入 Callable 和 Awaitable
 
-import pathlib # Import pathlib
+import pathlib  # Import pathlib
 
 # Use aiofiles for async file operations
 import aiofiles
@@ -14,16 +14,18 @@ try:
 except ImportError:
     # Fallback or error handling if config module/APP_DIR isn't available
     # Get logger instance first (assuming logger_config might partially work)
-    logger = get_logger(__name__) # Use get_logger from logger_config
-    logger.critical("Could not import config or APP_DIR. Output file path cannot be reliably determined.")
+    logger = get_logger(__name__)  # Use get_logger from logger_config
+    logger.critical(
+        "Could not import config or APP_DIR. Output file path cannot be reliably determined."
+    )
     # Define a fallback APP_DIR or handle error
-    APP_DIR = pathlib.Path.cwd() # Fallback to CWD
+    APP_DIR = pathlib.Path.cwd()  # Fallback to CWD
     logger.warning(f"Falling back to CWD for output file path resolution: {APP_DIR}")
     # Attempt to import just config if APP_DIR failed
     try:
         from config import config
     except ImportError:
-        config = None # Indicate config unavailable
+        config = None  # Indicate config unavailable
         logger.error("Config instance unavailable for OutputDispatcher.")
 
 
@@ -46,44 +48,64 @@ class OutputDispatcher:
         logger.info("OutputDispatcher initializing...")
         self.vrc_client = vrc_client_instance
         # REMOVED: self.gui_output_callback = gui_output_callback
-        self.outputs_config = config.get("outputs", {}) if config else {} # Handle config being None
+        self.outputs_config = (
+            config.get("outputs", {}) if config else {}
+        )  # Handle config being None
 
         # --- Validate File Output Config ---
         file_config = self.outputs_config.get("file", {})
         self.file_output_enabled = file_config.get("enabled", False)
-        self.file_path_str = file_config.get("path", "vrcmeow_output.log") # Default filename
+        self.file_path_str = file_config.get(
+            "path", "vrcmeow_output.log"
+        )  # Default filename
         self.file_format = file_config.get("format", "{timestamp} - {text}")
-        self.resolved_file_path: Optional[pathlib.Path] = None # Store resolved Path object
+        self.resolved_file_path: Optional[pathlib.Path] = (
+            None  # Store resolved Path object
+        )
 
         if self.file_output_enabled:
             # Resolve the file path: if relative, make it relative to APP_DIR
             file_path_obj = pathlib.Path(self.file_path_str)
             if not file_path_obj.is_absolute():
-                 # Ensure APP_DIR is available before resolving
-                if 'APP_DIR' not in globals():
-                     logger.error("APP_DIR not available, cannot resolve relative output file path. Disabling file output.")
-                     self.file_output_enabled = False
+                # Ensure APP_DIR is available before resolving
+                if "APP_DIR" not in globals():
+                    logger.error(
+                        "APP_DIR not available, cannot resolve relative output file path. Disabling file output."
+                    )
+                    self.file_output_enabled = False
                 else:
                     self.resolved_file_path = APP_DIR / file_path_obj
-                    logger.debug(f"Resolved relative output file path to: {self.resolved_file_path}")
+                    logger.debug(
+                        f"Resolved relative output file path to: {self.resolved_file_path}"
+                    )
             else:
                 self.resolved_file_path = file_path_obj
-                logger.debug(f"Using absolute output file path: {self.resolved_file_path}")
+                logger.debug(
+                    f"Using absolute output file path: {self.resolved_file_path}"
+                )
 
             # Ensure the target directory exists before first write attempt (only if path resolved)
             if self.resolved_file_path:
                 try:
                     self.resolved_file_path.parent.mkdir(parents=True, exist_ok=True)
-                    logger.info(f"File output enabled. Appending results to: {self.resolved_file_path}")
+                    logger.info(
+                        f"File output enabled. Appending results to: {self.resolved_file_path}"
+                    )
                 except OSError as e:
-                    logger.error(f"Failed to create directory for output file {self.resolved_file_path}: {e}. Disabling file output.", exc_info=True)
-                    self.file_output_enabled = False # Disable if directory fails
-                except Exception as e: # Catch other potential errors with the path
-                     logger.error(f"Invalid output file path configured: {self.resolved_file_path}. Disabling file output. Error: {e}", exc_info=True)
-                     self.file_output_enabled = False # Disable on invalid path
+                    logger.error(
+                        f"Failed to create directory for output file {self.resolved_file_path}: {e}. Disabling file output.",
+                        exc_info=True,
+                    )
+                    self.file_output_enabled = False  # Disable if directory fails
+                except Exception as e:  # Catch other potential errors with the path
+                    logger.error(
+                        f"Invalid output file path configured: {self.resolved_file_path}. Disabling file output. Error: {e}",
+                        exc_info=True,
+                    )
+                    self.file_output_enabled = False  # Disable on invalid path
             else:
-                 # If path didn't resolve (e.g., APP_DIR missing), disable file output
-                 self.file_output_enabled = False
+                # If path didn't resolve (e.g., APP_DIR missing), disable file output
+                self.file_output_enabled = False
 
         # --- Console Output Config ---
         self.console_output_enabled = self.outputs_config.get("console", {}).get(
@@ -162,10 +184,14 @@ class OutputDispatcher:
         if self.file_output_enabled and self.resolved_file_path:
             try:
                 # DEBUG: Log before awaiting file write
-                logger.debug(f"OUTPUT_DISP: Awaiting _write_to_file for text: '{text}' to path: {self.resolved_file_path}")
+                logger.debug(
+                    f"OUTPUT_DISP: Awaiting _write_to_file for text: '{text}' to path: {self.resolved_file_path}"
+                )
                 await self._write_to_file(text)
                 # DEBUG: Log after successful file write
-                logger.debug(f"OUTPUT_DISP: Finished awaiting _write_to_file to {self.resolved_file_path}")
+                logger.debug(
+                    f"OUTPUT_DISP: Finished awaiting _write_to_file to {self.resolved_file_path}"
+                )
             except Exception as file_err:
                 # Log error directly here, no need to gather exceptions later
                 logger.error(
@@ -230,17 +256,24 @@ class OutputDispatcher:
             )
             # Ensure resolved_file_path is not None before using it
             if not self.resolved_file_path:
-                 logger.error("OutputDispatcher: Cannot write to file, resolved path is missing.")
-                 return # Or raise an error
+                logger.error(
+                    "OutputDispatcher: Cannot write to file, resolved path is missing."
+                )
+                return  # Or raise an error
 
             # Ensure directory exists again just before writing (optional, but safe)
             try:
                 self.resolved_file_path.parent.mkdir(parents=True, exist_ok=True)
             except OSError as e:
-                 logger.error(f"OutputDispatcher: Failed to ensure directory exists for {self.resolved_file_path}: {e}", exc_info=True)
-                 raise # Re-raise directory creation error
+                logger.error(
+                    f"OutputDispatcher: Failed to ensure directory exists for {self.resolved_file_path}: {e}",
+                    exc_info=True,
+                )
+                raise  # Re-raise directory creation error
 
-            async with aiofiles.open(self.resolved_file_path, mode="a", encoding="utf-8") as f:
+            async with aiofiles.open(
+                self.resolved_file_path, mode="a", encoding="utf-8"
+            ) as f:
                 await f.write(formatted_line)
             logger.debug(f"Appended text to file: {self.resolved_file_path}")
         except Exception as e:

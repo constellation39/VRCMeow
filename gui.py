@@ -4,7 +4,11 @@ import functools
 import os
 import pathlib
 import sys
-from typing import Optional, Dict, TYPE_CHECKING  # Added Callable here, Added TYPE_CHECKING
+from typing import (
+    Optional,
+    Dict,
+    TYPE_CHECKING,
+)  # Added Callable here, Added TYPE_CHECKING
 
 # --- Third-Party Imports ---
 import flet as ft
@@ -38,12 +42,13 @@ else:
 
 # --- Local Project Imports (after CWD setup) ---
 from audio_recorder import AudioManager
-from config import config # Import singleton instance
+from config import config  # Import singleton instance
+
 if TYPE_CHECKING:
-    from config import Config # Import class for type hints only
+    from config import Config  # Import class for type hints only
 import gui_utils
-import prompt_presets # Import the missing module
-import gui_config # Import the module itself
+import prompt_presets  # Import the missing module
+import gui_config  # Import the module itself
 from gui_config import (
     create_audio_controls,
     # REMOVED: create_config_example_row,
@@ -57,10 +62,11 @@ from gui_config import (
     # REMOVED: add_example_handler,
     reload_config_handler,
     save_config_handler,
-    open_config_folder_handler, # Import the new handler
+    open_config_folder_handler,  # Import the new handler
 )
+
 # --- Preset UI Import ---
-from gui_presets import create_preset_tab_content # Import the new function
+from gui_presets import create_preset_tab_content  # Import the new function
 from gui_dashboard import (
     create_dashboard_elements,
     create_dashboard_tab_content,
@@ -284,7 +290,7 @@ def main(page: ft.Page):
     logger.info("Initializing core components (Dispatcher/VRCClient will be async)...")
     try:
         # LLMClient will be created on demand (in _start_recording_internal or submit_text_handler)
-        app_state.llm_client = None # Initialize as None
+        app_state.llm_client = None  # Initialize as None
 
         # VRCClient will be initialized asynchronously below
 
@@ -312,23 +318,37 @@ def main(page: ft.Page):
     save_handler_partial = functools.partial(
         save_config_handler,
         page,
-        all_config_controls, # Captures the dict reference
+        all_config_controls,  # Captures the dict reference
         config,
-        None, # dashboard_update_callback - will be assigned later
-        None, # update_llm_ui_callback - will be assigned later
-        None, # active_preset_name_label_ctrl - will be assigned later
+        None,  # dashboard_update_callback - will be assigned later
+        None,  # update_llm_ui_callback - will be assigned later
+        None,  # active_preset_name_label_ctrl - will be assigned later
     )
 
     # --- Create Config Tab Controls ---
     # These are created here because the layout function in gui_config needs them.
     # Functions imported from gui_config are used. Pass the save handler partial.
-    all_config_controls.update(create_dashscope_controls(initial_config_data, save_handler_partial))
-    all_config_controls.update(create_audio_controls(initial_config_data, save_handler_partial))
-    all_config_controls.update(create_llm_controls(initial_config_data, save_handler_partial))
-    all_config_controls.update(create_vrc_osc_controls(initial_config_data, save_handler_partial))
-    all_config_controls.update(create_console_output_controls(initial_config_data, save_handler_partial))
-    all_config_controls.update(create_file_output_controls(initial_config_data, save_handler_partial))
-    all_config_controls.update(create_logging_controls(initial_config_data, save_handler_partial))
+    all_config_controls.update(
+        create_dashscope_controls(initial_config_data, save_handler_partial)
+    )
+    all_config_controls.update(
+        create_audio_controls(initial_config_data, save_handler_partial)
+    )
+    all_config_controls.update(
+        create_llm_controls(initial_config_data, save_handler_partial)
+    )
+    all_config_controls.update(
+        create_vrc_osc_controls(initial_config_data, save_handler_partial)
+    )
+    all_config_controls.update(
+        create_console_output_controls(initial_config_data, save_handler_partial)
+    )
+    all_config_controls.update(
+        create_file_output_controls(initial_config_data, save_handler_partial)
+    )
+    all_config_controls.update(
+        create_logging_controls(initial_config_data, save_handler_partial)
+    )
 
     # REMOVED: Extract key config controls for few-shot examples
     # few_shot_examples_column = ...
@@ -338,7 +358,6 @@ def main(page: ft.Page):
     # REMOVED: manage_presets_button = ...
     # REMOVED: active_preset_name_label = ...
 
-
     # --- Create Config Reload Button (Save button removed) ---
     # REMOVED: save_config_button definition
     reload_config_button = ft.ElevatedButton(
@@ -347,13 +366,12 @@ def main(page: ft.Page):
         icon=ft.icons.REFRESH,
         tooltip="放弃当前更改并从 config.yaml 重新加载",
     )
-    open_config_folder_button = ft.ElevatedButton( # Change to ElevatedButton
-        text="打开配置文件夹", # Set button text
-        icon=ft.icons.FOLDER_OPEN_OUTLINED, # Keep the icon
+    open_config_folder_button = ft.ElevatedButton(  # Change to ElevatedButton
+        text="打开配置文件夹",  # Set button text
+        icon=ft.icons.FOLDER_OPEN_OUTLINED,  # Keep the icon
         tooltip="打开配置文件夹 (包含 config.yaml, presets.yaml 等)",
-        on_click=None, # Handler assigned later
+        on_click=None,  # Handler assigned later
     )
-
 
     # --- Partial Callbacks (Binding arguments) ---
     # Create partial functions for callbacks that need page and UI elements
@@ -384,11 +402,13 @@ def main(page: ft.Page):
     # REMOVED: Definitions of _create_example_row_internal, add_example_handler
     # REMOVED: restart_application function
 
-
     # --- Timer Logic ---
     def _cancel_text_timer(app_state: AppState):
         """Cancels the existing text input timer task."""
-        if app_state.text_input_timer_task and not app_state.text_input_timer_task.done():
+        if (
+            app_state.text_input_timer_task
+            and not app_state.text_input_timer_task.done()
+        ):
             app_state.text_input_timer_task.cancel()
             logger.debug("Text input timer cancelled.")
         app_state.text_input_timer_task = None
@@ -403,15 +423,17 @@ def main(page: ft.Page):
         submit_handler_func: callable,
     ):
         """Callback executed when the timer expires."""
-        logger.info(f"Text input timer expired after {app_state.text_input_timer_delay}s.")
-        app_state.text_input_timer_task = None # Clear task reference
+        logger.info(
+            f"Text input timer expired after {app_state.text_input_timer_delay}s."
+        )
+        app_state.text_input_timer_task = None  # Clear task reference
         # Check if there's actually text to send before submitting
         if text_input_field.value and text_input_field.value.strip():
             logger.info("Timer expired, submitting text...")
             # Call the original submit handler, simulating a button click (event is None)
             # Ensure the submit handler itself cancels any *new* timer if needed
             # (though it shouldn't start one in this flow)
-            await submit_handler_func(e=None) # Pass None for the event
+            await submit_handler_func(e=None)  # Pass None for the event
         else:
             logger.info("Timer expired, but text input is empty. Doing nothing.")
             # Ensure UI is in correct state if submit wasn't called
@@ -421,24 +443,26 @@ def main(page: ft.Page):
             # Removed window_exists check - page.update() handles closed pages
             page.update()
 
-
     async def _start_text_timer(
         app_state: AppState,
         page: ft.Page,
         text_input_field: ft.TextField,
         submit_text_button: ft.ElevatedButton,
         text_input_progress: ft.ProgressRing,
-        submit_handler_func: callable, # Need submit handler ref
+        submit_handler_func: callable,  # Need submit handler ref
     ):
         """Starts or restarts the text input timer if conditions are met."""
-        _cancel_text_timer(app_state) # Always cancel previous timer first
+        _cancel_text_timer(app_state)  # Always cancel previous timer first
 
         if (
             app_state.is_timer_enabled
             and app_state.text_input_timer_delay > 0
-            and text_input_field.value and text_input_field.value.strip() # Only start if text exists
+            and text_input_field.value
+            and text_input_field.value.strip()  # Only start if text exists
         ):
-            logger.debug(f"Starting text input timer for {app_state.text_input_timer_delay}s...")
+            logger.debug(
+                f"Starting text input timer for {app_state.text_input_timer_delay}s..."
+            )
             timer_callback = functools.partial(
                 _timer_expired,
                 app_state,
@@ -446,26 +470,24 @@ def main(page: ft.Page):
                 text_input_field,
                 submit_text_button,
                 text_input_progress,
-                submit_handler_func, # Pass submit handler ref
+                submit_handler_func,  # Pass submit handler ref
             )
             # Use asyncio.create_task to run the timer coro
             app_state.text_input_timer_task = asyncio.create_task(
                 _run_timer_async(app_state.text_input_timer_delay, timer_callback)
             )
 
-
     async def _run_timer_async(delay: float, callback: callable):
         """Helper async function to wait and then call the callback."""
         try:
             await asyncio.sleep(delay)
             logger.debug(f"Timer finished waiting for {delay}s.")
-            await callback() # Await the callback which might be async
+            await callback()  # Await the callback which might be async
         except asyncio.CancelledError:
             logger.debug("Timer task explicitly cancelled.")
             # Don't call callback if cancelled
         except Exception as e:
             logger.error(f"Error during timer execution: {e}", exc_info=True)
-
 
     # --- Log Tab Handlers ---
     async def clear_log_handler(e: ft.ControlEvent):
@@ -491,7 +513,7 @@ def main(page: ft.Page):
         try:
             # --- Create LLMClient (if enabled) ---
             # Create ON DEMAND here to use latest config
-            app_state.llm_client = None # Reset before attempting creation
+            app_state.llm_client = None  # Reset before attempting creation
             if config.get("llm.enabled", False):
                 logger.info("LLM is enabled, creating LLMClient instance...")
                 try:
@@ -504,11 +526,18 @@ def main(page: ft.Page):
                         # Or set to None if AudioManager requires it:
                         # app_state.llm_client = None
                     else:
-                        logger.info("LLMClient instance created successfully for AudioManager.")
+                        logger.info(
+                            "LLMClient instance created successfully for AudioManager."
+                        )
                 except Exception as llm_create_err:
-                    logger.error(f"Failed to create LLMClient instance: {llm_create_err}", exc_info=True)
-                    gui_utils.show_error_banner(page, f"创建 LLM 客户端时出错: {llm_create_err}")
-                    app_state.llm_client = None # Ensure it's None on error
+                    logger.error(
+                        f"Failed to create LLMClient instance: {llm_create_err}",
+                        exc_info=True,
+                    )
+                    gui_utils.show_error_banner(
+                        page, f"创建 LLM 客户端时出错: {llm_create_err}"
+                    )
+                    app_state.llm_client = None  # Ensure it's None on error
             else:
                 logger.info("LLM is disabled in config. Skipping LLMClient creation.")
                 app_state.llm_client = None
@@ -519,22 +548,24 @@ def main(page: ft.Page):
             try:
                 # Ensure necessary components (dispatcher) are available
                 if not app_state.output_dispatcher:
-                     raise RuntimeError("OutputDispatcher not available for AudioManager.")
+                    raise RuntimeError(
+                        "OutputDispatcher not available for AudioManager."
+                    )
                 # Callbacks should already be defined
                 # Pass the potentially newly created llm_client instance (or None)
                 app_state.audio_manager = AudioManager(
-                    llm_client=app_state.llm_client, # Pass the instance created above
+                    llm_client=app_state.llm_client,  # Pass the instance created above
                     output_dispatcher=app_state.output_dispatcher,
                     status_callback=update_status_callback,
                     audio_level_callback=update_audio_level_callback,
                 )
                 logger.info("New AudioManager instance created successfully.")
             except Exception as am_create_err:
-                 error_msg = f"创建 AudioManager 实例时出错: {am_create_err}"
-                 logger.critical(error_msg, exc_info=True)
-                 update_status_callback(error_msg, is_running=False, is_processing=False)
-                 gui_utils.show_error_banner(page, error_msg)
-                 return # Cannot proceed if AudioManager creation fails
+                error_msg = f"创建 AudioManager 实例时出错: {am_create_err}"
+                logger.critical(error_msg, exc_info=True)
+                update_status_callback(error_msg, is_running=False, is_processing=False)
+                gui_utils.show_error_banner(page, error_msg)
+                return  # Cannot proceed if AudioManager creation fails
 
             # Check for Dashscope API key before starting audio, as STT needs it.
             # Access config through the singleton instance
@@ -645,7 +676,7 @@ def main(page: ft.Page):
         logger.info("Clearing AudioManager instance reference.")
         app_state.audio_manager = None
         logger.info("Clearing LLMClient instance reference (if any).")
-        app_state.llm_client = None # Also clear LLM client created during start
+        app_state.llm_client = None  # Also clear LLM client created during start
 
     async def toggle_recording(e: ft.ControlEvent):
         """Handles clicks on the combined Start/Stop button."""
@@ -753,7 +784,7 @@ def main(page: ft.Page):
     # It uses the update_llm_config_ui function from gui_config
     # It now needs the active_preset_name_label control passed explicitly
     # We will create this partial *after* creating the preset tab content below
-    update_llm_ui_partial = None # Placeholder
+    update_llm_ui_partial = None  # Placeholder
 
     # Config tab buttons - Use functools.partial to bind arguments to async handlers
     # We will create these partials *after* creating the preset tab content below
@@ -761,12 +792,11 @@ def main(page: ft.Page):
     # save_handler_partial is defined earlier now
     # REMOVED: save_config_button.on_click assignment
 
-    reload_handler_partial = None # Placeholder
-    reload_config_button.on_click = None # Placeholder
+    reload_handler_partial = None  # Placeholder
+    reload_config_button.on_click = None  # Placeholder
 
-    open_folder_handler_partial = None # Placeholder
-    open_config_folder_button.on_click = None # Placeholder
-
+    open_folder_handler_partial = None  # Placeholder
+    open_config_folder_button.on_click = None  # Placeholder
 
     # --- Create Preset Tab Content ---
     # This function now returns a dictionary with content and key controls
@@ -774,15 +804,19 @@ def main(page: ft.Page):
     # The update callback will be assigned later after the wrapper is defined.
     preset_tab_elements = create_preset_tab_content(
         page=page,
-        config_instance=config, # Pass the config instance
-        update_config_ui_callback=None, # Assigned later
+        config_instance=config,  # Pass the config instance
+        update_config_ui_callback=None,  # Assigned later
     )
     preset_tab_layout = preset_tab_elements.get("content")
     # Extract the label control needed for callbacks
     active_preset_name_label_ctrl = preset_tab_elements.get("active_preset_name_label")
     if not active_preset_name_label_ctrl:
-         logger.critical("CRITICAL: Active preset name label control not returned from create_preset_tab_content!")
-         active_preset_name_label_ctrl = ft.Text("Error: Label Missing", color=ft.colors.RED) # Fallback
+        logger.critical(
+            "CRITICAL: Active preset name label control not returned from create_preset_tab_content!"
+        )
+        active_preset_name_label_ctrl = ft.Text(
+            "Error: Label Missing", color=ft.colors.RED
+        )  # Fallback
 
     # --- REMOVED: update_text_input_few_shot_display function ---
     # --- REMOVED: update_all_preset_displays wrapper function ---
@@ -791,10 +825,10 @@ def main(page: ft.Page):
     # --- Create Partial for Updating ONLY the Preset Tab Label ---
     # This uses the function from gui_config directly.
     update_preset_tab_label_partial = functools.partial(
-        gui_config.update_llm_config_ui, # Function from gui_config
+        gui_config.update_llm_config_ui,  # Function from gui_config
         page,
         all_config_controls,
-        active_preset_name_label_ctrl, # The label control *in the Preset Tab*
+        active_preset_name_label_ctrl,  # The label control *in the Preset Tab*
         # The active_preset_name argument is provided when the partial is called
     )
     logger.debug("Created partial for updating Preset Tab label.")
@@ -802,21 +836,28 @@ def main(page: ft.Page):
     # --- New Function to Update Text Input Info Display (Moved Here) ---
     def update_text_input_info_display(
         page: ft.Page,
-        elements: Dict[str, ft.Control], # Use the text_input_info_elements dict
+        elements: Dict[str, ft.Control],  # Use the text_input_info_elements dict
         config_instance: "Config",
     ):
         """线程安全地更新文本输入选项卡上的静态配置信息显示"""
         if not page or not elements or not config_instance:
-            logger.warning("update_text_input_info_display called with missing arguments.")
+            logger.warning(
+                "update_text_input_info_display called with missing arguments."
+            )
             return
 
         try:
             config_data = config_instance.data
             if not config_data:
-                logger.warning("Config instance provided but its data is empty (Text Input Info).")
+                logger.warning(
+                    "Config instance provided but its data is empty (Text Input Info)."
+                )
                 return
         except Exception as e:
-            logger.error(f"Error accessing config_instance.data (Text Input Info): {e}", exc_info=True)
+            logger.error(
+                f"Error accessing config_instance.data (Text Input Info): {e}",
+                exc_info=True,
+            )
             return
 
         # Extract relevant info (LLM, Preset, VRC, File, Config Path)
@@ -874,74 +915,99 @@ def main(page: ft.Page):
                 if page and page.controls and controls_to_update:
                     page.update(*controls_to_update)
                 elif page and not controls_to_update:
-                     logger.debug("No text input info controls found/updated.")
+                    logger.debug("No text input info controls found/updated.")
                 elif page:
-                    logger.warning("Page has no controls, skipping update in update_text_input_info_display.")
+                    logger.warning(
+                        "Page has no controls, skipping update in update_text_input_info_display."
+                    )
             except Exception as e:
-                logger.error(f"Error during page.update in update_text_input_info_display: {e}", exc_info=True)
+                logger.error(
+                    f"Error during page.update in update_text_input_info_display: {e}",
+                    exc_info=True,
+                )
 
         try:
             if page and page.controls is not None:
                 page.run_thread(update_info_ui)
             elif page:
-                logger.warning("Page object seems invalid, skipping run_thread in update_text_input_info_display.")
+                logger.warning(
+                    "Page object seems invalid, skipping run_thread in update_text_input_info_display."
+                )
         except Exception as e:
-            logger.error(f"Error calling page.run_thread in update_text_input_info_display: {e}", exc_info=True)
+            logger.error(
+                f"Error calling page.run_thread in update_text_input_info_display: {e}",
+                exc_info=True,
+            )
 
     # --- Create Partial for Text Input Info Update ---
     # Define this *after* the function it uses is defined
     update_text_input_info_partial = functools.partial(
         update_text_input_info_display,
         page,
-        text_input_info_elements, # Pass the specific elements dict
-        config, # Pass the config instance
+        text_input_info_elements,  # Pass the specific elements dict
+        config,  # Pass the config instance
     )
     logger.debug("Created partial for updating Text Input info display.")
-
 
     # --- Re-create Preset Tab Content, passing the direct partial ---
     # Re-create the preset tab elements, passing the *new wrapper partial* as the callback
     preset_tab_elements = create_preset_tab_content(
         page=page,
-        config_instance=config, # Pass config instance again
-        update_config_ui_callback=update_preset_tab_label_partial, # Pass the direct partial
+        config_instance=config,  # Pass config instance again
+        update_config_ui_callback=update_preset_tab_label_partial,  # Pass the direct partial
     )
     preset_tab_layout = preset_tab_elements.get("content")
     # Re-fetch the label control from the potentially re-created elements
-    active_preset_name_label_ctrl_check = preset_tab_elements.get("active_preset_name_label")
+    active_preset_name_label_ctrl_check = preset_tab_elements.get(
+        "active_preset_name_label"
+    )
     if not active_preset_name_label_ctrl_check:
-         logger.critical("CRITICAL: Active preset name label control not returned from create_preset_tab_content (2nd attempt)!")
-         # Use the fallback created earlier if this fails again
-         if not active_preset_name_label_ctrl:
-             active_preset_name_label_ctrl = ft.Text("Error: Label Missing", color=ft.colors.RED)
+        logger.critical(
+            "CRITICAL: Active preset name label control not returned from create_preset_tab_content (2nd attempt)!"
+        )
+        # Use the fallback created earlier if this fails again
+        if not active_preset_name_label_ctrl:
+            active_preset_name_label_ctrl = ft.Text(
+                "Error: Label Missing", color=ft.colors.RED
+            )
     elif not active_preset_name_label_ctrl:
         # If the first attempt failed but second succeeded, use the new one
         active_preset_name_label_ctrl = active_preset_name_label_ctrl_check
-
 
     # --- Assign LLM Model Refresh Handler ---
     llm_refresh_button = all_config_controls.get("llm.model_refresh_button")
     if llm_refresh_button and isinstance(llm_refresh_button, ft.IconButton):
         llm_refresh_handler_partial = functools.partial(
-            gui_config.fetch_and_update_llm_models_dropdown, # Use function from gui_config
+            gui_config.fetch_and_update_llm_models_dropdown,  # Use function from gui_config
             page,
             all_config_controls,
         )
         llm_refresh_button.on_click = llm_refresh_handler_partial
         logger.debug("Assigned LLM model refresh handler.")
     else:
-        logger.warning("LLM model refresh button not found or invalid, handler not assigned.")
-
+        logger.warning(
+            "LLM model refresh button not found or invalid, handler not assigned."
+        )
 
     # --- Update Save Handler Partial with Late-Bound Dependencies ---
     # Now that dashboard update, Preset Tab label update, and preset label control exist, update the partial's args
-    save_handler_partial.keywords["dashboard_update_callback"] = update_dashboard_info_partial
+    save_handler_partial.keywords["dashboard_update_callback"] = (
+        update_dashboard_info_partial
+    )
     # Use the direct partial for updating the Preset Tab label
-    save_handler_partial.keywords["update_llm_ui_callback"] = update_preset_tab_label_partial
-    save_handler_partial.keywords["active_preset_name_label_ctrl"] = active_preset_name_label_ctrl
+    save_handler_partial.keywords["update_llm_ui_callback"] = (
+        update_preset_tab_label_partial
+    )
+    save_handler_partial.keywords["active_preset_name_label_ctrl"] = (
+        active_preset_name_label_ctrl
+    )
     # Add the text input info update callback
-    save_handler_partial.keywords["text_input_info_update_callback"] = update_text_input_info_partial
-    logger.debug("Updated save_handler_partial with late-bound callbacks (Preset Tab label, Text Input Info) and controls.")
+    save_handler_partial.keywords["text_input_info_update_callback"] = (
+        update_text_input_info_partial
+    )
+    logger.debug(
+        "Updated save_handler_partial with late-bound callbacks (Preset Tab label, Text Input Info) and controls."
+    )
 
     # --- Assign Reload Handler ---
     # REMOVED: save_config_button.on_click assignment
@@ -953,7 +1019,7 @@ def main(page: ft.Page):
         config,
         update_dashboard_info_partial,  # Pass the dashboard update callback
         # Pass the direct Preset Tab label update callback and label control
-        update_llm_ui_callback=update_preset_tab_label_partial, # Use direct partial
+        update_llm_ui_callback=update_preset_tab_label_partial,  # Use direct partial
         active_preset_name_label_ctrl=active_preset_name_label_ctrl,
         # Add the text input info update callback
         text_input_info_update_callback=update_text_input_info_partial,
@@ -964,10 +1030,9 @@ def main(page: ft.Page):
     open_folder_handler_partial = functools.partial(
         open_config_folder_handler,
         page,
-        config, # Pass the config instance
+        config,  # Pass the config instance
     )
     open_config_folder_button.on_click = open_folder_handler_partial
-
 
     # --- REMOVED: Preset Dialog Handlers ---
     # async def open_preset_dialog(e: ft.ControlEvent): ...
@@ -979,7 +1044,7 @@ def main(page: ft.Page):
 
     # --- Create Text Input Tab Elements & Handlers ---
     text_input_field = ft.TextField(
-        label="在此输入文本 (或等待定时器发送)", # Updated label
+        label="在此输入文本 (或等待定时器发送)",  # Updated label
         multiline=True,
         min_lines=3,  # Increased min lines for better multiline visibility
         max_lines=5,  # Increased max lines
@@ -1004,59 +1069,73 @@ def main(page: ft.Page):
     async def timer_switch_change(e: ft.ControlEvent):
         """Handles changes to the timer enable switch."""
         app_state.is_timer_enabled = e.control.value
-        logger.info(f"Text input timer {'enabled' if app_state.is_timer_enabled else 'disabled'}.")
+        logger.info(
+            f"Text input timer {'enabled' if app_state.is_timer_enabled else 'disabled'}."
+        )
         if app_state.is_timer_enabled:
             # Start timer immediately if enabled and text exists
             # Need to ensure _start_text_timer is defined or moved earlier too if not already
             await _start_text_timer(
-                app_state, page, text_input_field, submit_text_button, text_input_progress, submit_text_handler
+                app_state,
+                page,
+                text_input_field,
+                submit_text_button,
+                text_input_progress,
+                submit_text_handler,
             )
         else:
             # Cancel timer if disabled
             _cancel_text_timer(app_state)
         # Removed window_exists check - page.update() handles closed pages
-        page.update() # Update UI if needed
+        page.update()  # Update UI if needed
 
     async def timer_delay_change(e: ft.ControlEvent):
         """Handles changes to the timer delay input."""
         try:
             new_delay = float(e.control.value)
-            if new_delay >= 0: # Allow 0 to effectively disable timer via delay
+            if new_delay >= 0:  # Allow 0 to effectively disable timer via delay
                 app_state.text_input_timer_delay = new_delay
-                logger.info(f"Text input timer delay set to: {app_state.text_input_timer_delay}s.")
+                logger.info(
+                    f"Text input timer delay set to: {app_state.text_input_timer_delay}s."
+                )
                 # Reset the timer with the new delay if it's currently running/should run
                 await _start_text_timer(
-                    app_state, page, text_input_field, submit_text_button, text_input_progress, submit_text_handler
+                    app_state,
+                    page,
+                    text_input_field,
+                    submit_text_button,
+                    text_input_progress,
+                    submit_text_handler,
                 )
             else:
                 logger.warning("Timer delay must be non-negative.")
-                e.control.value = str(app_state.text_input_timer_delay) # Revert display
+                e.control.value = str(
+                    app_state.text_input_timer_delay
+                )  # Revert display
                 gui_utils.show_error_banner(page, "定时器延迟必须是非负数。")
         except ValueError:
             logger.warning(f"Invalid timer delay input: {e.control.value}")
-            e.control.value = str(app_state.text_input_timer_delay) # Revert display
+            e.control.value = str(app_state.text_input_timer_delay)  # Revert display
             gui_utils.show_error_banner(page, "无效的定时器延迟值。")
         # Removed window_exists check - page.update() handles closed pages
-        page.update() # Update UI
-
+        page.update()  # Update UI
 
     # --- Timer UI Elements ---
     timer_switch = ft.Switch(
         label="启用定时发送",
         value=app_state.is_timer_enabled,
-        on_change=timer_switch_change, # Assigned here
+        on_change=timer_switch_change,  # Assigned here
         tooltip="启用后，停止输入指定时间后自动发送",
     )
     timer_delay_input = ft.TextField(
         label="延迟(秒)",
         value=str(app_state.text_input_timer_delay),
-        width=80, # Make input smaller
+        width=80,  # Make input smaller
         dense=True,
         keyboard_type=ft.KeyboardType.NUMBER,
-        on_change=timer_delay_change, # Assigned here
+        on_change=timer_delay_change,  # Assigned here
         tooltip="停止输入后等待多少秒发送 (例如 5.0)",
     )
-
 
     async def submit_text_handler(e: ft.ControlEvent):
         """
@@ -1087,18 +1166,27 @@ def main(page: ft.Page):
             if config.get("llm.enabled", False):
                 logger.info("Text Input: LLM enabled, creating temporary LLMClient...")
                 try:
-                    llm_client_instance = LLMClient() # Create new instance with current config
+                    llm_client_instance = (
+                        LLMClient()
+                    )  # Create new instance with current config
                     if not llm_client_instance.enabled:
-                        logger.warning("Text Input: LLMClient created but is not enabled (e.g., missing API key). Skipping LLM.")
-                        llm_client_instance = None # Treat as disabled
+                        logger.warning(
+                            "Text Input: LLMClient created but is not enabled (e.g., missing API key). Skipping LLM."
+                        )
+                        llm_client_instance = None  # Treat as disabled
                     else:
-                         logger.info("Text Input: Temporary LLMClient created.")
+                        logger.info("Text Input: Temporary LLMClient created.")
                 except Exception as llm_create_err:
-                    logger.error(f"Text Input: Failed to create LLMClient: {llm_create_err}", exc_info=True)
-                    gui_utils.show_error_banner(page, f"创建 LLM 客户端时出错: {llm_create_err}")
-                    llm_client_instance = None # Ensure None on error
+                    logger.error(
+                        f"Text Input: Failed to create LLMClient: {llm_create_err}",
+                        exc_info=True,
+                    )
+                    gui_utils.show_error_banner(
+                        page, f"创建 LLM 客户端时出错: {llm_create_err}"
+                    )
+                    llm_client_instance = None  # Ensure None on error
 
-            if llm_client_instance: # Check if instance was created and is enabled
+            if llm_client_instance:  # Check if instance was created and is enabled
                 logger.debug("Text Input: Processing text with temporary LLMClient...")
                 llm_result = await llm_client_instance.process_text(input_text)
                 if llm_result is not None:
@@ -1113,8 +1201,9 @@ def main(page: ft.Page):
                     # Optionally show a warning banner?
                     # gui_utils.show_banner(page, "LLM 处理失败，使用原始文本。", ...)
             else:
-                 logger.debug("Text Input: LLM processing skipped (disabled or client creation failed).")
-
+                logger.debug(
+                    "Text Input: LLM processing skipped (disabled or client creation failed)."
+                )
 
             # 2. Dispatch the result (original or processed)
             if app_state.output_dispatcher:
@@ -1151,16 +1240,24 @@ def main(page: ft.Page):
         """Handles changes in the text input field to reset the timer."""
         # Don't await here, just schedule the timer start/reset
         # Use asyncio.create_task to avoid blocking the UI thread if _start_text_timer takes time
-        asyncio.create_task(_start_text_timer(
-            app_state, page, text_input_field, submit_text_button, text_input_progress, submit_text_handler
-        ))
+        asyncio.create_task(
+            _start_text_timer(
+                app_state,
+                page,
+                text_input_field,
+                submit_text_button,
+                text_input_progress,
+                submit_text_handler,
+            )
+        )
         # No page.update() needed here, typing updates the field itself.
 
-
     # Assign handlers now that they are defined
-    text_input_field.on_submit = submit_text_handler # Assign handler for Enter key
-    text_input_field.on_change = text_input_change   # Assign handler for typing (timer reset)
-    submit_text_button.on_click = submit_text_handler # Clicking the button
+    text_input_field.on_submit = submit_text_handler  # Assign handler for Enter key
+    text_input_field.on_change = (
+        text_input_change  # Assign handler for typing (timer reset)
+    )
+    submit_text_button.on_click = submit_text_handler  # Clicking the button
 
     # --- Create Tab Layouts ---
     dashboard_tab_layout = create_dashboard_tab_content(
@@ -1170,7 +1267,7 @@ def main(page: ft.Page):
     config_tab_layout = create_config_tab_content(
         # REMOVED: save_button argument
         reload_button=reload_config_button,
-        open_folder_button=open_config_folder_button, # Pass the new button
+        open_folder_button=open_config_folder_button,  # Pass the new button
         all_controls=all_config_controls,  # Pass controls dict
     )
 
@@ -1179,7 +1276,7 @@ def main(page: ft.Page):
     # --- Text Input Tab Layout (Revised with Timer) ---
     text_input_tab_content = ft.Column(
         [
-            ft.Divider(height=10, color=ft.colors.TRANSPARENT), # Add spacer at the top
+            ft.Divider(height=10, color=ft.colors.TRANSPARENT),  # Add spacer at the top
             # Removed the descriptive text, label is clearer now
             # ft.Text(
             #     "手动输入文本并发送...",
@@ -1187,18 +1284,18 @@ def main(page: ft.Page):
             #     text_align=ft.TextAlign.CENTER,
             # ),
             text_input_field,  # The multi-line text field
-            ft.Row( # Row for Send button and progress indicator
+            ft.Row(  # Row for Send button and progress indicator
                 [submit_text_button, text_input_progress],
                 alignment=ft.MainAxisAlignment.CENTER,
                 spacing=10,
             ),
-            ft.Divider(height=10, color=ft.colors.TRANSPARENT), # Spacer
-            ft.Row( # Row for Timer controls
+            ft.Divider(height=10, color=ft.colors.TRANSPARENT),  # Spacer
+            ft.Row(  # Row for Timer controls
                 [
                     timer_switch,
                     timer_delay_input,
                 ],
-                alignment=ft.MainAxisAlignment.CENTER, # Center timer controls
+                alignment=ft.MainAxisAlignment.CENTER,  # Center timer controls
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=10,
             ),
@@ -1206,21 +1303,25 @@ def main(page: ft.Page):
             # ft.Divider(height=10),
             # ft.Text("当前预设 Few-Shot 示例:", ...),
             # ft.Container(content=text_input_few_shot_display, ...),
-            ft.Divider(height=10), # Keep a divider before the new info section
+            ft.Divider(height=10),  # Keep a divider before the new info section
             # --- New Info Display Section (Placeholder) ---
-            ft.Column( # Column to hold the new info rows
+            ft.Column(  # Column to hold the new info rows
                 controls=[
-                     _create_info_row(
-                        ft.icons.TEXT_SNIPPET_OUTLINED, text_input_info_elements["info_llm_label"]
+                    _create_info_row(
+                        ft.icons.TEXT_SNIPPET_OUTLINED,
+                        text_input_info_elements["info_llm_label"],
                     ),
                     _create_info_row(
-                        ft.icons.EDIT_NOTE_OUTLINED, text_input_info_elements["info_preset_label"]
+                        ft.icons.EDIT_NOTE_OUTLINED,
+                        text_input_info_elements["info_preset_label"],
                     ),
                     _create_info_row(
-                        ft.icons.SEND_AND_ARCHIVE_OUTLINED, text_input_info_elements["info_vrc_label"]
+                        ft.icons.SEND_AND_ARCHIVE_OUTLINED,
+                        text_input_info_elements["info_vrc_label"],
                     ),
                     _create_info_row(
-                        ft.icons.SAVE_ALT_OUTLINED, text_input_info_elements["info_file_label"]
+                        ft.icons.SAVE_ALT_OUTLINED,
+                        text_input_info_elements["info_file_label"],
                     ),
                     _create_info_row(
                         ft.icons.FOLDER_OPEN_OUTLINED,
@@ -1232,69 +1333,74 @@ def main(page: ft.Page):
                 horizontal_alignment=ft.CrossAxisAlignment.START,
                 # Add key for easy access later? Not strictly needed if elements dict is used.
                 # key="text_input_info_column",
-            )
+            ),
         ],
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Keep outer alignment
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,  # Keep outer alignment
         spacing=10,
-        expand=True, # Keep outer column expanding
+        expand=True,  # Keep outer column expanding
     )
 
     # --- Create Tabs ---
     tabs_control = ft.Tabs(
         [
             ft.Tab(
-                    text=" 语音 ",  # Padded with spaces
-                    icon=ft.icons.MIC, # Changed icon from DASHBOARD
-                    content=dashboard_tab_layout,  # Content remains the same layout
-                ),
-                ft.Tab( # Moved Text Input tab up
-                    text="文本输入",
-                    icon=ft.icons.TEXT_FIELDS,
-                    content=text_input_tab_content,
-                ),
-                ft.Tab( # Add new Preset Tab
-                    text=" 预设 ", # Padded with spaces
-                    icon=ft.icons.EDIT_NOTE, # Use preset icon
-                    content=preset_tab_layout, # Use content created above
-                ),
-                ft.Tab(text=" 配置 ", icon=ft.icons.SETTINGS, content=config_tab_layout), # Config tab, Padded
-                ft.Tab(
-                    text=" 日志 ", # Log tab, Padded
-                    icon=ft.icons.LIST_ALT_ROUNDED,
-                    content=log_tab_layout,
-                ),
-            ],
-            expand=True, # Tabs control itself should expand within its container
-        )
+                text=" 语音 ",  # Padded with spaces
+                icon=ft.icons.MIC,  # Changed icon from DASHBOARD
+                content=dashboard_tab_layout,  # Content remains the same layout
+            ),
+            ft.Tab(  # Moved Text Input tab up
+                text="文本输入",
+                icon=ft.icons.TEXT_FIELDS,
+                content=text_input_tab_content,
+            ),
+            ft.Tab(  # Add new Preset Tab
+                text=" 预设 ",  # Padded with spaces
+                icon=ft.icons.EDIT_NOTE,  # Use preset icon
+                content=preset_tab_layout,  # Use content created above
+            ),
+            ft.Tab(
+                text=" 配置 ", icon=ft.icons.SETTINGS, content=config_tab_layout
+            ),  # Config tab, Padded
+            ft.Tab(
+                text=" 日志 ",  # Log tab, Padded
+                icon=ft.icons.LIST_ALT_ROUNDED,
+                content=log_tab_layout,
+            ),
+        ],
+        expand=True,  # Tabs control itself should expand within its container
+    )
 
     # --- Container for Tabs with Dynamic Padding (Moved Here) ---
     tabs_container = ft.Container(
-        expand=True, # Make container fill the space
-        content=tabs_control, # Assign content immediately
-        padding=ft.padding.symmetric(horizontal=50), # Initial padding, will be updated
-        alignment=ft.alignment.top_center, # Center content if it doesn't expand fully
+        expand=True,  # Make container fill the space
+        content=tabs_control,  # Assign content immediately
+        padding=ft.padding.symmetric(horizontal=50),  # Initial padding, will be updated
+        alignment=ft.alignment.top_center,  # Center content if it doesn't expand fully
     )
 
     # --- Page Resize Handler (Moved Here) ---
-    async def on_page_resize(e=None): # Allow calling without event
+    async def on_page_resize(e=None):  # Allow calling without event
         if page.width and tabs_container:
             # Reduce padding percentage from 0.1 (10%) to 0.05 (5%) and min padding from 20 to 10
             horizontal_padding = max(10, page.width * 0.05)
             tabs_container.padding = ft.padding.symmetric(horizontal=horizontal_padding)
-            logger.debug(f"Page resized to {page.width}px width. Setting tabs container padding to {horizontal_padding}px.")
+            logger.debug(
+                f"Page resized to {page.width}px width. Setting tabs container padding to {horizontal_padding}px."
+            )
             try:
-                if page.controls: # Check if page is still valid
+                if page.controls:  # Check if page is still valid
                     tabs_container.update()
             except Exception as resize_update_err:
-                 logger.warning(f"Error updating tabs container on resize: {resize_update_err}")
+                logger.warning(
+                    f"Error updating tabs container on resize: {resize_update_err}"
+                )
         elif not page.width:
-             logger.debug("Page width not available during resize event.")
+            logger.debug("Page width not available during resize event.")
 
-    page.on_resize = on_page_resize # Assign the handler
+    page.on_resize = on_page_resize  # Assign the handler
 
     # --- Add Container (with Tabs inside) to Page ---
-    page.add(tabs_container) # Add the container to the page
-
+    page.add(tabs_container)  # Add the container to the page
 
     # --- Periodic Log Queue Check ---
     # Schedule a task to periodically check the log queue and update the UI
@@ -1314,12 +1420,13 @@ def main(page: ft.Page):
 
     page.run_task(periodic_log_update)
 
-
     # --- Initial Population of LLM Active Preset Label (Preset Tab) ---
     logger.debug("Initial population of LLM active preset label (Preset Tab).")
     try:
         # Get active preset name from initial config data
-        initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
+        initial_active_preset = initial_config_data.get("llm", {}).get(
+            "active_preset_name", "Default"
+        )
         logger.info(f"Initial active preset from config: '{initial_active_preset}'")
 
         # Call the partial function directly to update the Preset Tab label
@@ -1334,31 +1441,50 @@ def main(page: ft.Page):
                 # which updates UI controls. It should be called within the Flet event loop context.
                 # Calling it directly here might be okay if Flet handles it, or use page.run_task.
                 update_preset_tab_label_partial(initial_active_preset)
-                logger.info(f"Initial Preset Tab label updated for preset '{initial_active_preset}'.")
+                logger.info(
+                    f"Initial Preset Tab label updated for preset '{initial_active_preset}'."
+                )
             except Exception as label_update_err:
-                 logger.error(f"Error during initial preset label update task: {label_update_err}", exc_info=True)
+                logger.error(
+                    f"Error during initial preset label update task: {label_update_err}",
+                    exc_info=True,
+                )
 
         # Schedule the update task
         page.run_task(initial_preset_label_update_task)
         # Also set the initial value for the dropdown in the Preset Tab (this part remains)
         preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
         if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
-             # Ensure the active preset exists in the options before setting
-             if any(opt.key == initial_active_preset for opt in preset_select_dd_ctrl.options):
-                 preset_select_dd_ctrl.value = initial_active_preset
-                 logger.debug(f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'.")
-             else:
-                  logger.warning(f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected.")
-                  preset_select_dd_ctrl.value = None # Explicitly set to None
+            # Ensure the active preset exists in the options before setting
+            if any(
+                opt.key == initial_active_preset
+                for opt in preset_select_dd_ctrl.options
+            ):
+                preset_select_dd_ctrl.value = initial_active_preset
+                logger.debug(
+                    f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'."
+                )
+            else:
+                logger.warning(
+                    f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected."
+                )
+                preset_select_dd_ctrl.value = None  # Explicitly set to None
         else:
-             logger.warning("Could not find preset dropdown control in Preset Tab elements to set initial value.")
+            logger.warning(
+                "Could not find preset dropdown control in Preset Tab elements to set initial value."
+            )
 
     except Exception as llm_init_err:
-        logger.error(f"Error during initial LLM config/preset UI population: {llm_init_err}", exc_info=True)
+        logger.error(
+            f"Error during initial LLM config/preset UI population: {llm_init_err}",
+            exc_info=True,
+        )
         gui_utils.show_error_banner(page, "初始化 LLM/预设 UI 时出错")
     try:
         # Get active preset name from initial config data
-        initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
+        initial_active_preset = initial_config_data.get("llm", {}).get(
+            "active_preset_name", "Default"
+        )
         logger.info(f"Initial active preset from config: '{initial_active_preset}'")
 
         # Call the partial function directly to update the Preset Tab label
@@ -1373,29 +1499,45 @@ def main(page: ft.Page):
                 # which updates UI controls. It should be called within the Flet event loop context.
                 # Calling it directly here might be okay if Flet handles it, or use page.run_task.
                 update_preset_tab_label_partial(initial_active_preset)
-                logger.info(f"Initial Preset Tab label updated for preset '{initial_active_preset}'.")
+                logger.info(
+                    f"Initial Preset Tab label updated for preset '{initial_active_preset}'."
+                )
             except Exception as label_update_err:
-                 logger.error(f"Error during initial preset label update task: {label_update_err}", exc_info=True)
+                logger.error(
+                    f"Error during initial preset label update task: {label_update_err}",
+                    exc_info=True,
+                )
 
         # Schedule the update task
         page.run_task(initial_preset_label_update_task)
         # Also set the initial value for the dropdown in the Preset Tab (this part remains)
         preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
         if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
-             # Ensure the active preset exists in the options before setting
-             if any(opt.key == initial_active_preset for opt in preset_select_dd_ctrl.options):
-                 preset_select_dd_ctrl.value = initial_active_preset
-                 logger.debug(f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'.")
-             else:
-                  logger.warning(f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected.")
-                  preset_select_dd_ctrl.value = None # Explicitly set to None
+            # Ensure the active preset exists in the options before setting
+            if any(
+                opt.key == initial_active_preset
+                for opt in preset_select_dd_ctrl.options
+            ):
+                preset_select_dd_ctrl.value = initial_active_preset
+                logger.debug(
+                    f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'."
+                )
+            else:
+                logger.warning(
+                    f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected."
+                )
+                preset_select_dd_ctrl.value = None  # Explicitly set to None
         else:
-             logger.warning("Could not find preset dropdown control in Preset Tab elements to set initial value.")
+            logger.warning(
+                "Could not find preset dropdown control in Preset Tab elements to set initial value."
+            )
 
     except Exception as llm_init_err:
-        logger.error(f"Error during initial LLM config/preset UI population: {llm_init_err}", exc_info=True)
+        logger.error(
+            f"Error during initial LLM config/preset UI population: {llm_init_err}",
+            exc_info=True,
+        )
         gui_utils.show_error_banner(page, "初始化 LLM/预设 UI 时出错")
-
 
     # --- Initial Dashboard Info Population ---
     logger.debug("Initial population of dashboard info display.")
@@ -1431,8 +1573,9 @@ def main(page: ft.Page):
         update_text_input_info_partial()
         logger.debug("Scheduled initial text input info update.")
     except Exception as e:
-        logger.error(f"Error scheduling initial text input info update: {e}", exc_info=True)
-
+        logger.error(
+            f"Error scheduling initial text input info update: {e}", exc_info=True
+        )
 
     # --- Async Component Initialization ---
     async def initialize_async_components():
@@ -1498,26 +1641,28 @@ def main(page: ft.Page):
             # Cannot proceed without dispatcher for audio/text input
             return  # Stop further async initialization
 
-        # --- Initialize AudioManager (now that Dispatcher is ready) ---
-        # AudioManager is now created synchronously in _start_recording_internal
-        # No need to initialize it here anymore.
-        # try:
-        #     logger.info("Initializing AudioManager asynchronously...")
-        #     app_state.audio_manager = AudioManager(
-        #         llm_client=app_state.llm_client, # LLM client is also created in start
-        #         output_dispatcher=app_state.output_dispatcher,
-        #         status_callback=update_status_callback,
-        #         audio_level_callback=update_audio_level_callback,
-        #     )
-        #     logger.info("AudioManager initialized.")
-        # except Exception as am_err:
-        #     logger.critical(f"CRITICAL ERROR initializing AudioManager: {am_err}", exc_info=True)
-        #     gui_utils.show_error_banner(page, f"AudioManager 初始化失败: {am_err}")
+            # --- Initialize AudioManager (now that Dispatcher is ready) ---
+            # AudioManager is now created synchronously in _start_recording_internal
+            # No need to initialize it here anymore.
+            # try:
+            #     logger.info("Initializing AudioManager asynchronously...")
+            #     app_state.audio_manager = AudioManager(
+            #         llm_client=app_state.llm_client, # LLM client is also created in start
+            #         output_dispatcher=app_state.output_dispatcher,
+            #         status_callback=update_status_callback,
+            #         audio_level_callback=update_audio_level_callback,
+            #     )
+            #     logger.info("AudioManager initialized.")
+            # except Exception as am_err:
+            #     logger.critical(f"CRITICAL ERROR initializing AudioManager: {am_err}", exc_info=True)
+            #     gui_utils.show_error_banner(page, f"AudioManager 初始化失败: {am_err}")
             # Audio input will not work, but text input might still function
             # ) # Comment out or remove the parenthesis
             logger.info("AudioManager initialized.")
         except Exception as am_err:
-            logger.critical(f"CRITICAL ERROR initializing AudioManager: {am_err}", exc_info=True)
+            logger.critical(
+                f"CRITICAL ERROR initializing AudioManager: {am_err}", exc_info=True
+            )
             gui_utils.show_error_banner(page, f"AudioManager 初始化失败: {am_err}")
             # Audio input will not work, but text input might still function
         # --- End AudioManager Initialization Removal ---

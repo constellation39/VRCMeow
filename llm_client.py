@@ -22,10 +22,14 @@ class LLMClient:
             "llm.system_prompt", "You are a helpful assistant."
         )  # Fallback default
         self.temperature = config.get("llm.temperature", 0.7)
-        self.max_tokens = config.get("llm.max_tokens", 256) # Default updated to 256 to match config.py
+        self.max_tokens = config.get(
+            "llm.max_tokens", 256
+        )  # Default updated to 256 to match config.py
         self.few_shot_examples = config.get("llm.few_shot_examples", [])
         self.extract_final_answer = config.get("llm.extract_final_answer", False)
-        self.final_answer_marker = config.get("llm.final_answer_marker", "Final Answer:")
+        self.final_answer_marker = config.get(
+            "llm.final_answer_marker", "Final Answer:"
+        )
 
         self.client: Optional[AsyncOpenAI] = None
 
@@ -126,21 +130,35 @@ class LLMClient:
             )
 
             # Extract the response content
-            if response.choices and response.choices[0].message and response.choices[0].message.content:
+            if (
+                response.choices
+                and response.choices[0].message
+                and response.choices[0].message.content
+            ):
                 raw_processed_text = response.choices[0].message.content.strip()
-                logger.debug(f"LLMClient: Raw response: '{raw_processed_text[:100]}...'") # Log raw response for debug
+                logger.debug(
+                    f"LLMClient: Raw response: '{raw_processed_text[:100]}...'"
+                )  # Log raw response for debug
 
-                final_text = raw_processed_text # Default to raw text
+                final_text = raw_processed_text  # Default to raw text
 
                 # Attempt to extract final answer if enabled and marker is set
                 if self.extract_final_answer and self.final_answer_marker:
-                    logger.debug(f"Attempting to extract final answer using marker: '{self.final_answer_marker}'")
-                    marker_pos = raw_processed_text.rfind(self.final_answer_marker) # Use rfind to find the last occurrence
+                    logger.debug(
+                        f"Attempting to extract final answer using marker: '{self.final_answer_marker}'"
+                    )
+                    marker_pos = raw_processed_text.rfind(
+                        self.final_answer_marker
+                    )  # Use rfind to find the last occurrence
 
                     if marker_pos != -1:
                         # Extract text *after* the marker
-                        final_text = raw_processed_text[marker_pos + len(self.final_answer_marker):].strip()
-                        logger.info(f"LLMClient: Extracted final answer after marker: '{final_text[:50]}...'")
+                        final_text = raw_processed_text[
+                            marker_pos + len(self.final_answer_marker) :
+                        ].strip()
+                        logger.info(
+                            f"LLMClient: Extracted final answer after marker: '{final_text[:50]}...'"
+                        )
                     else:
                         # Marker not found, use the full response but log a warning
                         logger.warning(
@@ -170,28 +188,34 @@ class LLMClient:
                     # Attempt to dump the response for logging
                     response_dump = response.model_dump_json(indent=2)
                 except Exception as dump_err:
-                    logger.debug(f"Could not fully parse response or dump JSON: {dump_err}")
+                    logger.debug(
+                        f"Could not fully parse response or dump JSON: {dump_err}"
+                    )
                     # Try a simpler representation if dump fails
                     response_dump = str(response)
 
-
-                if finish_reason == "length" and (not response.choices or not response.choices[0].message or response.choices[0].message.content is None):
-                     logger.warning(
+                if finish_reason == "length" and (
+                    not response.choices
+                    or not response.choices[0].message
+                    or response.choices[0].message.content is None
+                ):
+                    logger.warning(
                         "LLMClient: LLM response finished due to 'length' but content is missing or null. "
                         "This might happen if max_tokens is too small, or due to content filtering. "
                         "Consider increasing max_tokens or checking model provider's safety settings. Response dump:\n%s",
-                        response_dump
+                        response_dump,
                     )
                 elif finish_reason == "content_filter":
-                     logger.warning(
+                    logger.warning(
                         "LLMClient: LLM response finished due to 'content_filter'. Input or potential output may have triggered safety filters. Response dump:\n%s",
-                        response_dump
-                     )
+                        response_dump,
+                    )
                 else:
                     # General warning for other unexpected structures or finish reasons
                     logger.warning(
                         "LLMClient: LLM response did not contain the expected content (choices[0].message.content). Finish Reason: '%s'. Response dump:\n%s",
-                        finish_reason, response_dump
+                        finish_reason,
+                        response_dump,
                     )
                 return None
 
