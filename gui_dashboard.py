@@ -66,6 +66,9 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
     elements["info_file_label"] = ft.Text(
         "文件输出: -", **default_info_text_style, selectable=True
     )
+    elements["info_preset_label"] = ft.Text( # Add preset label element
+        "LLM 预设: -", **default_info_text_style, selectable=True
+    )
 
     # --- Add element for audio level visualization ---
     elements["audio_level_bar"] = ft.ProgressBar(
@@ -135,6 +138,9 @@ def create_dashboard_tab_content(elements: Dict[str, ft.Control]) -> ft.Column:
                     ),
                     _create_info_row(
                         ft.icons.TEXT_SNIPPET_OUTLINED, elements["info_llm_label"]
+                    ),
+                    _create_info_row( # Add preset info row
+                        ft.icons.EDIT_NOTE_OUTLINED, elements["info_preset_label"]
                     ),
                     _create_info_row(
                         ft.icons.SEND_AND_ARCHIVE_OUTLINED, elements["info_vrc_label"]
@@ -215,9 +221,11 @@ def update_dashboard_info_display(
     llm_conf = config_data.get("llm", {})
     llm_enabled = llm_conf.get("enabled", False)
     llm_model = llm_conf.get("model", "未知")
+    llm_preset = llm_conf.get("active_preset_name", "Default") # Get active preset name
     llm_info = f"LLM: {'启用' if llm_enabled else '禁用'}"
     if llm_enabled:
         llm_info += f" ({llm_model})"
+    preset_info = f"LLM 预设: {llm_preset}" # Create preset info string
 
     vrc_conf = config_data.get("outputs", {}).get("vrc_osc", {})
     vrc_enabled = vrc_conf.get("enabled", False)
@@ -238,6 +246,7 @@ def update_dashboard_info_display(
     mic_label = elements.get("info_mic_label")
     stt_label = elements.get("info_stt_label")
     llm_label = elements.get("info_llm_label")
+    preset_label = elements.get("info_preset_label") # Get preset label control
     vrc_label = elements.get("info_vrc_label")
     file_label = elements.get("info_file_label")
     config_path_label = elements.get("info_config_path_label")  # Get config path label
@@ -249,6 +258,8 @@ def update_dashboard_info_display(
             stt_label.value = stt_info
         if llm_label and isinstance(llm_label, ft.Text):
             llm_label.value = llm_info
+        if preset_label and isinstance(preset_label, ft.Text): # Update preset label
+            preset_label.value = preset_info
         if vrc_label and isinstance(vrc_label, ft.Text):
             vrc_label.value = vrc_info
         if file_label and isinstance(file_label, ft.Text):
@@ -271,12 +282,13 @@ def update_dashboard_info_display(
                         mic_label,
                         stt_label,
                         llm_label,
+                        preset_label, # Add preset label to update list
                         vrc_label,
                         file_label,
                         config_path_label,
                     ]
                     if ctrl
-                ]  # Add config_path_label
+                ]
                 if controls_to_update:
                     page.update(*controls_to_update)
             elif page:
