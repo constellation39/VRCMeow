@@ -780,90 +780,32 @@ def main(page: ft.Page):
          logger.critical("CRITICAL: Active preset name label control not returned from create_preset_tab_content!")
          active_preset_name_label_ctrl = ft.Text("Error: Label Missing", color=ft.colors.RED) # Fallback
 
-    # --- New Function to Update Text Input Few-Shot Display ---
-    async def update_text_input_few_shot_display(preset_name: str):
-        """Loads and displays few-shot examples for the given preset in the Text Input tab."""
-        logger.info(f"Updating Text Input tab few-shot display for preset: '{preset_name}'")
-        try:
-            preset_data = prompt_presets.get_preset(preset_name)
-            examples = preset_data.get("few_shot_examples", []) if preset_data else []
+    # --- REMOVED: update_text_input_few_shot_display function ---
+    # --- REMOVED: update_all_preset_displays wrapper function ---
+    # --- REMOVED: update_all_preset_displays_partial partial function ---
 
-            new_controls = []
-            if not examples:
-                new_controls.append(ft.Text("此预设无 Few-Shot 示例。", size=11, italic=True, color=ft.colors.SECONDARY))
-            else:
-                for i, example in enumerate(examples):
-                    user_text = example.get("user", "N/A")
-                    assistant_text = example.get("assistant", "N/A")
-                    new_controls.append(
-                        ft.Column( # Use Column for better spacing/structure
-                            [
-                                ft.Text(f"示例 {i+1}:", weight=ft.FontWeight.BOLD, size=11),
-                                ft.Text(f"  用户: {user_text}", size=11, selectable=True),
-                                ft.Text(f"  助手: {assistant_text}", size=11, selectable=True),
-                            ],
-                            spacing=2,
-                        )
-                    )
-                    if i < len(examples) - 1: # Add divider between examples
-                        new_controls.append(ft.Divider(height=5, thickness=0.5))
-
-
-            text_input_few_shot_display.controls = new_controls
-            # Update the column directly
-            if page and page.controls:
-                text_input_few_shot_display.update()
-            logger.debug(f"Text Input few-shot display updated with {len(examples)} examples.")
-
-        except Exception as e:
-            logger.error(f"Error updating text input few-shot display: {e}", exc_info=True)
-            text_input_few_shot_display.controls = [ft.Text(f"加载示例时出错: {e}", color=ft.colors.ERROR, size=11)]
-            if page and page.controls:
-                text_input_few_shot_display.update()
-
-    # --- Wrapper Callback to Update Both Preset Tab Label and Text Input Display ---
-    async def update_all_preset_displays(active_preset_name: str):
-        """Calls functions to update preset info in both Preset and Text Input tabs."""
-        logger.debug(f"Wrapper: Updating all preset displays for '{active_preset_name}'")
-        # 1. Update Preset Tab Label (using the original function)
-        try:
-            # We need to call the function from gui_config directly here
-            # It expects page, controls, label_ctrl, and the name
-            gui_config.update_llm_config_ui(
-                page,
-                all_config_controls,
-                active_preset_name_label_ctrl, # The label in the Preset Tab
-                active_preset_name,
-            )
-            logger.debug(f"Wrapper: Updated Preset Tab label for '{active_preset_name}'.")
-        except Exception as e:
-            logger.error(f"Wrapper: Error calling update_llm_config_ui: {e}", exc_info=True)
-
-        # 2. Update Text Input Tab Few-Shot Display (using the new function)
-        try:
-            # Run the async function
-            await update_text_input_few_shot_display(active_preset_name)
-            logger.debug(f"Wrapper: Updated Text Input few-shot display for '{active_preset_name}'.")
-        except Exception as e:
-            logger.error(f"Wrapper: Error calling update_text_input_few_shot_display: {e}", exc_info=True)
-
-        # 3. Final page update (might be redundant if individual updates work, but safer)
-        # try:
-        #     if page and page.controls:
-        #         page.update()
-        # except Exception as e:
-        #     logger.error(f"Wrapper: Error during final page update: {e}", exc_info=True)
-
-
-    # --- Create Partial using the Wrapper Function ---
-    # This partial will be passed around (to preset tab, save/reload handlers)
-    update_all_preset_displays_partial = functools.partial(
-        update_all_preset_displays
+    # --- Create Partial for Updating ONLY the Preset Tab Label ---
+    # This uses the function from gui_config directly.
+    update_preset_tab_label_partial = functools.partial(
+        gui_config.update_llm_config_ui, # Function from gui_config
+        page,
+        all_config_controls,
+        active_preset_name_label_ctrl, # The label control *in the Preset Tab*
         # The active_preset_name argument is provided when the partial is called
     )
+    logger.debug("Created partial for updating Preset Tab label.")
+
+    # --- Create Partial for Text Input Info Update ---
+    update_text_input_info_partial = functools.partial(
+        update_text_input_info_display,
+        page,
+        text_input_info_elements, # Pass the specific elements dict
+        config, # Pass the config instance
+    )
+    logger.debug("Created partial for updating Text Input info display.")
 
 
-    # --- Re-create Preset Tab Content, passing the WRAPPER partial ---
+    # --- Re-create Preset Tab Content, passing the direct partial ---
     # Re-create the preset tab elements, passing the *new wrapper partial* as the callback
     preset_tab_elements = create_preset_tab_content(
         page=page,

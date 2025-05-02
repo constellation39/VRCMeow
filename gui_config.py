@@ -1138,8 +1138,23 @@ async def save_config_handler(
                 "Dashboard update callback not provided to save_config_handler."
             )
 
-        # Show banner and update page
-        page.update()
+        # Call the text input info update callback
+        if text_input_info_update_callback:
+            logger.info("Calling text input info update callback after save.")
+            try:
+                text_input_info_update_callback()
+            except Exception as cb_ex:
+                logger.error(
+                    f"Error executing text input info update callback after save: {cb_ex}",
+                    exc_info=True,
+                )
+        else:
+            logger.warning(
+                "Text input info update callback not provided to save_config_handler."
+            )
+
+        # Show banner and update page (page.update() might be redundant if callbacks update)
+        # page.update() # Let individual callbacks handle updates
 
         # REMOVED: Delay and restart logic
 
@@ -1467,8 +1482,23 @@ async def reload_config_handler(
                 "Dashboard update callback not provided to reload_config_handler."
             )
 
-        # Update the page once after all changes (banner, controls, dashboard)
-        page.update()
+        # Call the text input info update callback
+        if text_input_info_update_callback:
+            logger.info("Calling text input info update callback after reload.")
+            try:
+                text_input_info_update_callback()
+            except Exception as cb_ex:
+                logger.error(
+                    f"Error executing text input info update callback after reload: {cb_ex}",
+                    exc_info=True,
+                )
+        else:
+            logger.warning(
+                "Text input info update callback not provided to reload_config_handler."
+            )
+
+        # Update the page once after all changes (banner, controls, dashboard, text input info)
+        # page.update() # Let individual callbacks handle updates
 
     except Exception as ex:
         error_msg = f"重新加载配置时出错: {ex}"
