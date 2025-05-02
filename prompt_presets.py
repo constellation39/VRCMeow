@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Determine paths relative to the Current Working Directory (CWD)
 CWD = pathlib.Path.cwd()
-PRESETS_FILENAME = "prompt_presets.json"
+PRESETS_FILENAME = "prompt_presets.yaml" # Changed from .json
 EXAMPLE_CONFIG_FILENAME = "config.example.yaml" # Define example config filename
 PRESETS_PATH = CWD / PRESETS_FILENAME
 EXAMPLE_CONFIG_PATH = CWD / EXAMPLE_CONFIG_FILENAME # Define example config path
