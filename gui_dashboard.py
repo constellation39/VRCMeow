@@ -64,6 +64,7 @@ def create_dashboard_elements() -> Dict[str, ft.Control]:
     elements["info_vrc_label"] = ft.Text(
         "VRC OSC: -", **default_info_text_style, selectable=True
     )
+    elements["info_file_label"] = ft.Text( # Fix indentation and add missing assignment
         "文件输出: -", **default_info_text_style, selectable=True
     )
     elements["info_preset_label"] = ft.Text( # Add preset label element
