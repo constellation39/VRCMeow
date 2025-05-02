@@ -745,6 +745,8 @@ async def save_config_handler(
     # REMOVED: restart_callback: Callable[[], Awaitable[None]],
     # Add active_preset_name_label control reference (passed from gui.py)
     active_preset_name_label_ctrl: Optional[ft.Text] = None,
+    # Add the new callback for text input info
+    text_input_info_update_callback: Optional[Callable[[], None]] = None,
     e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
     """
@@ -1412,6 +1414,8 @@ async def reload_config_handler(
     # Add the LLM UI update callback and label control needed by reload_config_controls
     update_llm_ui_callback: Optional[Callable] = None, # Signature changed
     active_preset_name_label_ctrl: Optional[ft.Text] = None,
+    # Add the new callback for text input info
+    text_input_info_update_callback: Optional[Callable[[], None]] = None,
     e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
     """Reloads configuration from file and updates the GUI."""

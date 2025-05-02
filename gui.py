@@ -86,6 +86,19 @@ from output_dispatcher import OutputDispatcher
 logger = get_logger("VRCMeowGUI")  # Get logger instance early, but setup is deferred
 
 
+# --- Helper for Creating Info Rows (can be shared or duplicated) ---
+def _create_info_row(icon: str, text_control: ft.Control) -> ft.Row:
+    """Helper to create a consistent row for info display."""
+    return ft.Row(
+        [
+            ft.Icon(name=icon, size=16, opacity=0.7),
+            text_control,
+        ],
+        spacing=8,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    )
+
+
 class AppState:
     """简单类，用于在回调函数之间共享状态"""
 
@@ -118,6 +131,28 @@ def main(page: ft.Page):
 
     # --- Central Dictionary for Config Controls ---
     all_config_controls: Dict[str, ft.Control] = {}
+
+    # --- Dictionary for Text Input Info Display Elements ---
+    text_input_info_elements: Dict[str, ft.Control] = {}
+    default_info_text_style = {"size": 12, "opacity": 0.9}
+    text_input_info_elements["info_llm_label"] = ft.Text(
+        "LLM: -", **default_info_text_style, selectable=True
+    )
+    text_input_info_elements["info_preset_label"] = ft.Text(
+        "LLM 预设: -", **default_info_text_style, selectable=True
+    )
+    text_input_info_elements["info_vrc_label"] = ft.Text(
+        "VRC OSC: -", **default_info_text_style, selectable=True
+    )
+    text_input_info_elements["info_file_label"] = ft.Text(
+        "文件输出: -", **default_info_text_style, selectable=True
+    )
+    text_input_info_elements["info_config_path_label"] = ft.Text(
+        "配置文件: Loading...",
+        **default_info_text_style,
+        selectable=True,
+        color=ft.colors.SECONDARY,
+    )
 
     # --- Get Initial Config ---
     initial_config_data = {}
@@ -833,7 +868,7 @@ def main(page: ft.Page):
     preset_tab_elements = create_preset_tab_content(
         page=page,
         config_instance=config, # Pass config instance again
-        update_config_ui_callback=update_all_preset_displays_partial, # Pass the WRAPPER partial
+        update_config_ui_callback=update_preset_tab_label_partial, # Pass the direct partial
     )
     preset_tab_layout = preset_tab_elements.get("content")
     # Re-fetch the label control from the potentially re-created elements
@@ -863,12 +898,14 @@ def main(page: ft.Page):
 
 
     # --- Update Save Handler Partial with Late-Bound Dependencies ---
-    # Now that dashboard update, LLM update (wrapper), and preset label exist, update the partial's args
+    # Now that dashboard update, Preset Tab label update, and preset label control exist, update the partial's args
     save_handler_partial.keywords["dashboard_update_callback"] = update_dashboard_info_partial
-    # Use the WRAPPER partial for the LLM UI update callback
-    save_handler_partial.keywords["update_llm_ui_callback"] = update_all_preset_displays_partial
+    # Use the direct partial for updating the Preset Tab label
+    save_handler_partial.keywords["update_llm_ui_callback"] = update_preset_tab_label_partial
     save_handler_partial.keywords["active_preset_name_label_ctrl"] = active_preset_name_label_ctrl
-    logger.debug("Updated save_handler_partial with late-bound callbacks (using wrapper) and controls.")
+    # Add the text input info update callback
+    save_handler_partial.keywords["text_input_info_update_callback"] = update_text_input_info_partial
+    logger.debug("Updated save_handler_partial with late-bound callbacks (Preset Tab label, Text Input Info) and controls.")
 
     # --- Assign Reload Handler ---
     # REMOVED: save_config_button.on_click assignment
@@ -879,9 +916,11 @@ def main(page: ft.Page):
         all_config_controls,
         config,
         update_dashboard_info_partial,  # Pass the dashboard update callback
-        # Pass the WRAPPER LLM update callback and label control needed by reload_config_controls
-        update_llm_ui_callback=update_all_preset_displays_partial, # Use WRAPPER partial
+        # Pass the direct Preset Tab label update callback and label control
+        update_llm_ui_callback=update_preset_tab_label_partial, # Use direct partial
         active_preset_name_label_ctrl=active_preset_name_label_ctrl,
+        # Add the text input info update callback
+        text_input_info_update_callback=update_text_input_info_partial,
     )
     reload_config_button.on_click = reload_handler_partial
 
@@ -924,17 +963,6 @@ def main(page: ft.Page):
         tooltip="处理并发送输入的文本 (Enter 键也可发送)",
         on_click=None,  # Assigned later
     )
-
-    # --- Text Input Tab Few-Shot Display ---
-    text_input_few_shot_display = ft.Column(
-        controls=[ft.Text("当前预设的 Few-Shot 示例将显示在此处。", size=11, italic=True, color=ft.colors.SECONDARY)],
-        spacing=5,
-        scroll=ft.ScrollMode.ADAPTIVE,
-        # Let the container below handle expansion and height
-        # expand=True, # Remove expand from inner column
-        # height=100, # Remove fixed height
-    )
-
 
     # --- Timer UI Handlers (Defined BEFORE use) ---
     async def timer_switch_change(e: ft.ControlEvent):
@@ -1138,19 +1166,39 @@ def main(page: ft.Page):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=10,
             ),
-            ft.Divider(height=10),
-            ft.Text("当前预设 Few-Shot 示例:", weight=ft.FontWeight.BOLD, size=12),
-            # Container for the few-shot display column to control height/scrolling
-            ft.Container(
-                content=text_input_few_shot_display, # The column created earlier
-                expand=True, # Allow container to take remaining space
-                # height=150, # Optional: Set a max height if needed
-                border=ft.border.all(1, ft.colors.with_opacity(0.5, ft.colors.OUTLINE)),
-                border_radius=ft.border_radius.all(5),
-                padding=5,
-            ),
+            # --- REMOVED Few-Shot Display Section ---
+            # ft.Divider(height=10),
+            # ft.Text("当前预设 Few-Shot 示例:", ...),
+            # ft.Container(content=text_input_few_shot_display, ...),
+            ft.Divider(height=10), # Keep a divider before the new info section
+            # --- New Info Display Section (Placeholder) ---
+            ft.Column( # Column to hold the new info rows
+                controls=[
+                     _create_info_row(
+                        ft.icons.TEXT_SNIPPET_OUTLINED, text_input_info_elements["info_llm_label"]
+                    ),
+                    _create_info_row(
+                        ft.icons.EDIT_NOTE_OUTLINED, text_input_info_elements["info_preset_label"]
+                    ),
+                    _create_info_row(
+                        ft.icons.SEND_AND_ARCHIVE_OUTLINED, text_input_info_elements["info_vrc_label"]
+                    ),
+                    _create_info_row(
+                        ft.icons.SAVE_ALT_OUTLINED, text_input_info_elements["info_file_label"]
+                    ),
+                    _create_info_row(
+                        ft.icons.FOLDER_OPEN_OUTLINED,
+                        text_input_info_elements["info_config_path_label"],
+                    ),
+                ],
+                spacing=5,
+                alignment=ft.MainAxisAlignment.START,
+                horizontal_alignment=ft.CrossAxisAlignment.START,
+                # Add key for easy access later? Not strictly needed if elements dict is used.
+                # key="text_input_info_column",
+            )
         ],
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Keep outer alignment
         spacing=10,
         expand=True, # Keep outer column expanding
     )
@@ -1203,24 +1251,122 @@ def main(page: ft.Page):
 
     page.run_task(periodic_log_update)
 
-    # --- Initial Population of LLM Active Preset Label and Text Input Few-Shot ---
-    logger.debug("Initial population of LLM active preset label and text input few-shot display.")
+
+    # --- New Function to Update Text Input Info Display ---
+    def update_text_input_info_display(
+        page: ft.Page,
+        elements: Dict[str, ft.Control], # Use the text_input_info_elements dict
+        config_instance: "Config",
+    ):
+        """线程安全地更新文本输入选项卡上的静态配置信息显示"""
+        if not page or not elements or not config_instance:
+            logger.warning("update_text_input_info_display called with missing arguments.")
+            return
+
+        try:
+            config_data = config_instance.data
+            if not config_data:
+                logger.warning("Config instance provided but its data is empty (Text Input Info).")
+                return
+        except Exception as e:
+            logger.error(f"Error accessing config_instance.data (Text Input Info): {e}", exc_info=True)
+            return
+
+        # Extract relevant info (LLM, Preset, VRC, File, Config Path)
+        llm_conf = config_data.get("llm", {})
+        llm_enabled = llm_conf.get("enabled", False)
+        llm_model = llm_conf.get("model", "未知")
+        llm_preset = llm_conf.get("active_preset_name", "Default")
+        llm_info = f"LLM: {'启用' if llm_enabled else '禁用'}"
+        if llm_enabled:
+            llm_info += f" ({llm_model})"
+        preset_info = f"LLM 预设: {llm_preset}"
+
+        vrc_conf = config_data.get("outputs", {}).get("vrc_osc", {})
+        vrc_enabled = vrc_conf.get("enabled", False)
+        vrc_addr = vrc_conf.get("address", "未知")
+        vrc_port = vrc_conf.get("port", "未知")
+        vrc_info = f"VRC OSC: {'启用' if vrc_enabled else '禁用'}"
+        if vrc_enabled:
+            vrc_info += f" ({vrc_addr}:{vrc_port})"
+
+        file_conf = config_data.get("outputs", {}).get("file", {})
+        file_enabled = file_conf.get("enabled", False)
+        file_path = file_conf.get("path", "未知")
+        file_info = f"文件输出: {'启用' if file_enabled else '禁用'}"
+        if file_enabled:
+            file_info += f" ({file_path})"
+
+        # Get control references from the passed elements dict
+        llm_label = elements.get("info_llm_label")
+        preset_label = elements.get("info_preset_label")
+        vrc_label = elements.get("info_vrc_label")
+        file_label = elements.get("info_file_label")
+        config_path_label = elements.get("info_config_path_label")
+
+        def update_info_ui():
+            controls_to_update = []
+            if llm_label and isinstance(llm_label, ft.Text):
+                llm_label.value = llm_info
+                controls_to_update.append(llm_label)
+            if preset_label and isinstance(preset_label, ft.Text):
+                preset_label.value = preset_info
+                controls_to_update.append(preset_label)
+            if vrc_label and isinstance(vrc_label, ft.Text):
+                vrc_label.value = vrc_info
+                controls_to_update.append(vrc_label)
+            if file_label and isinstance(file_label, ft.Text):
+                file_label.value = file_info
+                controls_to_update.append(file_label)
+            if config_path_label and isinstance(config_path_label, ft.Text):
+                loaded_path = getattr(config_instance, "loaded_config_path", "Unknown")
+                config_path_label.value = f"配置文件: {loaded_path}"
+                controls_to_update.append(config_path_label)
+
+            try:
+                if page and page.controls and controls_to_update:
+                    page.update(*controls_to_update)
+                elif page and not controls_to_update:
+                     logger.debug("No text input info controls found/updated.")
+                elif page:
+                    logger.warning("Page has no controls, skipping update in update_text_input_info_display.")
+            except Exception as e:
+                logger.error(f"Error during page.update in update_text_input_info_display: {e}", exc_info=True)
+
+        try:
+            if page and page.controls is not None:
+                page.run_thread(update_info_ui)
+            elif page:
+                logger.warning("Page object seems invalid, skipping run_thread in update_text_input_info_display.")
+        except Exception as e:
+            logger.error(f"Error calling page.run_thread in update_text_input_info_display: {e}", exc_info=True)
+
+
+    # --- Initial Population of LLM Active Preset Label (Preset Tab) ---
+    logger.debug("Initial population of LLM active preset label (Preset Tab).")
     try:
-    #     # Get active preset name from initial config data
-    #     initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
-    #     logger.info(f"Initial active preset from config: '{initial_active_preset}'")
-    #
         # Get active preset name from initial config data
         initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
         logger.info(f"Initial active preset from config: '{initial_active_preset}'")
 
-        # Call the WRAPPER function directly (not the partial) to perform initial update
-        # Run it in the background as it's async and involves UI updates
-        async def initial_preset_update_task():
-            await update_all_preset_displays(initial_active_preset)
-            logger.info(f"Initial preset displays updated for preset '{initial_active_preset}'.")
+        # Call the partial function directly to update the Preset Tab label
+        # The partial already has page, controls, and the label control bound.
+        # We just need to provide the preset name.
+        # Run it in the background as it involves UI updates.
+        async def initial_preset_label_update_task():
+            try:
+                # The partial itself is not async, but the underlying function might update UI
+                # Let's call it directly. If it needs async, wrap it.
+                # update_preset_tab_label_partial is bound to gui_config.update_llm_config_ui
+                # which updates UI controls. It should be called within the Flet event loop context.
+                # Calling it directly here might be okay if Flet handles it, or use page.run_task.
+                update_preset_tab_label_partial(initial_active_preset)
+                logger.info(f"Initial Preset Tab label updated for preset '{initial_active_preset}'.")
+            except Exception as label_update_err:
+                 logger.error(f"Error during initial preset label update task: {label_update_err}", exc_info=True)
 
-        page.run_task(initial_preset_update_task)
+        # Schedule the update task
+        page.run_task(initial_preset_label_update_task)
         # Also set the initial value for the dropdown in the Preset Tab (this part remains)
         preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
         if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
@@ -1262,8 +1408,19 @@ def main(page: ft.Page):
         # Directly call the partial which uses page.run_thread internally
         # The partial now correctly holds the config instance.
         update_dashboard_info_partial()
+        logger.debug("Scheduled initial dashboard info update.")
     except Exception as e:
         logger.error(f"Error scheduling initial dashboard update: {e}", exc_info=True)
+
+    # --- Initial Text Input Info Population ---
+    logger.debug("Initial population of text input info display.")
+    try:
+        # Call the partial for the text input tab info
+        update_text_input_info_partial()
+        logger.debug("Scheduled initial text input info update.")
+    except Exception as e:
+        logger.error(f"Error scheduling initial text input info update: {e}", exc_info=True)
+
 
     # --- Async Component Initialization ---
     async def initialize_async_components():
