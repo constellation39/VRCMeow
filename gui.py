@@ -1240,11 +1240,10 @@ def main(page: ft.Page):
         expand=True, # Keep outer column expanding
     )
 
-    # --- Add Tabs to Page ---
-    page.add(
-        ft.Tabs(
-            [
-                ft.Tab(
+    # --- Create Tabs ---
+    tabs_control = ft.Tabs(
+        [
+            ft.Tab(
                     text=" 语音 ",  # Padded with spaces
                     icon=ft.icons.MIC, # Changed icon from DASHBOARD
                     content=dashboard_tab_layout,  # Content remains the same layout
@@ -1266,9 +1265,14 @@ def main(page: ft.Page):
                     content=log_tab_layout,
                 ),
             ],
-            expand=True,  # Make tabs fill the page width
+            expand=True, # Tabs control itself should expand within its container
         )
     )
+
+    # --- Add Tabs to Container and Container to Page ---
+    tabs_container.content = tabs_control # Put the Tabs inside the container
+    page.add(tabs_container) # Add the container to the page
+
 
     # --- Periodic Log Queue Check ---
     # Schedule a task to periodically check the log queue and update the UI
@@ -1287,6 +1291,31 @@ def main(page: ft.Page):
             await asyncio.sleep(0.5)  # Check every 500ms
 
     page.run_task(periodic_log_update)
+
+
+    # --- Container for Tabs with Dynamic Padding ---
+    tabs_container = ft.Container(
+        expand=True, # Make container fill the space
+        content=None, # Tabs will be added below
+        padding=ft.padding.symmetric(horizontal=50), # Initial padding, will be updated
+        alignment=ft.alignment.top_center, # Center content if it doesn't expand fully
+    )
+
+    # --- Page Resize Handler ---
+    async def on_page_resize(e=None): # Allow calling without event
+        if page.width and tabs_container:
+            horizontal_padding = max(20, page.width * 0.1) # Calculate 10% padding each side, min 20px
+            tabs_container.padding = ft.padding.symmetric(horizontal=horizontal_padding)
+            logger.debug(f"Page resized to {page.width}px width. Setting tabs container padding to {horizontal_padding}px.")
+            try:
+                if page.controls: # Check if page is still valid
+                    tabs_container.update()
+            except Exception as resize_update_err:
+                 logger.warning(f"Error updating tabs container on resize: {resize_update_err}")
+        elif not page.width:
+             logger.debug("Page width not available during resize event.")
+
+    page.on_resize = on_page_resize # Assign the handler
 
 
     # --- Initial Population of LLM Active Preset Label (Preset Tab) ---
@@ -1501,8 +1530,13 @@ def main(page: ft.Page):
     # Schedule the async initialization task to run (for VRCClient, OutputDispatcher)
     page.run_task(initialize_async_components)
 
+    # --- Apply Initial Padding ---
+    # Call resize handler once manually after layout is added to set initial padding
+    page.run_task(on_page_resize)
+
     # --- Final Page Update ---
     page.update()
+
 
 # 注意：此文件不再包含 if __name__ == "__main__": ft.app(...)
 # 这将移至 main.py
