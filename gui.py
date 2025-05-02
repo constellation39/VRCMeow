@@ -1291,31 +1291,6 @@ def main(page: ft.Page):
     page.run_task(periodic_log_update)
 
 
-    # --- Container for Tabs with Dynamic Padding ---
-    tabs_container = ft.Container(
-        expand=True, # Make container fill the space
-        content=None, # Tabs will be added below
-        padding=ft.padding.symmetric(horizontal=50), # Initial padding, will be updated
-        alignment=ft.alignment.top_center, # Center content if it doesn't expand fully
-    )
-
-    # --- Page Resize Handler ---
-    async def on_page_resize(e=None): # Allow calling without event
-        if page.width and tabs_container:
-            horizontal_padding = max(20, page.width * 0.1) # Calculate 10% padding each side, min 20px
-            tabs_container.padding = ft.padding.symmetric(horizontal=horizontal_padding)
-            logger.debug(f"Page resized to {page.width}px width. Setting tabs container padding to {horizontal_padding}px.")
-            try:
-                if page.controls: # Check if page is still valid
-                    tabs_container.update()
-            except Exception as resize_update_err:
-                 logger.warning(f"Error updating tabs container on resize: {resize_update_err}")
-        elif not page.width:
-             logger.debug("Page width not available during resize event.")
-
-    page.on_resize = on_page_resize # Assign the handler
-
-
     # --- Initial Population of LLM Active Preset Label (Preset Tab) ---
     logger.debug("Initial population of LLM active preset label (Preset Tab).")
     try:
