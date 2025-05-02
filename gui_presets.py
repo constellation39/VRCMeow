@@ -334,6 +334,7 @@ def create_preset_tab_content(
             status_text.value = f"预设 '{selected_name}' 已删除。"
             status_text.color = ft.colors.GREEN_700
             update_dropdown() # Refresh dropdown list in this tab
+            page.update() # Explicitly update the page to ensure dropdown refresh
             logger.info(f"Preset '{selected_name}' deleted successfully.")
             # Check if the deleted preset was the one currently active (shown in this tab's label)
             if active_preset_name_label.value == f"当前活动预设: {selected_name}":
