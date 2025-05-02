@@ -315,15 +315,20 @@ def main(page: ft.Page):
     # We will define the partial here, but some dependencies (like update_llm_ui_partial
     # and active_preset_name_label_ctrl) will be None initially. They get updated later.
     # The partial will use the *latest* values of these variables when it's actually called.
+    # Bind arguments using keywords to avoid conflict with the event object 'e' passed by Flet.
     save_handler_partial = functools.partial(
         save_config_handler,
-        page,
-        all_config_controls,  # Captures the dict reference
-        config,
-        None,  # dashboard_update_callback - will be assigned later
-        None,  # update_llm_ui_callback - will be assigned later
-        None,  # active_preset_name_label_ctrl - will be assigned later
+        # Bind arguments by keyword name matching the function definition
+        page=page,
+        all_config_controls=all_config_controls,
+        config_instance=config,
+        # Callbacks will be added later using keywords dict
+        dashboard_update_callback=None,
+        update_llm_ui_callback=None,
+        active_preset_name_label_ctrl=None,
+        text_input_info_update_callback=None, # Add placeholder for the new callback too
     )
+    # Note: The actual callback functions are assigned below using save_handler_partial.keywords[...]
 
     # --- Create Config Tab Controls ---
     # These are created here because the layout function in gui_config needs them.
