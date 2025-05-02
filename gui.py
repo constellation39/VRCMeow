@@ -308,8 +308,9 @@ def main(page: ft.Page):
         icon=ft.icons.REFRESH,
         tooltip="放弃当前更改并从 config.yaml 重新加载",
     )
-    open_config_folder_button = ft.IconButton( # Use IconButton for consistency
-        icon=ft.icons.FOLDER_OPEN_OUTLINED,
+    open_config_folder_button = ft.ElevatedButton( # Change to ElevatedButton
+        text="打开配置文件夹", # Set button text
+        icon=ft.icons.FOLDER_OPEN_OUTLINED, # Keep the icon
         tooltip="打开配置文件夹 (包含 config.yaml, presets.yaml 等)",
         on_click=None, # Handler assigned later
     )

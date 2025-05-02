@@ -484,7 +484,7 @@ def create_logging_controls(
 def create_config_tab_content(
     # REMOVED: save_button parameter
     reload_button: ft.ElevatedButton,
-    open_folder_button: ft.IconButton, # Add open folder button parameter
+    open_folder_button: ft.ElevatedButton, # Change type to ElevatedButton
     all_controls: Dict[str, ft.Control],  # Pass the complete dictionary
 ) -> ft.Column:
     """Creates the layout Column for the Configuration tab."""
@@ -612,15 +612,11 @@ def create_config_tab_content(
     # --- Create the top button row (reload and open folder buttons) ---
     button_row = ft.Row(
         [
-            # Add text label next to the icon button
-            ft.Text("打开配置文件夹:", size=12, weight=ft.FontWeight.W_500),
-            open_folder_button, # The icon button itself
-            ft.VerticalDivider(width=20), # Add more space before reload
-            reload_button,
+            open_folder_button, # Use the ElevatedButton directly
+            reload_button,      # Place reload button next to it
         ],
-        alignment=ft.MainAxisAlignment.END,
-        vertical_alignment=ft.CrossAxisAlignment.CENTER, # Align items nicely
-        spacing=5, # Adjust spacing between text and icon
+        alignment=ft.MainAxisAlignment.END, # Align buttons to the right
+        spacing=10, # Add spacing between buttons
     )
 
     # --- Create the scrollable column for config sections ---
