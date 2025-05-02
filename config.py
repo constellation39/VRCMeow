@@ -93,7 +93,7 @@ def _load_default_config_from_example() -> Dict[str, Any]:
 4. 避免过于正式或书面化的语言。
 5. 直接输出转换后的文本，不要包含任何解释或标签。""",
             "temperature": 0.7,
-            "max_tokens": 256,
+            "max_tokens": 1024,
             "few_shot_examples": [
                 {"user": "今天天气真不错。", "assistant": "今天天气真好呀！"},
                 {"user": "我需要完成这项工作。", "assistant": "我得把这活儿干完啦。"},

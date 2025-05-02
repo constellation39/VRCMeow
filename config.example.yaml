@@ -131,7 +131,7 @@ llm:
   # 最大 Token 数 (可选)
   # 限制 LLM 生成响应的最大长度 (以 token 为单位，大致可以理解为单词或音节)。
   # 这有助于控制 API 成本和响应时间。
-  max_tokens: 256
+  max_tokens: 1024
 
   # Few-shot 示例 (可选)
   # 提供一些输入/输出示例，以更精确地指导 LLM 的行为，尤其是在执行特定格式转换或风格模仿时。
@@ -232,13 +232,13 @@ logging:
   # - "CRITICAL": 严重错误，可能导致程序终止。
   level: "INFO"
 
-  # --- 应用程序日志文件设置 ---
+  # --- 应用程序日志文件设置 -
   file:
     # 是否启用应用程序日志文件 (必需)
     # 设置为 `true` 以将详细的应用程序运行日志 (包括 DEBUG, INFO, WARNING, ERROR, CRITICAL 消息)
     # 写入到指定的文件中。这对于问题排查非常有用。
     # 注意：这与 `outputs.file` 不同，后者仅记录最终的 STT/LLM 结果文本。
-    enabled: true
+    enabled: false
 
     # 应用程序日志文件路径 (必需, 如果 enabled 为 true)
     # 指定保存应用程序运行日志的文件路径。
