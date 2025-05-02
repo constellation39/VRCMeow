@@ -1291,100 +1291,45 @@ def main(page: ft.Page):
 
     # --- Initial Population of LLM Active Preset Label (Preset Tab) ---
     logger.debug("Initial population of LLM active preset label (Preset Tab).")
-        config_instance: "Config",
-    ):
-        """线程安全地更新文本输入选项卡上的静态配置信息显示"""
-        if not page or not elements or not config_instance:
-            logger.warning("update_text_input_info_display called with missing arguments.")
-            return
+    try:
+        # Get active preset name from initial config data
+        initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
+        logger.info(f"Initial active preset from config: '{initial_active_preset}'")
 
-        try:
-            config_data = config_instance.data
-            if not config_data:
-                logger.warning("Config instance provided but its data is empty (Text Input Info).")
-                return
-        except Exception as e:
-            logger.error(f"Error accessing config_instance.data (Text Input Info): {e}", exc_info=True)
-            return
-
-        # Extract relevant info (LLM, Preset, VRC, File, Config Path)
-        llm_conf = config_data.get("llm", {})
-        llm_enabled = llm_conf.get("enabled", False)
-        llm_model = llm_conf.get("model", "未知")
-        llm_preset = llm_conf.get("active_preset_name", "Default")
-        llm_info = f"LLM: {'启用' if llm_enabled else '禁用'}"
-        if llm_enabled:
-            llm_info += f" ({llm_model})"
-        preset_info = f"LLM 预设: {llm_preset}"
-
-        vrc_conf = config_data.get("outputs", {}).get("vrc_osc", {})
-        vrc_enabled = vrc_conf.get("enabled", False)
-        vrc_addr = vrc_conf.get("address", "未知")
-        vrc_port = vrc_conf.get("port", "未知")
-        vrc_info = f"VRC OSC: {'启用' if vrc_enabled else '禁用'}"
-        if vrc_enabled:
-            vrc_info += f" ({vrc_addr}:{vrc_port})"
-
-        file_conf = config_data.get("outputs", {}).get("file", {})
-        file_enabled = file_conf.get("enabled", False)
-        file_path = file_conf.get("path", "未知")
-        file_info = f"文件输出: {'启用' if file_enabled else '禁用'}"
-        if file_enabled:
-            file_info += f" ({file_path})"
-
-        # Get control references from the passed elements dict
-        llm_label = elements.get("info_llm_label")
-        preset_label = elements.get("info_preset_label")
-        vrc_label = elements.get("info_vrc_label")
-        file_label = elements.get("info_file_label")
-        config_path_label = elements.get("info_config_path_label")
-
-        def update_info_ui():
-            controls_to_update = []
-            if llm_label and isinstance(llm_label, ft.Text):
-                llm_label.value = llm_info
-                controls_to_update.append(llm_label)
-            if preset_label and isinstance(preset_label, ft.Text):
-                preset_label.value = preset_info
-                controls_to_update.append(preset_label)
-            if vrc_label and isinstance(vrc_label, ft.Text):
-                vrc_label.value = vrc_info
-                controls_to_update.append(vrc_label)
-            if file_label and isinstance(file_label, ft.Text):
-                file_label.value = file_info
-                controls_to_update.append(file_label)
-            if config_path_label and isinstance(config_path_label, ft.Text):
-                loaded_path = getattr(config_instance, "loaded_config_path", "Unknown")
-                config_path_label.value = f"配置文件: {loaded_path}"
-                controls_to_update.append(config_path_label)
-
+        # Call the partial function directly to update the Preset Tab label
+        # The partial already has page, controls, and the label control bound.
+        # We just need to provide the preset name.
+        # Run it in the background as it involves UI updates.
+        async def initial_preset_label_update_task():
             try:
-                if page and page.controls and controls_to_update:
-                    page.update(*controls_to_update)
-                elif page and not controls_to_update:
-                     logger.debug("No text input info controls found/updated.")
-                elif page:
-                    logger.warning("Page has no controls, skipping update in update_text_input_info_display.")
-            except Exception as e:
-                logger.error(f"Error during page.update in update_text_input_info_display: {e}", exc_info=True)
+                # The partial itself is not async, but the underlying function might update UI
+                # Let's call it directly. If it needs async, wrap it.
+                # update_preset_tab_label_partial is bound to gui_config.update_llm_config_ui
+                # which updates UI controls. It should be called within the Flet event loop context.
+                # Calling it directly here might be okay if Flet handles it, or use page.run_task.
+                update_preset_tab_label_partial(initial_active_preset)
+                logger.info(f"Initial Preset Tab label updated for preset '{initial_active_preset}'.")
+            except Exception as label_update_err:
+                 logger.error(f"Error during initial preset label update task: {label_update_err}", exc_info=True)
 
-        try:
-            if page and page.controls is not None:
-                page.run_thread(update_info_ui)
-            elif page:
-                logger.warning("Page object seems invalid, skipping run_thread in update_text_input_info_display.")
-        except Exception as e:
-            logger.error(f"Error calling page.run_thread in update_text_input_info_display: {e}", exc_info=True)
+        # Schedule the update task
+        page.run_task(initial_preset_label_update_task)
+        # Also set the initial value for the dropdown in the Preset Tab (this part remains)
+        preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
+        if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
+             # Ensure the active preset exists in the options before setting
+             if any(opt.key == initial_active_preset for opt in preset_select_dd_ctrl.options):
+                 preset_select_dd_ctrl.value = initial_active_preset
+                 logger.debug(f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'.")
+             else:
+                  logger.warning(f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected.")
+                  preset_select_dd_ctrl.value = None # Explicitly set to None
+        else:
+             logger.warning("Could not find preset dropdown control in Preset Tab elements to set initial value.")
 
-    # --- Create Partial for Text Input Info Update ---
-    # Define this *after* the function it uses is defined
-    update_text_input_info_partial = functools.partial(
-        update_text_input_info_display,
-        page,
-        text_input_info_elements, # Pass the specific elements dict
-        config, # Pass the config instance
-    )
-    logger.debug("Created partial for updating Text Input info display.")
+    except Exception as llm_init_err:
+        logger.error(f"Error during initial LLM config/preset UI population: {llm_init_err}", exc_info=True)
+        gui_utils.show_error_banner(page, "初始化 LLM/预设 UI 时出错")
     try:
         # Get active preset name from initial config data
         initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
