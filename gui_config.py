@@ -235,17 +235,11 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         value=llm_conf.get("model", "gpt-3.5-turbo"),
         tooltip="要使用的 OpenAI 兼容模型名称",
     )
-    controls["llm.system_prompt"] = ft.TextField(
-        label="系统提示 (来自当前预设)", # Clarify label
-        # Value will be loaded from the active preset by reload_config_controls or preset dialog
-        value="", # Start empty, will be populated
-        multiline=True,
-        min_lines=4, # Increase size slightly
-        max_lines=8, # Increase size slightly
-        tooltip="指导 LLM 如何回应 (内容来自当前选定预设)",
-    )
-    # --- Add missing label creation ---
-    controls["llm.few_shot_examples_label"] = ft.Text("Few-Shot 示例 (来自当前预设)", style=ft.TextThemeStyle.BODY_MEDIUM) # Add label
+    # REMOVED: System Prompt TextField
+    # controls["llm.system_prompt"] = ft.TextField(...)
+
+    # REMOVED: Few-Shot Examples Label
+    # controls["llm.few_shot_examples_label"] = ft.Text(...)
 
     controls["llm.temperature"] = ft.TextField(
         label="LLM Temperature",
@@ -275,16 +269,10 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
     # controls["llm.active_preset_name_label"] = ft.Text(...)
     # controls["llm.manage_presets_button"] = ft.ElevatedButton(...)
 
-    # --- Prompt Display/Editing Area (reflects loaded preset) ---
-    # The existing system_prompt definition should remain untouched here,
-    # as it's modified by later blocks.
-
-    # Few-shot examples UI elements (created in main, passed to layout function)
-    # Define placeholders here; actual controls created in gui.py
-    controls["llm.few_shot_examples_column"] = ft.Column(controls=[], spacing=5)
-    controls["llm.add_example_button"] = ft.TextButton(
-        "添加 Few-Shot 示例", icon=ft.icons.ADD
-    ) # Handler assigned in gui.py
+    # --- Prompt Display/Editing Area (REMOVED from Config Tab) ---
+    # REMOVED: Few-shot examples UI elements placeholders
+    # controls["llm.few_shot_examples_column"] = ft.Column(...)
+    # controls["llm.add_example_button"] = ft.TextButton(...)
 
     return controls
 
@@ -293,23 +281,20 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
 def update_llm_config_ui(
     page: ft.Page, # Need page for update
     all_config_controls: Dict[str, ft.Control], # Config tab controls
-    system_prompt_value: str,
-    few_shot_examples_list: List[Dict[str, str]],
+    # REMOVED: system_prompt_value: str,
+    # REMOVED: few_shot_examples_list: List[Dict[str, str]],
     active_preset_name_label_ctrl: ft.Text, # Pass the label control from Preset Tab
     active_preset_name_value: str,
-    create_example_row_func: Callable[[str, str], ft.Row], # Need row creation func
+    # REMOVED: create_example_row_func: Callable[[str, str], ft.Row],
 ) -> None:
-    """Updates the LLM System Prompt and Few-Shot examples UI controls in the Config Tab."""
-    logger.debug(f"Updating LLM config UI (Config Tab) for preset: '{active_preset_name_value}'")
+    """Updates the LLM Active Preset Label in the Preset Tab."""
+    logger.debug(f"Updating LLM active preset label (Preset Tab) for preset: '{active_preset_name_value}'")
 
-    # Update System Prompt TextField
-    system_prompt_tf = all_config_controls.get("llm.system_prompt")
-    if isinstance(system_prompt_tf, ft.TextField):
-        system_prompt_tf.value = system_prompt_value
-    else:
-        logger.error("System prompt textfield not found in Config Tab controls for UI update.")
+    # REMOVED: Update System Prompt TextField logic
+    # system_prompt_tf = all_config_controls.get("llm.system_prompt")
+    # if isinstance(system_prompt_tf, ft.TextField): ...
 
-    # Update Active Preset Name Label (in the Preset Tab)
+    # Update Active Preset Name Label (in the Preset Tab) - This remains
     if isinstance(active_preset_name_label_ctrl, ft.Text):
         active_preset_name_label_ctrl.value = f"当前活动预设: {active_preset_name_value}"
         active_preset_name_label_ctrl.update() # Update the label in the Preset Tab
@@ -317,33 +302,11 @@ def update_llm_config_ui(
         logger.error("Active preset name label control (from Preset Tab) is invalid.")
 
 
-    # Update Few-Shot Examples Column (in the Config Tab)
-    few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
-    if isinstance(few_shot_column, ft.Column):
-        few_shot_column.controls.clear() # Clear existing rows
-        if isinstance(few_shot_examples_list, list):
-            logger.debug(f"Populating UI with {len(few_shot_examples_list)} few-shot examples from preset '{active_preset_name_value}'.")
-            for example in few_shot_examples_list:
-                if isinstance(example, dict) and "user" in example and "assistant" in example:
-                    try:
-                        # Use the provided function to create rows correctly
-                        new_row = create_example_row_func(
-                            example.get("user", ""), example.get("assistant", "")
-                        )
-                        few_shot_column.controls.append(new_row)
-                    except Exception as row_ex:
-                        logger.error(f"Error creating few-shot row during UI update for example {example}: {row_ex}", exc_info=True)
-                else:
-                    logger.warning(f"Skipping invalid few-shot example during UI update: {example}")
-        else:
-            logger.warning(f"Preset '{active_preset_name_value}' has invalid 'few_shot_examples' (not a list) during Config Tab UI update.")
-        # Ensure the column updates visually
-        few_shot_column.update() # Update column within the Config Tab
-    else:
-        logger.error("Few-shot examples column not found in Config Tab controls for UI update.")
+    # REMOVED: Update Few-Shot Examples Column logic
+    # few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
+    # if isinstance(few_shot_column, ft.Column): ...
 
-    # Update the page to reflect changes in the Config Tab
-    # The preset label update is handled above
+    # Update the page to reflect changes (only the label update needs this now)
     page.update()
 
 
@@ -469,11 +432,9 @@ def create_config_tab_content(
             logger.warning(f"Control '{key}' not found for config layout.")
         return ctrl
 
-    # Extract few-shot elements (created in gui.py, passed via all_controls)
-    few_shot_column = (
-        get_ctrl("llm.few_shot_examples_column") or ft.Column()
-    )  # Fallback
-    add_example_btn = get_ctrl("llm.add_example_button") or ft.TextButton()  # Fallback
+    # REMOVED: Extract few-shot elements
+    # few_shot_column = ...
+    # add_example_btn = ...
 
     # Filter None controls before passing to section
     dashscope_controls = [
@@ -504,19 +465,16 @@ def create_config_tab_content(
             get_ctrl("llm.api_key"),
             get_ctrl("llm.base_url"),
             get_ctrl("llm.model"),
-            get_ctrl("llm.system_prompt"), # Now shows preset prompt
+            # REMOVED: get_ctrl("llm.system_prompt"),
             get_ctrl("llm.temperature"),
             get_ctrl("llm.max_tokens"),
             get_ctrl("llm.extract_final_answer"), # Add missing controls
             get_ctrl("llm.final_answer_marker"), # Add missing controls
-            ft.Divider(height=10),
-            # REMOVED: Preset management row (moved to Preset Tab)
-            # ft.Row(...)
+            # REMOVED: Divider, Preset management row, Few-shot label, column, button
             # ft.Divider(height=10),
-            get_ctrl("llm.few_shot_examples_label"), # Add label for examples
-            # ft.Text("这些示例指导 LLM 如何响应特定输入。", size=11, italic=True), # Remove redundant text
-            few_shot_column, # Now shows preset examples (already checked for None)
-            add_example_btn, # Button to add to current UI view (already checked for None)
+            # get_ctrl("llm.few_shot_examples_label"),
+            # few_shot_column,
+            # add_example_btn,
         ] if c is not None # Filter out None values from the main list
     ]
     llm_section = create_config_section(
@@ -702,10 +660,10 @@ async def save_config_handler(
     page: ft.Page,  # Need page for banner
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
-    create_example_row_func: Callable,  # Function to create few-shot rows for reload
+    # REMOVED: create_example_row_func: Callable,
     dashboard_update_callback: Optional[Callable[[], None]],  # Dashboard update callback
-    # Add the missing callback parameter (now takes label control)
-    update_llm_ui_callback: Callable[[str, List[Dict[str, str]], ft.Text, str], None],
+    # Update callback signature (no longer needs prompt/examples)
+    update_llm_ui_callback: Callable[[ft.Text, str], None],
     # REMOVED: app_state: "AppState",
     # REMOVED: restart_callback: Callable[[], Awaitable[None]],
     # Add active_preset_name_label control reference (passed from gui.py)
@@ -890,6 +848,11 @@ async def save_config_handler(
             logger.debug("Removed system_prompt and few_shot_examples from data being saved to config.yaml")
 
 
+        # REMOVED: Saving few-shot examples from UI (they are not in this tab anymore)
+        # examples_list = [] ...
+        # update_nested_dict(new_config_data, "llm.few_shot_examples", examples_list)
+
+
         update_nested_dict(
             new_config_data,
             "outputs.vrc_osc.enabled",
@@ -1057,7 +1020,7 @@ async def save_config_handler(
             page,
             all_config_controls,
             config_instance,
-            create_example_row_func,
+            # REMOVED: create_example_row_func,
             update_llm_ui_callback, # Pass the callback here
             active_preset_name_label_ctrl, # Pass the label control here
         )
@@ -1100,10 +1063,9 @@ def reload_config_controls(
     page: ft.Page,  # Need page for update
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
-    # Need specific function ref for creating rows
-    create_example_row_func: Callable[[str, str], ft.Row],
-    # Need the callback to update the LLM UI section after reload based on preset
-    update_llm_ui_callback: Callable[[str, List[Dict[str, str]], ft.Text, str], None],
+    # REMOVED: create_example_row_func: Callable[[str, str], ft.Row],
+    # Update callback signature
+    update_llm_ui_callback: Callable[[ft.Text, str], None],
     # Need the label control from the Preset Tab to pass to the callback
     active_preset_name_label_ctrl: Optional[ft.Text] = None,
 ):
@@ -1260,40 +1222,9 @@ def reload_config_controls(
                 exc_info=True,
             )
 
-    # --- Reload few-shot examples ---
-    few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
-    if few_shot_column and isinstance(few_shot_column, ft.Column):
-        few_shot_column.controls.clear()  # Remove existing rows first
-        # Safely get examples from reloaded data
-        loaded_examples = reloaded_config_data.get("llm", {}).get(
-            "few_shot_examples", []
-        )
-        if isinstance(loaded_examples, list):
-            logger.info(f"Reloading {len(loaded_examples)} few-shot examples into GUI.")
-            for example in loaded_examples:
-                if (
-                    isinstance(example, dict)
-                    and "user" in example
-                    and "assistant" in example
-                ):
-                    # Call the passed-in function to create the row.
-                    # This function must handle setting up the remove handler correctly.
-                    try:
-                        new_row = create_example_row_func(
-                            example.get("user", ""), example.get("assistant", "")
-                        )
-                        few_shot_column.controls.append(new_row)
-                    except Exception as row_ex:
-                        logger.error(
-                            f"Error creating few-shot row during reload for example {example}: {row_ex}",
-                            exc_info=True,
-                        )
-                else:
-                    logger.warning(
-                        f"Skipping invalid few-shot example during reload: {example}"
-                    )
-        else:
-            logger.warning("Config 'llm.few_shot_examples' is not a list during reload.")
+    # --- REMOVED: Reload few-shot examples ---
+    # few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
+    # if few_shot_column and isinstance(few_shot_column, ft.Column): ...
 
 
     # --- Reload LLM Controls (Basic Settings) ---
@@ -1321,41 +1252,20 @@ def reload_config_controls(
     if "llm.final_answer_marker" in all_config_controls:
          all_config_controls["llm.final_answer_marker"].value = config_instance.get("llm.final_answer_marker", "Final Answer:")
 
-    # --- Reload Preset Data into UI ---
+    # --- Update Active Preset Label using the callback ---
     # Get the active preset name from the reloaded config
     active_preset_name = config_instance.get("llm.active_preset_name", "Default")
     logger.info(f"Reloading config: Active LLM preset name is '{active_preset_name}'.")
 
-    # Import necessary functions here (or at top level if preferred)
-    from prompt_presets import get_preset, get_default_preset_values
-
-    # Load the preset data
-    preset_data = get_preset(active_preset_name)
-    loaded_system_prompt = ""
-    loaded_few_shot_examples = []
-
-    if preset_data:
-        loaded_system_prompt = preset_data.get("system_prompt", "")
-        loaded_few_shot_examples = preset_data.get("few_shot_examples", [])
-        logger.info(f"Loaded preset '{active_preset_name}' data for UI reload.")
-    else:
-        logger.warning(f"Preset '{active_preset_name}' not found during reload. Loading default values into UI.")
-        # Fallback to default values from _DEFAULT_CONFIG if preset is missing
-        loaded_system_prompt, loaded_few_shot_examples = get_default_preset_values()
-        active_preset_name = "Default" # Ensure name reflects fallback
-
-    # --- Update UI using the callback ---
-    # This centralizes the UI update logic for system prompt and few-shot examples
+    # Call the callback to update the label in the Preset Tab
     if active_preset_name_label_ctrl:
         try:
-            # Pass the label control to the callback
+            # Pass the label control and the name to the callback
             update_llm_ui_callback(
-                loaded_system_prompt,
-                loaded_few_shot_examples,
                 active_preset_name_label_ctrl, # Pass label control
                 active_preset_name, # Pass preset name
             )
-            logger.info(f"LLM config UI updated with data from preset '{active_preset_name}'.")
+            logger.info(f"LLM active preset label updated for preset '{active_preset_name}'.")
         except Exception as ui_update_err:
             logger.error(f"Error calling update_llm_ui_callback during reload: {ui_update_err}", exc_info=True)
     else:
@@ -1380,10 +1290,10 @@ async def reload_config_handler(
     page: ft.Page,  # Need page for banner & update
     all_config_controls: Dict[str, ft.Control],  # Need controls dict
     config_instance: "Config",  # Need config instance
-    create_example_row_func: Callable,  # Need row creation func
+    # REMOVED: create_example_row_func: Callable,
     dashboard_update_callback: Optional[Callable[[], None]] = None, # Callback type corrected
     # Add the LLM UI update callback and label control needed by reload_config_controls
-    update_llm_ui_callback: Optional[Callable] = None,
+    update_llm_ui_callback: Optional[Callable] = None, # Signature changed
     active_preset_name_label_ctrl: Optional[ft.Text] = None,
     e: Optional[ft.ControlEvent] = None,  # Add optional event argument
 ):
@@ -1412,7 +1322,7 @@ async def reload_config_handler(
             page,
             all_config_controls,
             config_instance,
-            create_example_row_func,
+            # REMOVED: create_example_row_func,
             update_llm_ui_callback, # Pass the callback
             active_preset_name_label_ctrl, # Pass the label control
         )
@@ -1446,94 +1356,6 @@ async def reload_config_handler(
         gui_utils.show_error_banner(page, error_msg)
 
 
-# --- Few-Shot Example Add/Remove Logic ---
-
-
-# This function now needs page and the column reference passed in.
-# It defines the remove handler internally, capturing the necessary scope.
-def create_config_example_row(
-    page: ft.Page,  # Need page for update
-    few_shot_column: ft.Column,  # Need column ref to remove from
-    user_text: str = "",
-    assistant_text: str = "",
-) -> ft.Row:
-    """Creates a Flet Row for a single few-shot example with its remove handler."""
-    # Create controls for the row
-    user_input = ft.TextField(
-        label="用户输入 (User)",
-        value=user_text,
-        multiline=True,
-        max_lines=3,
-        expand=True,
-    )
-    assistant_output = ft.TextField(
-        label="助手响应 (Assistant)",
-        value=assistant_text,
-        multiline=True,
-        max_lines=3,
-        expand=True,
-    )
-
-    # Define remove handler within this scope to capture page and column
-    async def remove_this_row(e_remove: ft.ControlEvent):
-        row_to_remove = e_remove.control.data  # Get the Row associated with the button
-        if few_shot_column and row_to_remove in few_shot_column.controls:
-            few_shot_column.controls.remove(row_to_remove)
-            logger.debug("Removed few-shot example row.")
-            try:
-                if page and page.controls:
-                    page.update()
-                elif page:
-                    logger.warning(
-                        "Page has no controls, skipping update after removing few-shot row."
-                    )
-            except Exception as e:
-                logger.error(
-                    f"Error updating page after removing few-shot row: {e}",
-                    exc_info=True,
-                )
-        else:
-            logger.warning(
-                "Attempted to remove a row not found in the column or column is invalid."
-            )
-
-    remove_button = ft.IconButton(
-        icon=ft.icons.DELETE_OUTLINE,
-        tooltip="删除此示例",
-        on_click=remove_this_row,  # Use the handler defined above
-        icon_color=ft.colors.RED_ACCENT_400,
-    )
-
-    new_row = ft.Row(
-        controls=[user_input, assistant_output, remove_button],
-        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-        vertical_alignment=ft.CrossAxisAlignment.START,
-    )
-    remove_button.data = new_row  # Associate the row with the button for removal
-    return new_row
-
-
-async def add_example_handler(
-    page: ft.Page,  # Need page for update and row creation
-    all_config_controls: Dict[str, ft.Control],  # Need controls dict to find column
-    e: Optional[ft.ControlEvent] = None,  # Add optional event argument
-) -> None: # Explicitly type return as None
-    """Adds a new, empty example row to the column."""
-    few_shot_column = all_config_controls.get("llm.few_shot_examples_column")
-    if few_shot_column and isinstance(few_shot_column, ft.Column):
-        # Pass page and column ref to the internal row creation function
-        try:
-            new_row = create_config_example_row(page, few_shot_column) # Create row with handler
-            few_shot_column.controls.append(new_row)
-            logger.debug("Added new few-shot example row.")
-            if page and page.controls:
-                page.update()
-            elif page:
-                 logger.warning("Page has no controls, skipping update after adding few-shot row.")
-        except Exception as e:
-             logger.error(f"Error adding or updating page for new few-shot row: {e}", exc_info=True)
-             gui_utils.show_error_banner(page, f"添加示例时出错: {e}")
-
-    else:
-        logger.error("Could not add few-shot example row: Column control not found or invalid.")
-        gui_utils.show_error_banner(page, "无法添加示例：UI 元素丢失。")
+# --- REMOVED: Few-Shot Example Add/Remove Logic ---
+# def create_config_example_row(...)
+# async def add_example_handler(...)

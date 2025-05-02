@@ -273,28 +273,10 @@ def main(page: ft.Page):
     all_config_controls.update(create_file_output_controls(initial_config_data))
     all_config_controls.update(create_logging_controls(initial_config_data))
 
-    # Extract key config controls needed for handlers/logic
-    few_shot_examples_column = all_config_controls.get("llm.few_shot_examples_column")
-    add_example_button = all_config_controls.get("llm.add_example_button")
-    # Ensure they are the correct type or provide fallbacks
-    if not isinstance(few_shot_examples_column, ft.Column):
-        logger.warning(
-            "Few-shot column control not found or invalid type, creating fallback."
-        )
-        few_shot_examples_column = ft.Column(visible=False)  # Fallback, hide it
-        all_config_controls["llm.few_shot_examples_column"] = (
-            few_shot_examples_column  # Add fallback to dict
-        )
-    if not isinstance(add_example_button, ft.TextButton):
-        logger.warning(
-            "Add example button control not found or invalid type, creating fallback."
-        )
-        add_example_button = ft.TextButton(
-            "添加示例 (Error)", visible=False
-        )  # Fallback, hide it
-        all_config_controls["llm.add_example_button"] = (
-            add_example_button  # Add fallback to dict
-        )
+    # REMOVED: Extract key config controls for few-shot examples
+    # few_shot_examples_column = ...
+    # add_example_button = ...
+
     # --- Preset controls are now created in gui_presets.py ---
     # REMOVED: manage_presets_button = ...
     # REMOVED: active_preset_name_label = ...
@@ -687,21 +669,8 @@ def main(page: ft.Page):
     clear_log_button.on_click = clear_log_handler  # Log tab button
     log_level_dropdown.on_change = log_level_change_handler  # Log tab dropdown
 
-    # --- Define a wrapper for create_config_example_row needed by reload/save handlers ---
-    # This wrapper matches the signature expected by reload_config_controls
-    def create_row_wrapper_for_reload(user_text: str, assistant_text: str) -> ft.Row:
-        # Call the actual row creation function from gui_config, passing page and column
-        # Ensure few_shot_examples_column is valid before calling
-        if few_shot_examples_column and isinstance(few_shot_examples_column, ft.Column):
-            return create_config_example_row(
-                page, few_shot_examples_column, user_text, assistant_text
-            )
-        else:
-            logger.error(
-                "Cannot create example row for reload/save: few_shot_examples_column is invalid."
-            )
-            # Return a dummy row or raise an error? Returning dummy for now.
-            return ft.Row([ft.Text("Error creating row", color=ft.colors.RED)])
+    # REMOVED: Define a wrapper for create_config_example_row
+    # def create_row_wrapper_for_reload(...): ...
 
     # --- Create Dashboard Info Update Callback ---
     # This partial binds the necessary arguments for updating the dashboard info display
@@ -751,9 +720,9 @@ def main(page: ft.Page):
         update_llm_config_ui,
         page,
         all_config_controls,
-        # system_prompt_value, few_shot_examples_list, active_preset_name_value are passed by caller
+        # active_preset_name_value is passed by caller
         active_preset_name_label_ctrl, # Pass the label control from preset tab
-        create_example_row_func=create_row_wrapper_for_reload, # Pass row creation func
+        # REMOVED: create_example_row_func=create_row_wrapper_for_reload,
     )
 
     # --- Assign the update callback to the preset tab creation function result ---
@@ -783,7 +752,7 @@ def main(page: ft.Page):
         page,
         all_config_controls,
         config,  # Config instance
-        create_row_wrapper_for_reload,  # Function to create few-shot rows
+        # REMOVED: create_row_wrapper_for_reload,
         update_dashboard_info_partial,  # Callback to update dashboard info
         update_llm_ui_partial, # Pass the LLM UI update callback
         active_preset_name_label_ctrl=active_preset_name_label_ctrl, # Pass the label control
@@ -797,7 +766,7 @@ def main(page: ft.Page):
         page,
         all_config_controls,
         config,
-        create_row_wrapper_for_reload,  # Pass the same row creation function
+        # REMOVED: create_row_wrapper_for_reload,
         update_dashboard_info_partial,  # Pass the dashboard update callback
         # Pass the LLM update callback and label control needed by reload_config_controls
         update_llm_ui_callback=update_llm_ui_partial,
@@ -810,14 +779,8 @@ def main(page: ft.Page):
     # def close_dialog(dialog_instance: ft.AlertDialog): ...
     # REMOVED: Assignment to manage_presets_button.on_click
 
-    # Ensure add_example_button is valid before assigning handler
-    if add_example_button:
-        add_example_partial = functools.partial(
-            add_example_handler, page, all_config_controls
-        )
-        add_example_button.on_click = add_example_partial
-    else:
-        logger.error("Cannot assign handler: Add example button is invalid.")
+    # REMOVED: Ensure add_example_button is valid before assigning handler
+    # if add_example_button: ...
 
     # --- Create Text Input Tab Elements & Handlers ---
     text_input_field = ft.TextField(
@@ -1098,33 +1061,20 @@ def main(page: ft.Page):
 
     page.run_task(periodic_log_update)
 
-    # --- Initial Population of LLM Config UI (based on active preset) ---
-    # This replaces the direct population of few-shot examples
-    logger.debug("Initial population of LLM config UI based on active preset.")
+    # --- Initial Population of LLM Active Preset Label ---
+    logger.debug("Initial population of LLM active preset label.")
     try:
         # Get active preset name from initial config data
         initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
         logger.info(f"Initial active preset from config: '{initial_active_preset}'")
-        # Load the preset data
-        initial_preset_data = prompt_presets.get_preset(initial_active_preset)
-        initial_system_prompt = ""
-        initial_examples = []
-        if initial_preset_data:
-            initial_system_prompt = initial_preset_data.get("system_prompt", "")
-            initial_examples = initial_preset_data.get("few_shot_examples", [])
-        else:
-            logger.warning(f"Initial active preset '{initial_active_preset}' not found. Loading default values.")
-            initial_system_prompt, initial_examples = prompt_presets.get_default_preset_values()
-            initial_active_preset = "Default" # Ensure name reflects fallback
 
-        # Call the update UI partial function to populate the controls
+        # Call the update UI partial function to set the label
+        # The partial now only takes the label control (already bound) and the name
         update_llm_ui_partial(
-            initial_system_prompt,
-            initial_examples,
             # active_preset_name_label_ctrl is already bound in the partial
             initial_active_preset, # Pass the name to set the label correctly
         )
-        logger.info(f"LLM Config Tab UI initialized with preset '{initial_active_preset}'.")
+        logger.info(f"LLM Active Preset label initialized with preset '{initial_active_preset}'.")
 
         # Also set the initial value for the dropdown in the Preset Tab
         preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
