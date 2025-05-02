@@ -162,7 +162,7 @@ def setup_logging(
                 # 将文件处理器添加到根记录器
                 root_logger.addHandler(file_handler)
                 root_logger.info(
-                    f"Application file logging enabled. Logging to: {log_file_path_obj}"  # Use resolved path in log
+                    f"Application file logging enabled. Logging to: {log_file_path}"  # Use resolved path in log
                 )
         else:
             root_logger.info(
