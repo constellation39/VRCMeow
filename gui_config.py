@@ -1309,10 +1309,9 @@ def reload_config_controls(
             # --- Update control based on type ---
             if isinstance(control, ft.Switch):
                 control.value = bool(value) if value is not None else False
-            elif (
-                isinstance(control, ft.Dropdown) and key != "llm.model_dropdown"
-            ):  # Exclude LLM model dropdown for now
+            elif isinstance(control, ft.Dropdown) and key != "llm.model_dropdown":
                 # --- Special handling for Dropdowns during reload (excluding LLM model) ---
+                # Only access .options if it's a Dropdown
                 current_options = control.options or []
                 options_changed = False
 
@@ -1404,20 +1403,7 @@ def reload_config_controls(
             # REMOVED redundant audio.device handling block
             # elif isinstance(control, ft.Dropdown) and key == "audio.device":
             #     ...
-            elif isinstance(control, ft.TextField):
-                # Handle keys where None should be represented as empty string
-                current_options = control.options or []
-                if value is not None and any(
-                    opt.key == value for opt in current_options
-                ):
-                    control.value = value
-                elif value == "Default":  # Always allow Default
-                    control.value = "Default"
-                else:
-                    logger.warning(
-                        f"Reload: Configured audio device '{value}' not found in dropdown options. Setting to Default."
-                    )
-                    control.value = "Default"  # Fallback if saved device not in list
+            # --- Correct handling for TextField ---
             elif isinstance(control, ft.TextField):
                 # Handle keys where None should be represented as empty string
                 if (
@@ -1518,13 +1504,14 @@ def reload_config_controls(
     # Call the callback to update the label in the Preset Tab
     if active_preset_name_label_ctrl:
         try:
-            # Pass the label control and the name to the callback
+            # Call the partial callback, only passing the arguments NOT already bound.
+            # The partial already has page, all_config_controls, and active_preset_name_label_ctrl.
+            # We only need to pass the active_preset_name value.
             update_llm_ui_callback(
-                active_preset_name_label_ctrl,  # Pass label control
-                active_preset_name,  # Pass preset name
+                active_preset_name_value=active_preset_name, # Pass preset name by keyword
             )
             logger.info(
-                f"LLM active preset label updated for preset '{active_preset_name}'."
+                f"LLM active preset label updated via callback for preset '{active_preset_name}'."
             )
         except Exception as ui_update_err:
             logger.error(
