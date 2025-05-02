@@ -9,17 +9,33 @@ import yaml
 # try:
 #     from config import config, _DEFAULT_CONFIG
 # except ImportError:
-#     ... (Fallback logic removed as defaults come from example file now)
+# Import the application directory path from the config module
+try:
+    # Import both config instance and APP_DIR
+    from config import config, APP_DIR
+except ImportError:
+    # Fallback or error handling if config module/APP_DIR isn't available
+    # This indicates a potential setup issue.
+    logger = logging.getLogger(__name__) # Get logger instance for fallback message
+    logger.critical("Could not import config or APP_DIR from config module. Presets path cannot be determined.")
+    # Define a fallback path or raise an error
+    # Using CWD as a last resort, but this deviates from the goal.
+    APP_DIR = pathlib.Path.cwd() # Fallback, but log critically
+    logger.warning(f"Falling back to CWD for presets path: {APP_DIR}")
+    # Set config to None to indicate it's unavailable
+    config = None
 
 
 logger = logging.getLogger(__name__)
 
-# Determine paths relative to the Current Working Directory (CWD)
-CWD = pathlib.Path.cwd()
-PRESETS_FILENAME = "prompt_presets.yaml" # Changed from .json
-EXAMPLE_CONFIG_FILENAME = "config.example.yaml" # Define example config filename
-PRESETS_PATH = CWD / PRESETS_FILENAME
-EXAMPLE_CONFIG_PATH = CWD / EXAMPLE_CONFIG_FILENAME # Define example config path
+# Define filenames
+PRESETS_FILENAME = "prompt_presets.yaml"
+EXAMPLE_CONFIG_FILENAME = "config.example.yaml" # Keep for reading defaults
+
+# Paths
+PRESETS_PATH = APP_DIR / PRESETS_FILENAME # Presets file lives in APP_DIR
+CWD = pathlib.Path.cwd() # Still need CWD for example config location
+EXAMPLE_CONFIG_PATH = CWD / EXAMPLE_CONFIG_FILENAME # Example config read from CWD
 
 # --- Preset Data Structure ---
 # {

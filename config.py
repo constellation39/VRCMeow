@@ -2,8 +2,9 @@ import yaml
 import os
 import logging
 from typing import Dict, Any, Optional
-import copy  # Import copy for deep copying config data
-import pathlib  # Import pathlib
+import copy
+import pathlib
+import sys # Import sys for platform check if needed, though pathlib handles most cases
 
 # Use standard logging; configuration (level etc.) is handled by logger_config later
 logger = logging.getLogger(__name__)
@@ -19,14 +20,32 @@ if not logger.hasHandlers():
     )
     _handler.setFormatter(_formatter)
     logger.addHandler(_handler)
-    logger.setLevel(logging.INFO)  # Default to INFO for initial config loading messages
-    # logger.propagate = False # Optional: Prevent messages duplicating if root logger is configured
+    logger.setLevel(logging.INFO)
 
-# Determine paths relative to the Current Working Directory (CWD)
-CWD = pathlib.Path.cwd()
+# --- Application Directory Setup ---
+# Define the application directory within the user's home directory
+USER_HOME = pathlib.Path.home()
+APP_DIR_NAME = "vrc_meow" # Define the directory name
+APP_DIR = USER_HOME / APP_DIR_NAME
+
+# Ensure the application directory exists upon module load or first use.
+# This is crucial before attempting to read/write files within it.
+try:
+    APP_DIR.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Ensured application directory exists: {APP_DIR}")
+except OSError as e:
+    logger.critical(f"Failed to create application directory {APP_DIR}: {e}", exc_info=True)
+    # Depending on the desired behavior, you might want to exit or raise an exception here.
+    # For now, we'll log critically and let the program continue, potentially failing later.
+
+# --- File Paths ---
+# Config files reside within APP_DIR
 DEFAULT_CONFIG_FILENAME = "config.yaml"
+DEFAULT_CONFIG_PATH = APP_DIR / DEFAULT_CONFIG_FILENAME
+
+# Example config is read from the installation/source directory (CWD)
+CWD = pathlib.Path.cwd() # Still need CWD for the example file location
 DEFAULT_EXAMPLE_CONFIG_FILENAME = "config.example.yaml"
-DEFAULT_CONFIG_PATH = CWD / DEFAULT_CONFIG_FILENAME
 DEFAULT_EXAMPLE_CONFIG_PATH = CWD / DEFAULT_EXAMPLE_CONFIG_FILENAME
 
 
@@ -117,7 +136,7 @@ def _load_default_config_from_example() -> Dict[str, Any]:
             },
             "file": {
                 "enabled": False,
-                "path": "vrcmeow_output.log",
+                "path": "vrcmeow_output.log", # Default to filename within APP_DIR
                 "format": "{timestamp} - {text}",
             },
         },
@@ -125,7 +144,7 @@ def _load_default_config_from_example() -> Dict[str, Any]:
             "level": "INFO",
             "file": {
                 "enabled": False, # Match example file default
-                "path": "vrcmeow_app.log",
+                "path": "vrcmeow_app.log", # Default to filename within APP_DIR
             },
         },
     }
@@ -195,15 +214,23 @@ class Config:
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super(Config, cls).__new__(cls)
+            # Ensure APP_DIR exists before loading config (redundant if done above, but safe)
+            try:
+                APP_DIR.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                # Log and potentially raise, as config loading depends on this
+                logger.critical(f"Failed to create application directory {APP_DIR} before loading config: {e}", exc_info=True)
+                # Consider raising an exception here to halt execution if the dir is essential
+                # raise RuntimeError(f"Could not create application directory: {APP_DIR}") from e
+
             # Load config only once when the first instance is created
-            # Load config using the default path based on CWD
-            cls._instance._load_config(str(DEFAULT_CONFIG_PATH))
+            # Load config using the default path within APP_DIR
+            cls._instance._load_config(DEFAULT_CONFIG_PATH) # Use the Path object directly
         return cls._instance
 
-    def _load_config(self, config_path: str) -> None:  # Default removed, set in __new__
+    def _load_config(self, config_path_obj: pathlib.Path) -> None: # Takes Path object
         """Loads configuration from file and environment variables."""
-        # config_path is now expected to be an absolute path
-        config_path_obj = pathlib.Path(config_path)  # Work with Path object
+        # config_path_obj is now expected to be the absolute path within APP_DIR
         self._loaded_config_path = f"Attempting: {config_path_obj}"  # Initialize status
 
         # Start with a deep copy of defaults to avoid modifying the original
@@ -231,28 +258,29 @@ class Config:
                     logger.warning(
                         f"Config file {config_path_obj} does not contain a valid YAML dictionary. Using defaults."
                     )
-                    self._loaded_config_path = f"Invalid YAML in {config_path_obj}, using defaults"  # Update status
+                    self._loaded_config_path = f"Invalid YAML in {config_path_obj}, using defaults"
                 else:  # File is empty
                     logger.info(
                         f"Config file {config_path_obj} is empty. Using default configuration."
                     )
-                    self._loaded_config_path = f"Empty file: {config_path_obj}, using defaults"  # Update status
+                    self._loaded_config_path = f"Empty file: {config_path_obj}, using defaults"
         except FileNotFoundError:
-            logger.warning(f"Config file '{config_path_obj}' not found in CWD.")
-            self._loaded_config_path = f"Not found: {config_path_obj}"  # Update status: file not found initially
+            logger.warning(f"Config file '{config_path_obj}' not found in {APP_DIR}.") # Updated log message
+            self._loaded_config_path = f"Not found: {config_path_obj}"
             # Look for example config in CWD
-            example_config_path_obj = DEFAULT_EXAMPLE_CONFIG_PATH
+            example_config_path_obj = DEFAULT_EXAMPLE_CONFIG_PATH # Path to example in CWD
             try:
                 if example_config_path_obj.exists():
                     import shutil
-
+                    # Ensure target directory exists before copying
+                    config_path_obj.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(
-                        str(example_config_path_obj), str(config_path_obj)
-                    )  # copy2 preserves metadata
-                    logger.info(
-                        f"Copied '{example_config_path_obj}' to '{config_path_obj}'."
+                        str(example_config_path_obj), str(config_path_obj) # Copy FROM CWD example TO APP_DIR config
                     )
-                    # Now attempt to load the newly created file
+                    logger.info(
+                        f"Copied example config '{example_config_path_obj}' to '{config_path_obj}'." # Updated log message
+                    )
+                    # Now attempt to load the newly created file in APP_DIR
                     with open(config_path_obj, "r", encoding="utf-8") as f:
                         file_config = yaml.safe_load(f)
                         if file_config and isinstance(file_config, dict):
@@ -465,22 +493,25 @@ class Config:
     def loaded_config_path(self) -> Optional[str]:
         """Returns the path or status of the configuration file that was loaded."""
         # This property was missing, causing the dashboard to show "Unknown"
-        return getattr(
-            self, "_loaded_config_path", None
-        )  # Safely access the internal attribute
+        return getattr(self, "_loaded_config_path", None)
+
+    @property
+    def app_dir(self) -> pathlib.Path:
+        """Returns the application data directory path."""
+        return APP_DIR # Return the global APP_DIR path
 
     def reload(self) -> None:
         """Reloads the configuration."""
         logger.info("Reloading configuration...")
-        # Reload using the default path based on CWD
-        self._load_config(str(DEFAULT_CONFIG_PATH))
+        # Reload using the default path within APP_DIR
+        self._load_config(DEFAULT_CONFIG_PATH) # Use the Path object
 
     def save(
-        self, config_path: str = str(DEFAULT_CONFIG_PATH)
-    ) -> None:  # Use absolute default path
-        """Saves the current configuration back to the YAML file."""
-        logger.info(f"Attempting to save configuration to {config_path}...")
-        config_path_obj = pathlib.Path(config_path)  # Work with Path object
+        self, config_path_obj: pathlib.Path = DEFAULT_CONFIG_PATH # Default to Path object
+    ) -> None:
+        """Saves the current configuration back to the YAML file in APP_DIR."""
+        logger.info(f"Attempting to save configuration to {config_path_obj}...")
+        # config_path_obj is now expected to be the absolute path within APP_DIR
         # Create a deep copy to avoid modifying the live config dict directly during preparation
         config_to_save = copy.deepcopy(self._config_data)
 
@@ -518,8 +549,12 @@ class Config:
 
 # Create the singleton instance upon module import
 # This ensures config is loaded once when the application starts
+# Also export APP_DIR for other modules to use
 try:
     config = Config()
+    # Export APP_DIR after config instance is successfully created
+    # This assumes APP_DIR is defined globally in this module
+    # (which it is, based on the changes above)
 except Exception as e:
     # Critical error during initial config load
     logger.critical(
