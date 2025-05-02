@@ -1413,10 +1413,15 @@ async def reload_config_handler(
 
 # --- New Function to Fetch LLM Models ---
 async def fetch_and_update_llm_models_dropdown(
-    page: ft.Page, all_config_controls: Dict[str, ft.Control]
+    page: ft.Page,
+    all_config_controls: Dict[str, ft.Control],
+    e: Optional[ft.ControlEvent] = None, # Add optional event argument
 ):
-    """Fetches available LLM models from the configured endpoint and updates the dropdown."""
-    logger.info("Attempting to fetch LLM models...")
+    """
+    Fetches available LLM models from the configured endpoint and updates the dropdown.
+    Accepts an optional ControlEvent argument from Flet's on_click.
+    """
+    logger.info("Attempting to fetch LLM models (triggered by refresh button)...")
 
     # Get necessary config values from controls
     api_key_ctrl = all_config_controls.get("llm.api_key")
