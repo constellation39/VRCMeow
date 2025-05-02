@@ -374,8 +374,8 @@ def main(page: ft.Page):
             text_input_field.disabled = False
             submit_text_button.disabled = False
             text_input_progress.visible = False
-            if page.window_exists(): # Check if page exists before updating
-                 page.update()
+            # Removed window_exists check - page.update() handles closed pages
+            page.update()
 
 
     async def _start_text_timer(
@@ -813,16 +813,15 @@ def main(page: ft.Page):
         logger.debug("Setting page.dialog and opening preset dialog...")
         page.dialog = preset_dialog
         preset_dialog.open = True
-        if page.window_exists():
-            logger.debug("Calling page.update() to show preset dialog.")
-            page.update()
-        else:
-            logger.warning("Page window does not exist, cannot update to show dialog.")
+        # Removed window_exists check - page.update() handles closed pages
+        logger.debug("Calling page.update() to show preset dialog.")
+        page.update()
 
 
     def close_dialog(dialog_instance: ft.AlertDialog):
         dialog_instance.open = False
-        if page.window_exists(): page.update()
+        # Removed window_exists check - page.update() handles closed pages
+        page.update()
 
     # Assign handler to the manage presets button
     if manage_presets_button and isinstance(manage_presets_button, ft.ElevatedButton): # Add type check
@@ -881,7 +880,8 @@ def main(page: ft.Page):
         else:
             # Cancel timer if disabled
             _cancel_text_timer(app_state)
-        if page.window_exists(): page.update() # Update UI if needed
+        # Removed window_exists check - page.update() handles closed pages
+        page.update() # Update UI if needed
 
     async def timer_delay_change(e: ft.ControlEvent):
         """Handles changes to the timer delay input."""
@@ -902,7 +902,8 @@ def main(page: ft.Page):
             logger.warning(f"Invalid timer delay input: {e.control.value}")
             e.control.value = str(app_state.text_input_timer_delay) # Revert display
             gui_utils.show_error_banner(page, "无效的定时器延迟值。")
-        if page.window_exists(): page.update() # Update UI
+        # Removed window_exists check - page.update() handles closed pages
+        page.update() # Update UI
 
 
     # --- Timer UI Elements ---
