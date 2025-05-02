@@ -383,15 +383,16 @@ def update_status_display(
         toggle_button.style = ft.ButtonStyle(color=ft.colors.GREEN_ACCENT_700)
         toggle_button.disabled = False
 
-        # Running state
-        if is_running is True:
-            toggle_button.icon = ft.icons.STOP_ROUNDED
-            toggle_button.tooltip = "停止"
-            toggle_button.style = ft.ButtonStyle(color=ft.colors.RED_ACCENT_700)
-            toggle_button.disabled = False
+        # Running state (but NOT processing) -> Yellow Pause
+        if is_running is True and not is_processing:
+            toggle_button.icon = ft.icons.PAUSE_ROUNDED # Change icon to Pause
+            toggle_button.tooltip = "暂停 (监听中)" # Change tooltip
+            toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER_700) # Change color to Amber/Yellow
+            toggle_button.disabled = False # Still enabled to allow stopping
 
-        # Processing state (overrides running/stopped for button appearance and disabled state)
-        if is_processing:
+        # Processing state (Starting/Stopping/STT/LLM) -> Amber Hourglass (Disabled)
+        # This block now correctly overrides the "Running" state above only when processing.
+        elif is_processing: # Use elif to avoid conflict with the above block
             toggle_button.icon = ft.icons.HOURGLASS_EMPTY_ROUNDED
             toggle_button.tooltip = "处理中..."
             toggle_button.style = ft.ButtonStyle(color=ft.colors.AMBER_700)
