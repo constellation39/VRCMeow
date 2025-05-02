@@ -1406,18 +1406,12 @@ def reload_config_controls(
                             )
                     else:
                         # Generic fallback: keep current value or set to None if options changed drastically
-                        if not options_changed:
-                            logger.warning(
-                                f"Keeping previous selection '{control.value}' for '{key}'."
-                            )
-                        else:
-                            control.value = (
-                                None  # Reset if options changed and value invalid
-                            )
+                        # Let's default to None if value is invalid for other dropdowns
+                        control.value = None
+                        logger.warning(f"Setting dropdown '{key}' to None due to invalid value '{value}'.")
+
 
             # REMOVED redundant audio.device handling block
-            # elif isinstance(control, ft.Dropdown) and key == "audio.device":
-            #     ...
             # --- Correct handling for TextField ---
             elif isinstance(control, ft.TextField):
                 # Handle keys where None should be represented as empty string
@@ -1511,32 +1505,46 @@ def reload_config_controls(
             "llm.final_answer_marker", "Final Answer:"
         )
 
-    # --- Update Active Preset Label using the callback ---
-    # Get the active preset name from the reloaded config
-    active_preset_name = config_instance.get("llm.active_preset_name", "Default")
-    logger.info(f"Reloading config: Active LLM preset name is '{active_preset_name}'.")
+    # --- Reload Active Preset Dropdown ---
+    preset_dropdown = all_config_controls.get("llm.active_preset_name")
+    if preset_dropdown and isinstance(preset_dropdown, ft.Dropdown):
+        active_preset_name = config_instance.get("llm.active_preset_name", "Default")
+        # Refresh options first
+        presets_data = load_presets()
+        preset_names = sorted(list(presets_data.keys()))
+        preset_dropdown.options = [ft.dropdown.Option(name) for name in preset_names]
+        # Set value
+        if active_preset_name in preset_names:
+            preset_dropdown.value = active_preset_name
+        else:
+            logger.warning(f"Reload: Active preset '{active_preset_name}' not found in options. Selecting 'Default'.")
+            preset_dropdown.value = "Default" if "Default" in preset_names else None
+        logger.debug(f"Reload: Set active preset dropdown value to '{preset_dropdown.value}'.")
 
-    # Call the callback to update the label in the Preset Tab
-    if active_preset_name_label_ctrl:
+
+    # --- Update the Preset Tab's display using the callback ---
+    # Get the active preset name *again* after potential fallback logic above
+    reloaded_active_preset_name = preset_dropdown.value if preset_dropdown else "Default"
+    logger.info(f"Reloading config: Active LLM preset name is '{reloaded_active_preset_name}'.")
+
+    # Call the callback to update the Preset Tab's display (e.g., its label)
+    if update_preset_tab_callback:
         try:
-            # Call the partial callback, only passing the arguments NOT already bound.
-            # The partial already has page, all_config_controls, and active_preset_name_label_ctrl.
-            # We only need to pass the active_preset_name value.
-            update_llm_ui_callback(
-                active_preset_name_value=active_preset_name,  # Pass preset name by keyword
-            )
+            # The callback expects only the preset name
+            update_preset_tab_callback(reloaded_active_preset_name)
             logger.info(
-                f"LLM active preset label updated via callback for preset '{active_preset_name}'."
+                f"Preset Tab display updated via callback for preset '{reloaded_active_preset_name}'."
             )
         except Exception as ui_update_err:
             logger.error(
-                f"Error calling update_llm_ui_callback during reload: {ui_update_err}",
+                f"Error calling update_preset_tab_callback during reload: {ui_update_err}",
                 exc_info=True,
             )
     else:
-        logger.error(
-            "Cannot update LLM UI during reload: Active preset name label control is missing."
+        logger.warning(
+            "Cannot update Preset Tab display during reload: Callback not provided."
         )
+
 
     # Update the page to show changes
     try:
