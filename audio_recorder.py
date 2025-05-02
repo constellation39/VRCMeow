@@ -546,7 +546,7 @@ class AudioManager:
 
         # This method belongs inside the AudioManager class based on the refactoring
 
-    def _audio_callback(  # Correct indentation for method
+    def _audio_callback(
         self,
         indata: np.ndarray,
         outdata: np.ndarray,  # Add outdata back for Stream
