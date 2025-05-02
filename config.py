@@ -47,8 +47,19 @@ def _load_default_config_from_example() -> Dict[str, Any]:
             "enabled": False,
             "api_key": "",
             "model": "gpt-3.5-turbo",
-            "system_prompt": "You are a helpful assistant.",
-            "few_shot_examples": [],
+            # --- Copied from config.example.yaml ---
+            "system_prompt": """你是一名专业的文本风格转换助理。请将用户提供的文本转换为轻松愉快的、略带俏皮的口语风格，类似于和朋友聊天。
+规则：
+1. 保持原始文本的核心含义不变。
+2. 使用更口语化的词语和表达方式。
+3. 可以在句末适当添加一些语气词，如“呀”、“啦”、“哦”。
+4. 避免过于正式或书面化的语言。
+5. 直接输出转换后的文本，不要包含任何解释或标签。""",
+            "few_shot_examples": [
+                {"user": "今天天气真不错。", "assistant": "今天天气真好呀！"},
+                {"user": "我需要完成这项工作。", "assistant": "我得把这活儿干完啦。"},
+            ],
+            # --- End copied section ---
         },
         "outputs": {
             "vrc_osc": {"enabled": True, "address": "127.0.0.1", "port": 9000},
