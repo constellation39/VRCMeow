@@ -196,31 +196,11 @@ class AudioManager:
         is_processing: bool = False,
     ):
         """Helper to call the status callback with running and processing state."""
-        logger.info(
+        # Changed level to DEBUG as status updates can be frequent
+        logger.debug(
             f"AudioManager Status: {message} (Running: {is_running}, Processing: {is_processing})"
-        )  # Log status internally
+        )
         # Use the wrapped status_callback
-        if self.status_callback:
-            try:
-                # Pass the new arguments to the callback
-                self.status_callback(
-                    message, is_running=is_running, is_processing=is_processing
-                )
-            except Exception as e:
-                logger.error(f"Error calling status callback: {e}", exc_info=True)
-
-    # Overload signature for clarity and type hinting (optional but good practice)
-    def _update_status(
-        self,
-        message: str,
-        *,
-        is_running: Optional[bool] = None,
-        is_processing: bool = False,
-    ):
-        """Helper to call the status callback with running and processing state."""
-        logger.info(
-            f"AudioManager Status: {message} (Running: {is_running}, Processing: {is_processing})"
-        )  # Log status internally
         if self.status_callback:
             try:
                 # Pass the new arguments to the callback
@@ -242,9 +222,7 @@ class AudioManager:
             self._update_status(
                 "STT 线程启动中...", is_processing=True
             )  # Indicate processing during startup
-        logger.info(
-            f"STT processing loop (Dashscope, model: {self.stt_model}) starting in thread {threading.current_thread().ident}..."
-        )
+        # Removed redundant starting log message
         recognizer: Optional[Union[TranslationRecognizerRealtime, Recognition]] = None
         engine_type = "Unknown"
 
@@ -813,10 +791,10 @@ class AudioManager:
                 logger.warning("STT thread did not finish gracefully within timeout.")
                 # If thread is stuck, loop might need forceful stop (handled in _run_stt_processor finally)
             else:
-                logger.info("STT thread finished.")
+                logger.debug("STT thread finished.") # Changed to DEBUG
                 stt_stopped = True
         else:
-            logger.info("STT thread was not running or already finished.")
+            logger.debug("STT thread was not running or already finished.") # Changed to DEBUG
             stt_stopped = True  # Consider it stopped if it wasn't running
 
         audio_stopped = False
@@ -827,10 +805,10 @@ class AudioManager:
             if self._audio_thread.is_alive():
                 logger.warning("Audio thread did not finish within timeout.")
             else:
-                logger.info("Audio thread finished.")
+                logger.debug("Audio thread finished.") # Changed to DEBUG
                 audio_stopped = True
         else:
-            logger.info("Audio thread was not running or already finished.")
+            logger.debug("Audio thread was not running or already finished.") # Changed to DEBUG
             audio_stopped = True  # Consider it stopped
 
         # Clean up references
