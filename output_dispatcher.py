@@ -7,6 +7,7 @@ import pathlib  # Import pathlib
 
 # Use aiofiles for async file operations
 import aiofiles
+from logger_config import get_logger
 
 # Directly import the config instance and APP_DIR
 try:
