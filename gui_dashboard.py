@@ -417,7 +417,17 @@ def update_status_display(
         try:
             # Check if page and controls are still valid before updating
             if page and page.controls:
-                page.update()
+                # Update only the specific controls that changed
+                controls_to_update = [
+                    ctrl for ctrl in [
+                        status_icon,
+                        status_label,
+                        toggle_button,
+                        progress_indicator,
+                    ] if ctrl
+                ]
+                if controls_to_update:
+                    page.update(*controls_to_update)
             elif page:
                 logger.warning(
                     "Page has no controls, skipping update in update_status_display."
