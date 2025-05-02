@@ -4,6 +4,9 @@ import logging
 import asyncio
 from openai import AsyncOpenAI, APIConnectionError, AuthenticationError, OpenAIError # Added OpenAI imports
 import copy
+import os # Import os for startfile
+import subprocess # Import subprocess for cross-platform opening
+import sys # Import sys for platform check
 import gui_utils  # Import for close_banner
 from audio_recorder import get_input_devices  # Import device getter
 from typing import (
@@ -475,12 +478,13 @@ def create_logging_controls(
 
 
 # --- Configuration Layout Function ---
-# Takes created controls and reload button as arguments
+# Takes created controls and buttons as arguments
 
 
 def create_config_tab_content(
     # REMOVED: save_button parameter
     reload_button: ft.ElevatedButton,
+    open_folder_button: ft.IconButton, # Add open folder button parameter
     all_controls: Dict[str, ft.Control],  # Pass the complete dictionary
 ) -> ft.Column:
     """Creates the layout Column for the Configuration tab."""
@@ -605,10 +609,15 @@ def create_config_tab_content(
         logging_controls,
     )
 
-    # --- Create the top button row (only reload button now) ---
+    # --- Create the top button row (reload and open folder buttons) ---
     button_row = ft.Row(
-        [reload_button], # Only reload button
+        [
+            open_folder_button, # Add open folder button
+            ft.VerticalDivider(width=10), # Add some space
+            reload_button,
+        ],
         alignment=ft.MainAxisAlignment.END,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER, # Align icons nicely
     )
 
     # --- Create the scrollable column for config sections ---
@@ -1462,6 +1471,49 @@ async def reload_config_handler(
         error_msg = f"重新加载配置时出错: {ex}"
         logger.error(error_msg, exc_info=True)
         # Show error banner
+        gui_utils.show_error_banner(page, error_msg)
+
+
+# --- Handler to Open Config Folder ---
+async def open_config_folder_handler(
+    page: ft.Page, # Need page for banner
+    config_instance: "Config", # Need config to get app_dir
+    e: Optional[ft.ControlEvent] = None, # Optional event
+):
+    """Opens the application's configuration folder in the file explorer."""
+    logger.info("Open config folder button clicked.")
+    if not config_instance:
+        logger.error("Cannot open config folder, config object not available.")
+        gui_utils.show_error_banner(page, "无法打开配置文件夹：配置对象不可用。")
+        return
+
+    try:
+        folder_path = config_instance.app_dir
+        logger.info(f"Attempting to open folder: {folder_path}")
+
+        if not folder_path.exists() or not folder_path.is_dir():
+             logger.error(f"Configuration folder path does not exist or is not a directory: {folder_path}")
+             gui_utils.show_error_banner(page, f"错误：配置文件夹不存在 ({folder_path})")
+             return
+
+        # Use platform-specific method to open the folder
+        if sys.platform == "win32":
+            os.startfile(str(folder_path)) # Use os.startfile on Windows
+        elif sys.platform == "darwin": # macOS
+            subprocess.Popen(["open", str(folder_path)])
+        else: # Linux and other Unix-like
+            subprocess.Popen(["xdg-open", str(folder_path)])
+
+        logger.info(f"Successfully requested to open folder: {folder_path}")
+        # Optional: Show success banner? Usually not needed for opening a folder.
+        # gui_utils.show_success_banner(page, f"已在文件浏览器中打开文件夹: {folder_path}")
+
+    except AttributeError:
+         logger.error("Config instance does not have 'app_dir' attribute.")
+         gui_utils.show_error_banner(page, "错误：无法获取配置文件夹路径。")
+    except Exception as ex:
+        error_msg = f"打开配置文件夹时出错: {ex}"
+        logger.error(error_msg, exc_info=True)
         gui_utils.show_error_banner(page, error_msg)
 
 

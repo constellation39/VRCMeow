@@ -54,6 +54,7 @@ from gui_config import (
     reload_config_handler,
     save_config_handler,
     update_llm_config_ui, # Import the missing function
+    open_config_folder_handler, # Import the new handler
 )
 # --- Preset UI Import ---
 from gui_presets import create_preset_tab_content # Import the new function
@@ -307,6 +308,12 @@ def main(page: ft.Page):
         icon=ft.icons.REFRESH,
         tooltip="放弃当前更改并从 config.yaml 重新加载",
     )
+    open_config_folder_button = ft.IconButton( # Use IconButton for consistency
+        icon=ft.icons.FOLDER_OPEN_OUTLINED,
+        tooltip="打开配置文件夹 (包含 config.yaml, presets.yaml 等)",
+        on_click=None, # Handler assigned later
+    )
+
 
     # --- Partial Callbacks (Binding arguments) ---
     # Create partial functions for callbacks that need page and UI elements
@@ -717,6 +724,9 @@ def main(page: ft.Page):
     reload_handler_partial = None # Placeholder
     reload_config_button.on_click = None # Placeholder
 
+    open_folder_handler_partial = None # Placeholder
+    open_config_folder_button.on_click = None # Placeholder
+
 
     # --- Create Preset Tab Content ---
     # This function now returns a dictionary with content and key controls
@@ -798,6 +808,15 @@ def main(page: ft.Page):
         active_preset_name_label_ctrl=active_preset_name_label_ctrl,
     )
     reload_config_button.on_click = reload_handler_partial
+
+    # --- Assign Open Config Folder Handler ---
+    open_folder_handler_partial = functools.partial(
+        open_config_folder_handler,
+        page,
+        config, # Pass the config instance
+    )
+    open_config_folder_button.on_click = open_folder_handler_partial
+
 
     # --- REMOVED: Preset Dialog Handlers ---
     # async def open_preset_dialog(e: ft.ControlEvent): ...
@@ -1001,6 +1020,7 @@ def main(page: ft.Page):
     config_tab_layout = create_config_tab_content(
         # REMOVED: save_button argument
         reload_button=reload_config_button,
+        open_folder_button=open_config_folder_button, # Pass the new button
         all_controls=all_config_controls,  # Pass controls dict
     )
 
