@@ -223,11 +223,15 @@ def create_preset_tab_content(
                 system_prompt_tf.update()
                 few_shot_column.update()
 
-                # 2. Update the active preset label in this tab
+                # 2. Update the "New Preset Name" field with the loaded preset's name
+                new_preset_name_tf.value = selected_name
+                new_preset_name_tf.update()
+
+                # 3. Update the active preset label in this tab
                 active_preset_name_label.value = f"当前活动预设: {selected_name}"
                 active_preset_name_label.update()
 
-                # 3. Call the callback to update the label in the *other* tabs (via gui.py -> gui_config.py)
+                # 4. Call the callback to update the label in the *other* tabs (via gui.py -> gui_config.py)
                 # This indicates which preset *will be saved* if the user hits save in the config tab.
                 update_config_ui_callback(selected_name)
 
