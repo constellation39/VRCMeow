@@ -338,7 +338,7 @@ def create_llm_controls(
         value=initial_active_preset if initial_active_preset in preset_names else None,
         options=[ft.dropdown.Option(name) for name in preset_names],
         tooltip="选择要用于 LLM 处理的预设 (系统提示和 Few-Shot 示例)",
-        on_change=save_callback, # Assign callback
+        on_change=save_callback,  # Assign callback
     )
     # --- End Preset Selection Dropdown ---
 
@@ -369,7 +369,7 @@ def create_llm_controls(
 def update_llm_config_ui(
     page: ft.Page,  # Need page for update
     all_config_controls: Dict[str, ft.Control],  # Config tab controls dict
-    active_preset_name_value: str, # The preset name to select
+    active_preset_name_value: str,  # The preset name to select
 ) -> None:
     """
     Updates the LLM Active Preset Dropdown in the Config Tab.
@@ -388,11 +388,10 @@ def update_llm_config_ui(
         new_options = [ft.dropdown.Option(name) for name in preset_names]
         # Check if options actually changed before updating to avoid unnecessary redraw
         if str(preset_dropdown.options) != str(new_options):
-             logger.debug("Preset dropdown options changed, updating.")
-             preset_dropdown.options = new_options
+            logger.debug("Preset dropdown options changed, updating.")
+            preset_dropdown.options = new_options
         else:
-             logger.debug("Preset dropdown options unchanged.")
-
+            logger.debug("Preset dropdown options unchanged.")
 
         # 2. Set the value
         if active_preset_name_value in preset_names:
@@ -407,14 +406,16 @@ def update_llm_config_ui(
         # Update the page to reflect changes in the dropdown
         try:
             if page and page.controls:
-                 page.update(preset_dropdown) # Update only the dropdown
+                page.update(preset_dropdown)  # Update only the dropdown
             elif page:
-                 logger.warning("Page has no controls, skipping dropdown update.")
+                logger.warning("Page has no controls, skipping dropdown update.")
         except Exception as e:
             logger.error(f"Error updating preset dropdown: {e}", exc_info=True)
 
     else:
-        logger.error("LLM active preset dropdown control not found or invalid in Config Tab.")
+        logger.error(
+            "LLM active preset dropdown control not found or invalid in Config Tab."
+        )
 
 
 def create_vrc_osc_controls(
@@ -616,8 +617,8 @@ def create_config_tab_content(
             get_ctrl("llm.api_key"),
             get_ctrl("llm.base_url"),
             llm_model_row,  # Add the row containing dropdown and button
-            get_ctrl("llm.active_preset_name"), # Add the new preset dropdown here
-            ft.Divider(height=5), # Add small divider
+            get_ctrl("llm.active_preset_name"),  # Add the new preset dropdown here
+            ft.Divider(height=5),  # Add small divider
             get_ctrl("llm.temperature"),
             get_ctrl("llm.max_tokens"),
             get_ctrl("llm.extract_final_answer"),
@@ -1012,7 +1013,9 @@ async def save_config_handler(
         update_nested_dict(
             new_config_data, "llm.active_preset_name", active_preset_name
         )
-        logger.debug(f"Saving active_preset_name from dropdown to config: {active_preset_name}")
+        logger.debug(
+            f"Saving active_preset_name from dropdown to config: {active_preset_name}"
+        )
 
         # --- IMPORTANT: Do NOT save system_prompt or few_shot_examples to config.yaml ---
         # These are now managed in prompt_presets.yaml
@@ -1196,7 +1199,7 @@ async def save_config_handler(
             all_config_controls,
             config_instance,
             # REMOVED: create_example_row_func,
-            update_preset_tab_callback, # Pass the callback to update Preset Tab display
+            update_preset_tab_callback,  # Pass the callback to update Preset Tab display
             # REMOVED: active_preset_name_label_ctrl,
         )
         logger.info("GUI controls updated.")
@@ -1270,8 +1273,8 @@ def reload_config_controls(
     for key, control in all_config_controls.items():
         # Skip special controls that don't map directly to config keys
         if key in [
-            "llm.few_shot_examples_column", # No longer exists in Config tab
-            "llm.add_example_button", # No longer exists in Config tab
+            "llm.few_shot_examples_column",  # No longer exists in Config tab
+            "llm.add_example_button",  # No longer exists in Config tab
             "llm.model_refresh_button",
             # Handle specific dropdowns below
             "llm.model_dropdown",
@@ -1408,8 +1411,9 @@ def reload_config_controls(
                         # Generic fallback: keep current value or set to None if options changed drastically
                         # Let's default to None if value is invalid for other dropdowns
                         control.value = None
-                        logger.warning(f"Setting dropdown '{key}' to None due to invalid value '{value}'.")
-
+                        logger.warning(
+                            f"Setting dropdown '{key}' to None due to invalid value '{value}'."
+                        )
 
             # REMOVED redundant audio.device handling block
             # --- Correct handling for TextField ---
@@ -1517,15 +1521,22 @@ def reload_config_controls(
         if active_preset_name in preset_names:
             preset_dropdown.value = active_preset_name
         else:
-            logger.warning(f"Reload: Active preset '{active_preset_name}' not found in options. Selecting 'Default'.")
+            logger.warning(
+                f"Reload: Active preset '{active_preset_name}' not found in options. Selecting 'Default'."
+            )
             preset_dropdown.value = "Default" if "Default" in preset_names else None
-        logger.debug(f"Reload: Set active preset dropdown value to '{preset_dropdown.value}'.")
-
+        logger.debug(
+            f"Reload: Set active preset dropdown value to '{preset_dropdown.value}'."
+        )
 
     # --- Update the Preset Tab's display using the callback ---
     # Get the active preset name *again* after potential fallback logic above
-    reloaded_active_preset_name = preset_dropdown.value if preset_dropdown else "Default"
-    logger.info(f"Reloading config: Active LLM preset name is '{reloaded_active_preset_name}'.")
+    reloaded_active_preset_name = (
+        preset_dropdown.value if preset_dropdown else "Default"
+    )
+    logger.info(
+        f"Reloading config: Active LLM preset name is '{reloaded_active_preset_name}'."
+    )
 
     # Call the callback to update the Preset Tab's display (e.g., its label)
     if update_preset_tab_callback:
@@ -1544,7 +1555,6 @@ def reload_config_controls(
         logger.warning(
             "Cannot update Preset Tab display during reload: Callback not provided."
         )
-
 
     # Update the page to show changes
     try:
@@ -1570,7 +1580,9 @@ async def reload_config_handler(
         Callable[[], None]
     ] = None,  # Callback type corrected
     # Callback to update the Preset Tab's display
-    update_preset_tab_callback: Optional[Callable[[str], None]] = None, # Signature changed
+    update_preset_tab_callback: Optional[
+        Callable[[str], None]
+    ] = None,  # Signature changed
     # REMOVED: active_preset_name_label_ctrl parameter
     # Add the new callback for text input info
     text_input_info_update_callback: Optional[Callable[[], None]] = None,
@@ -1604,7 +1616,7 @@ async def reload_config_handler(
             all_config_controls,
             config_instance,
             # REMOVED: create_example_row_func,
-            update_preset_tab_callback, # Pass the callback for Preset Tab update
+            update_preset_tab_callback,  # Pass the callback for Preset Tab update
             # REMOVED: active_preset_name_label_ctrl,
         )
         # Show success banner

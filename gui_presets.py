@@ -506,7 +506,9 @@ def create_preset_tab_content(
                     )
                     active_preset_name_label.update()
                     # Update dropdown elsewhere (pass a non-existent name or handle None in callback)
-                    update_config_tab_callback("Default") # Still try to select Default in config tab
+                    update_config_tab_callback(
+                        "Default"
+                    )  # Still try to select Default in config tab
 
         else:
             # Error message handled within delete_preset logging

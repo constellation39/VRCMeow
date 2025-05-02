@@ -110,7 +110,7 @@ class AudioManager:
         )  # Use threading.Event for cross-thread signaling
         self._audio_thread: Optional[threading.Thread] = None
         self._stt_thread: Optional[threading.Thread] = None
-        self._is_running = False # Internal state flag
+        self._is_running = False  # Internal state flag
 
         # Load necessary config values during initialization
         self.sample_rate = config.get("audio.sample_rate")
@@ -360,7 +360,7 @@ class AudioManager:
                     exc_info=True,
                 )
                 # Indicate connection error, set internal running state to False
-                self._is_running = False # Connection failed, we are not running
+                self._is_running = False  # Connection failed, we are not running
                 if self.status_callback:
                     # is_running is now handled by self._is_running (which is False)
                     self._update_status(
@@ -384,7 +384,7 @@ class AudioManager:
                     final_error_msg = f"STT 在 {max_retries} 次重试后连接失败 (模型: '{current_model}')。正在停止 STT 处理。"  # Use current_model
                     logger.critical(final_error_msg)
                     # Indicate final error state: not running, not processing
-                    self._is_running = False # Ensure state is False
+                    self._is_running = False  # Ensure state is False
                     if self.status_callback:
                         # is_running is now handled by self._is_running (which is False)
                         self._update_status(
@@ -396,7 +396,9 @@ class AudioManager:
                 wait_msg = f"将在 {current_delay:.1f} 秒后重试 STT 连接..."
                 logger.info(wait_msg)
                 # Indicate waiting state (not running, still processing/retrying)
-                self._is_running = False # Ensure state is False while waiting for retry
+                self._is_running = (
+                    False  # Ensure state is False while waiting for retry
+                )
                 if self.status_callback:
                     # is_running is now handled by self._is_running (which is False)
                     self._update_status(wait_msg, is_processing=True)
@@ -434,7 +436,7 @@ class AudioManager:
                     f"Error stopping final recognizer instance: {e}", exc_info=True
                 )
                 # Indicate error during stop, set internal state to False
-                self._is_running = False # Ensure state is False on error
+                self._is_running = False  # Ensure state is False on error
                 if self.status_callback:
                     # is_running is now handled by self._is_running (which is False)
                     self._update_status(f"停止 STT 时出错: {e}", is_processing=False)
@@ -643,7 +645,7 @@ class AudioManager:
                 f"Check support for {self.sample_rate} Hz (required by model '{self.stt_model}'), {self.channels} channels, {self.dtype}."
             )
             # Indicate fatal error state, set internal state to False
-            self._is_running = False # Ensure state is False on error
+            self._is_running = False  # Ensure state is False on error
             if self.status_callback:
                 # is_running is now handled by self._is_running (which is False)
                 self._update_status(f"错误: {error_msg}", is_processing=False)
@@ -655,7 +657,7 @@ class AudioManager:
                 f"Verify sample rate ({self.sample_rate} for model '{self.stt_model}'), channels ({self.channels}), dtype ({self.dtype})."
             )
             # Indicate fatal error state, set internal state to False
-            self._is_running = False # Ensure state is False on error
+            self._is_running = False  # Ensure state is False on error
             if self.status_callback:
                 # is_running is now handled by self._is_running (which is False)
                 self._update_status(f"错误: {error_msg}", is_processing=False)
@@ -664,7 +666,7 @@ class AudioManager:
             error_msg = f"Unknown error in audio stream thread: {e}"
             logger.error(error_msg, exc_info=True)
             # Indicate fatal error state, set internal state to False
-            self._is_running = False # Ensure state is False on error
+            self._is_running = False  # Ensure state is False on error
             if self.status_callback:
                 # is_running is now handled by self._is_running (which is False)
                 self._update_status(f"错误: {error_msg}", is_processing=False)
@@ -682,7 +684,7 @@ class AudioManager:
             return
 
         logger.info("Starting AudioManager...")
-        self._is_running = True # Set internal state to True
+        self._is_running = True  # Set internal state to True
         # Indicate processing during overall startup
         if self.status_callback:
             # is_running is now handled by self._is_running
@@ -760,7 +762,7 @@ class AudioManager:
         self._audio_thread = None
         self._stt_thread = None
 
-        self._is_running = False # Set internal state to False AFTER stopping attempts
+        self._is_running = False  # Set internal state to False AFTER stopping attempts
         if audio_stopped and stt_stopped:
             logger.info("AudioManager stopped successfully.")
             # Final status: Stopped, not running, not processing
