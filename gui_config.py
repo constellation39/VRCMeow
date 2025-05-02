@@ -1,7 +1,8 @@
 import flet as ft
-from typing import Dict, Any, Optional, Callable, TYPE_CHECKING, List # Import List
+from typing import Dict, Any, Optional, Callable, TYPE_CHECKING, List
 import logging
 import asyncio
+from openai import AsyncOpenAI, APIConnectionError, AuthenticationError, OpenAIError # Added OpenAI imports
 import copy
 import gui_utils  # Import for close_banner
 from audio_recorder import get_input_devices  # Import device getter
@@ -230,11 +231,26 @@ def create_llm_controls(initial_config: Dict[str, Any]) -> Dict[str, ft.Control]
         hint_text="留空则使用 OpenAI 默认 URL",
         tooltip="用于本地 LLM 或代理 (例如 http://localhost:11434/v1)",
     )
-    controls["llm.model"] = ft.TextField(
+    # --- LLM Model Dropdown and Refresh Button ---
+    initial_model = llm_conf.get("model", "gpt-3.5-turbo") # Get initial value
+    controls["llm.model_dropdown"] = ft.Dropdown(
         label="LLM 模型",
-        value=llm_conf.get("model", "gpt-3.5-turbo"),
-        tooltip="要使用的 OpenAI 兼容模型名称",
+        value=initial_model, # Set initial value
+        options=[
+            # Start with only the configured model as an option
+            # User needs to refresh to see others
+            ft.dropdown.Option(key=initial_model, text=initial_model)
+        ],
+        tooltip="选择要使用的 OpenAI 兼容模型 (点击右侧按钮刷新列表)",
+        expand=True, # Allow dropdown to expand in Row
     )
+    controls["llm.model_refresh_button"] = ft.IconButton(
+        icon=ft.icons.REFRESH,
+        tooltip="刷新 LLM 模型列表 (需要 API Key 和 Base URL)",
+        on_click=None, # Handler assigned later in gui.py or via partial
+    )
+    # --- End LLM Model Dropdown ---
+
     # REMOVED: System Prompt TextField
     # controls["llm.system_prompt"] = ft.TextField(...)
 
@@ -459,12 +475,21 @@ def create_config_tab_content(
     )
 
     # Filter None controls before passing to section
+    llm_model_row = ft.Row(
+        [
+            get_ctrl("llm.model_dropdown"), # Use dropdown
+            get_ctrl("llm.model_refresh_button"), # Add refresh button
+        ],
+        alignment=ft.MainAxisAlignment.START,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER, # Align items vertically
+    )
+
     llm_controls = [
         c for c in [
             get_ctrl("llm.enabled"),
             get_ctrl("llm.api_key"),
             get_ctrl("llm.base_url"),
-            get_ctrl("llm.model"),
+            llm_model_row, # Add the row containing dropdown and button
             # REMOVED: get_ctrl("llm.system_prompt"),
             get_ctrl("llm.temperature"),
             get_ctrl("llm.max_tokens"),
@@ -1080,7 +1105,16 @@ def reload_config_controls(
     # Use the aggregated dictionary of controls
     for key, control in all_config_controls.items():
         # Skip special controls that don't map directly to config keys
-        if key in ["llm.few_shot_examples_column", "llm.add_example_button"]:
+        if key in [
+            "llm.few_shot_examples_column",
+            "llm.add_example_button",
+            "llm.model_refresh_button", # Skip refresh button
+            # "llm.model_dropdown", # Handle dropdown separately below
+        ]:
+            continue
+
+        # Handle dropdown separately
+        if key == "llm.model_dropdown":
             continue
 
         # Get value from the *reloaded* data using nested access if needed
@@ -1126,8 +1160,8 @@ def reload_config_controls(
             # --- Update control based on type ---
             if isinstance(control, ft.Switch):
                 control.value = bool(value) if value is not None else False
-            elif isinstance(control, ft.Dropdown):
-                # --- Special handling for Dropdowns during reload ---
+            elif isinstance(control, ft.Dropdown) and key != "llm.model_dropdown": # Exclude LLM model dropdown for now
+                # --- Special handling for Dropdowns during reload (excluding LLM model) ---
                 current_options = control.options or []
                 options_changed = False
 
@@ -1179,10 +1213,11 @@ def reload_config_controls(
                          else:
                              control.value = None # Reset if options changed and value invalid
 
-            elif isinstance(control, ft.Dropdown) and key == "audio.device": # This block is now redundant due to above logic
-                # Special handling for device dropdown reload
-                # Refresh options in case devices changed? No, keep it simple for now.
-                # Just set the value if it exists in the current options.
+            # REMOVED redundant audio.device handling block
+            # elif isinstance(control, ft.Dropdown) and key == "audio.device":
+            #     ...
+            elif isinstance(control, ft.TextField):
+                # Handle keys where None should be represented as empty string
                 current_options = control.options or []
                 if value is not None and any(
                     opt.key == value for opt in current_options
@@ -1354,6 +1389,89 @@ async def reload_config_handler(
         logger.error(error_msg, exc_info=True)
         # Show error banner
         gui_utils.show_error_banner(page, error_msg)
+
+
+# --- New Function to Fetch LLM Models ---
+async def fetch_and_update_llm_models_dropdown(
+    page: ft.Page, all_config_controls: Dict[str, ft.Control]
+):
+    """Fetches available LLM models from the configured endpoint and updates the dropdown."""
+    logger.info("Attempting to fetch LLM models...")
+
+    # Get necessary config values from controls
+    api_key_ctrl = all_config_controls.get("llm.api_key")
+    base_url_ctrl = all_config_controls.get("llm.base_url")
+    model_dropdown_ctrl = all_config_controls.get("llm.model_dropdown")
+    refresh_button_ctrl = all_config_controls.get("llm.model_refresh_button")
+
+    if not isinstance(model_dropdown_ctrl, ft.Dropdown):
+        logger.error("LLM model dropdown control not found or invalid.")
+        gui_utils.show_error_banner(page, "内部错误：找不到模型下拉菜单控件。")
+        return
+
+    # Disable button during fetch
+    if isinstance(refresh_button_ctrl, ft.IconButton):
+        refresh_button_ctrl.disabled = True
+        page.update() # Show disabled state
+
+    api_key = getattr(api_key_ctrl, "value", None)
+    base_url = getattr(base_url_ctrl, "value", None) or None # Ensure None if empty
+
+    if not api_key:
+        logger.warning("Cannot fetch LLM models: API Key is missing.")
+        gui_utils.show_error_banner(page, "无法获取模型：缺少 LLM API Key。")
+        if isinstance(refresh_button_ctrl, ft.IconButton): # Re-enable button
+            refresh_button_ctrl.disabled = False
+            page.update()
+        return
+
+    try:
+        logger.debug(f"Fetching models using Base URL: {base_url}, Key: {'*' * (len(api_key) - 4) + api_key[-4:] if api_key else 'None'}")
+        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        models_response = await client.models.list()
+        models = sorted([model.id for model in models_response.data], key=str.lower) # Sort case-insensitively
+        logger.info(f"Successfully fetched {len(models)} LLM models.")
+
+        # Preserve current selection if it exists in the new list
+        current_value = model_dropdown_ctrl.value
+        new_options = [ft.dropdown.Option(key=model_id, text=model_id) for model_id in models]
+
+        model_dropdown_ctrl.options = new_options
+        if current_value in models:
+            model_dropdown_ctrl.value = current_value # Keep selection
+        else:
+            # Current value not in new list, maybe select first or leave blank?
+            # Let's select the first one if available
+            model_dropdown_ctrl.value = models[0] if models else None
+            logger.info(f"Previously selected model '{current_value}' not in fetched list. Selecting '{model_dropdown_ctrl.value}'.")
+
+        gui_utils.show_success_banner(page, f"成功获取 {len(models)} 个 LLM 模型。")
+
+    except AuthenticationError:
+        logger.error("LLM Authentication Error: Invalid API Key or Base URL.", exc_info=True)
+        gui_utils.show_error_banner(page, "LLM 认证错误：无效的 API Key 或 Base URL。")
+        model_dropdown_ctrl.options = [ft.dropdown.Option(key="error", text="认证错误", disabled=True)]
+        model_dropdown_ctrl.value = "error"
+    except APIConnectionError as e:
+        logger.error(f"LLM API Connection Error: Could not connect to {base_url or 'default URL'}.", exc_info=True)
+        gui_utils.show_error_banner(page, f"LLM 连接错误：无法连接到 API 端点。 {e}")
+        model_dropdown_ctrl.options = [ft.dropdown.Option(key="error", text="连接错误", disabled=True)]
+        model_dropdown_ctrl.value = "error"
+    except OpenAIError as e: # Catch other OpenAI specific errors
+        logger.error(f"OpenAI API Error during model fetch: {e}", exc_info=True)
+        gui_utils.show_error_banner(page, f"OpenAI API 错误: {e}")
+        model_dropdown_ctrl.options = [ft.dropdown.Option(key="error", text="API 错误", disabled=True)]
+        model_dropdown_ctrl.value = "error"
+    except Exception as e:
+        logger.error(f"Unexpected error fetching LLM models: {e}", exc_info=True)
+        gui_utils.show_error_banner(page, f"获取模型时发生意外错误: {e}")
+        model_dropdown_ctrl.options = [ft.dropdown.Option(key="error", text="未知错误", disabled=True)]
+        model_dropdown_ctrl.value = "error"
+    finally:
+        # Re-enable button
+        if isinstance(refresh_button_ctrl, ft.IconButton):
+            refresh_button_ctrl.disabled = False
+        page.update() # Update dropdown options, value, and button state
 
 
 # --- REMOVED: Few-Shot Example Add/Remove Logic ---
