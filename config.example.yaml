@@ -206,8 +206,10 @@ outputs:
     enabled: false
 
     # 输出文件路径 (必需, 如果 enabled 为 true)
-    # 指定用于记录输出文本的文件路径。可以使用相对路径或绝对路径。
-    path: "vrcmeow_output.log"
+    # 指定用于记录输出文本的文件路径。
+    # - 如果使用相对路径 (例如 "vrcmeow_output.log")，文件将保存在用户目录的 vrc_meow 文件夹中。
+    # - 如果使用绝对路径 (例如 "C:/my_logs/vrcmeow_output.log" 或 "/home/user/my_logs/vrcmeow_output.log")，将使用该指定路径。
+    path: "vrcmeow_output.log" # 默认保存在 vrc_meow 文件夹中
 
     # 文件记录格式字符串 (可选)
     # 定义写入文件的每行内容的格式。
@@ -242,4 +244,6 @@ logging:
 
     # 应用程序日志文件路径 (必需, 如果 enabled 为 true)
     # 指定保存应用程序运行日志的文件路径。
-    path: "vrcmeow_app.log"
+    # - 如果使用相对路径 (例如 "vrcmeow_app.log")，文件将保存在用户目录的 vrc_meow 文件夹中。
+    # - 如果使用绝对路径 (例如 "C:/my_logs/vrcmeow_app.log" 或 "/home/user/my_logs/vrcmeow_app.log")，将使用该指定路径。
+    path: "vrcmeow_app.log" # 默认保存在 vrc_meow 文件夹中
