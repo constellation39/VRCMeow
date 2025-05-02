@@ -41,7 +41,7 @@ import gui_utils
 import prompt_presets # Import the missing module
 from gui_config import (
     create_audio_controls,
-    create_config_example_row,
+    # REMOVED: create_config_example_row,
     create_config_tab_content,
     create_console_output_controls,
     create_dashscope_controls,
@@ -49,7 +49,7 @@ from gui_config import (
     create_llm_controls,
     create_logging_controls,
     create_vrc_osc_controls,
-    add_example_handler,
+    # REMOVED: add_example_handler,
     reload_config_handler,
     save_config_handler,
     update_llm_config_ui, # Import the missing function
