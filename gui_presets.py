@@ -58,7 +58,8 @@ def create_preset_management_dialog_content(
         if current_value not in preset_names:
             preset_select_dd.value = None
         # Update the dialog content to show the refreshed dropdown
-        if page.window_exists(): dialog_ref.update()
+        # Removed window_exists check
+        dialog_ref.update()
 
     async def load_selected_preset(e: ft.ControlEvent):
         """Loads the selected preset into the main config UI."""
@@ -66,7 +67,8 @@ def create_preset_management_dialog_content(
         if not selected_name:
             status_text.value = "请先选择一个预设。"
             status_text.color = ft.colors.ERROR
-            if page.window_exists(): dialog_ref.update() # Update dialog content
+            # Removed window_exists check
+            dialog_ref.update() # Update dialog content
             return
 
         logger.info(f"Loading preset '{selected_name}' into main config UI...")
@@ -84,7 +86,8 @@ def create_preset_management_dialog_content(
                 logger.info(f"Preset '{selected_name}' loaded successfully into UI.")
                 # Close the dialog after loading
                 dialog_ref.open = False
-                if page.window_exists(): page.update() # Update page to close dialog
+                # Removed window_exists check
+                page.update() # Update page to close dialog
                 return # Exit after closing dialog
             except Exception as load_err:
                 error_msg = f"加载预设 '{selected_name}' 到 UI 时出错: {load_err}"
@@ -96,7 +99,8 @@ def create_preset_management_dialog_content(
             status_text.color = ft.colors.ERROR
             logger.error(f"Preset data not found for '{selected_name}' during load.")
 
-        if page.window_exists(): dialog_ref.update() # Update dialog content if not closed
+        # Removed window_exists check
+        dialog_ref.update() # Update dialog content if not closed
 
     async def save_current_as_preset(e: ft.ControlEvent):
         """Saves the current values from the main config UI as a preset."""
@@ -104,7 +108,8 @@ def create_preset_management_dialog_content(
         if not preset_name_to_save or not preset_name_to_save.strip():
             status_text.value = "请输入要保存的预设名称。"
             status_text.color = ft.colors.ERROR
-            if page.window_exists(): dialog_ref.update()
+            # Removed window_exists check
+            dialog_ref.update()
             return
 
         preset_name_to_save = preset_name_to_save.strip()
@@ -120,7 +125,8 @@ def create_preset_management_dialog_content(
             logger.error("Could not find system prompt control to save preset.")
             status_text.value = "错误：找不到系统提示控件。"
             status_text.color = ft.colors.ERROR
-            if page.window_exists(): dialog_ref.update()
+            # Removed window_exists check
+            dialog_ref.update()
             return
 
         current_few_shot_examples = []
@@ -142,13 +148,15 @@ def create_preset_management_dialog_content(
                 logger.error(f"Error reading few-shot examples from UI: {ex}", exc_info=True)
                 status_text.value = "错误：读取 Few-Shot 示例时出错。"
                 status_text.color = ft.colors.ERROR
-                if page.window_exists(): dialog_ref.update()
+                # Removed window_exists check
+                dialog_ref.update()
                 return
         else:
             logger.error("Could not find few-shot examples column control to save preset.")
             status_text.value = "错误：找不到 Few-Shot 示例控件。"
             status_text.color = ft.colors.ERROR
-            if page.window_exists(): dialog_ref.update()
+            # Removed window_exists check
+            dialog_ref.update()
             return
 
         logger.info(f"Attempting to save current UI values as preset '{preset_name_to_save}'...")
@@ -163,7 +171,8 @@ def create_preset_management_dialog_content(
             active_preset_label = all_config_controls.get("llm.active_preset_name_label")
             if isinstance(active_preset_label, ft.Text):
                  active_preset_label.value = f"当前预设: {preset_name_to_save}"
-                 if page.window_exists(): page.update() # Update main page UI
+                 # Removed window_exists check
+                 page.update() # Update main page UI
             else:
                  logger.warning("Could not update active preset label on main page after save.")
 
@@ -172,7 +181,8 @@ def create_preset_management_dialog_content(
             status_text.color = ft.colors.ERROR
             logger.error(f"Failed to save preset '{preset_name_to_save}'.")
 
-        if page.window_exists(): dialog_ref.update() # Update dialog content
+        # Removed window_exists check
+        dialog_ref.update() # Update dialog content
 
     async def delete_selected_preset(e: ft.ControlEvent):
         """Deletes the preset selected in the dropdown."""
@@ -180,13 +190,15 @@ def create_preset_management_dialog_content(
         if not selected_name:
             status_text.value = "请先选择要删除的预设。"
             status_text.color = ft.colors.ERROR
-            if page.window_exists(): dialog_ref.update()
+            # Removed window_exists check
+            dialog_ref.update()
             return
 
         if selected_name == "Default":
             status_text.value = "无法删除 'Default' 预设。"
             status_text.color = ft.colors.ERROR
-            if page.window_exists(): dialog_ref.update()
+            # Removed window_exists check
+            dialog_ref.update()
             return
 
         logger.warning(f"Attempting to delete preset '{selected_name}'...")
@@ -220,7 +232,8 @@ def create_preset_management_dialog_content(
             status_text.color = ft.colors.ERROR
             logger.error(f"Failed to delete preset '{selected_name}'.")
 
-        if page.window_exists(): dialog_ref.update() # Update dialog content
+        # Removed window_exists check
+        dialog_ref.update() # Update dialog content
 
     # --- Dialog Content Layout ---
     content = ft.Column(
