@@ -10,7 +10,7 @@ from prompt_presets import load_presets, get_preset, save_preset, delete_preset
 import gui_utils
 
 if TYPE_CHECKING:
-    from config import Config # For type hinting if needed
+    from config import Config # For type hinting
 
 logger = logging.getLogger(__name__)
 
@@ -110,27 +110,48 @@ UpdateConfigUICallback = Callable[[str], None]
 
 def create_preset_tab_content(
     page: ft.Page,
-    # REMOVED: all_config_controls: Dict[str, ft.Control],
+    config_instance: "Config", # Add config instance parameter
     update_config_ui_callback: UpdateConfigUICallback, # Callback to update main Config Tab UI's label
 ) -> Dict[str, ft.Control]:
-    """Creates the content Column for the Preset Management Tab and returns key controls."""
+    """
+    Creates the content Column for the Preset Management Tab, initializes it
+    with the currently active preset from config, and returns key controls.
+    """
 
     presets_data = load_presets()
     preset_names = sorted(list(presets_data.keys()))
 
-    # --- UI Controls ---
+    # --- Get the initially active preset name from config ---
+    initial_active_preset_name = config_instance.get("llm.active_preset_name", "Default")
+    logger.info(f"Preset Tab: Initial active preset name from config: '{initial_active_preset_name}'")
+
+    # --- Load the initial preset's data ---
+    initial_preset_data = get_preset(initial_active_preset_name)
+    if not initial_preset_data:
+        logger.warning(f"Preset Tab: Initial active preset '{initial_active_preset_name}' not found. Falling back to 'Default'.")
+        initial_active_preset_name = "Default" # Fallback to Default name
+        initial_preset_data = get_preset(initial_active_preset_name)
+        if not initial_preset_data:
+             logger.error("Preset Tab: CRITICAL - Failed to load even the 'Default' preset data. UI will be empty.")
+             # Set empty defaults if even 'Default' fails
+             initial_preset_data = {"system_prompt": "", "few_shot_examples": []}
+
+    initial_system_prompt = initial_preset_data.get("system_prompt", "")
+    initial_few_shot_examples = initial_preset_data.get("few_shot_examples", [])
+
+    # --- UI Controls (Initialized with loaded preset data) ---
     preset_select_dd = ft.Dropdown(
         label="选择预设",
         options=[ft.dropdown.Option(name) for name in preset_names],
-        value=None, # Start with no selection
-        tooltip="选择一个预设以加载其设置到主配置表单",
+        # Set initial value if it exists in the options
+        value=initial_active_preset_name if initial_active_preset_name in preset_names else None,
+        tooltip="选择一个预设以加载其设置到下方的编辑区域", # Updated tooltip
         expand=True,
     )
 
-    # Label to display the currently active preset name (lives in this tab now)
-    # Initial value will be set later based on config
+    # Label to display the currently active preset name
     active_preset_name_label = ft.Text(
-        "当前活动预设: Default", # Default initial text
+        f"当前活动预设: {initial_active_preset_name}", # Set initial text based on loaded preset
         italic=True,
         color=ft.colors.SECONDARY,
         size=12,
@@ -139,7 +160,7 @@ def create_preset_tab_content(
     # --- Preset Content Editing Controls ---
     system_prompt_tf = ft.TextField(
         label="系统提示 (System Prompt)",
-        value="", # Start empty, populated on load
+        value=initial_system_prompt, # Set initial value
         multiline=True,
         min_lines=4,
         max_lines=8,
@@ -147,13 +168,47 @@ def create_preset_tab_content(
         expand=True,
     )
 
+    # Populate initial few-shot examples
+    initial_few_shot_rows = []
+    if isinstance(initial_few_shot_examples, list):
+        for example in initial_few_shot_examples:
+            if isinstance(example, dict) and "user" in example and "assistant" in example:
+                # Need a temporary column reference here for row creation,
+                # will be replaced by the actual column below.
+                # This is slightly awkward, maybe refactor create_preset_example_row later.
+                temp_col_ref = ft.Column() # Dummy column for now
+                row = create_preset_example_row(
+                    page, temp_col_ref, example.get("user", ""), example.get("assistant", "")
+                )
+                initial_few_shot_rows.append(row)
+
     few_shot_column = ft.Column(
-        controls=[], # Start empty, populated on load
+        controls=initial_few_shot_rows, # Set initial controls
         spacing=5,
-        scroll=ft.ScrollMode.ADAPTIVE, # Allow scrolling within the column if needed
-        # Set a max height to prevent infinite growth? Or let the tab scroll? Let tab scroll for now.
-        # height=200,
+        scroll=ft.ScrollMode.ADAPTIVE,
     )
+    # Now, fix the column reference in the already created rows
+    for row in few_shot_column.controls:
+        if isinstance(row, ft.Row) and len(row.controls) > 0:
+             remove_button = row.controls[-1] # Assume remove button is last
+             if isinstance(remove_button, ft.IconButton):
+                 # Re-create the remove handler with the correct column reference
+                 # This requires modifying create_preset_example_row or handling it here.
+                 # Let's handle it here for now by re-assigning on_click.
+                 async def remove_this_row_wrapper(e_remove: ft.ControlEvent, row_to_remove=row):
+                     if row_to_remove in few_shot_column.controls:
+                         few_shot_column.controls.remove(row_to_remove)
+                         logger.debug("Removed few-shot example row from preset tab.")
+                         try:
+                             few_shot_column.update()
+                         except Exception as e:
+                             logger.error(f"Error updating preset few-shot column after removing row: {e}", exc_info=True)
+                     else:
+                         logger.warning("Attempted to remove a row not found in the preset column.")
+
+                 remove_button.on_click = remove_this_row_wrapper
+                 remove_button.data = row # Ensure data is still set
+
 
     add_example_button = ft.TextButton(
         "添加 Few-Shot 示例",
@@ -166,7 +221,8 @@ def create_preset_tab_content(
 
     new_preset_name_tf = ft.TextField(
         label="新预设名称",
-        tooltip="输入要保存的新预设的名称 (将使用下方编辑区域中的当前值)", # Updated tooltip
+        value=initial_active_preset_name, # Set initial value to loaded preset name
+        tooltip="输入要保存的新预设的名称 (将使用下方编辑区域中的当前值)",
         expand=True,
     )
 

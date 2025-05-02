@@ -707,9 +707,10 @@ def main(page: ft.Page):
 
     # --- Create Preset Tab Content ---
     # This function now returns a dictionary with content and key controls
+    # Pass the config instance to initialize with the active preset
     preset_tab_elements = create_preset_tab_content(
         page=page,
-        # REMOVED: all_config_controls=all_config_controls,
+        config_instance=config, # Pass the config instance
         update_config_ui_callback=None, # Will be set after partial is created below
     )
     preset_tab_layout = preset_tab_elements.get("content")
@@ -733,9 +734,10 @@ def main(page: ft.Page):
     # or we modify it to accept the callback after creation.
     # Let's assume create_preset_tab_content needs the callback passed in.
     # Re-create the elements with the callback now defined.
+    # Pass config instance again during re-creation
     preset_tab_elements = create_preset_tab_content(
         page=page,
-        # REMOVED: all_config_controls=all_config_controls,
+        config_instance=config, # Pass config instance again
         update_config_ui_callback=update_llm_ui_partial, # Pass the created partial
     )
     preset_tab_layout = preset_tab_elements.get("content")
@@ -1076,37 +1078,38 @@ def main(page: ft.Page):
 
     page.run_task(periodic_log_update)
 
-    # --- Initial Population of LLM Active Preset Label ---
-    logger.debug("Initial population of LLM active preset label.")
-    try:
-        # Get active preset name from initial config data
-        initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
-        logger.info(f"Initial active preset from config: '{initial_active_preset}'")
-
-        # Call the update UI partial function to set the label
-        # The partial now only takes the label control (already bound) and the name
-        update_llm_ui_partial(
-            # active_preset_name_label_ctrl is already bound in the partial
-            initial_active_preset, # Pass the name to set the label correctly
-        )
-        logger.info(f"LLM Active Preset label initialized with preset '{initial_active_preset}'.")
-
-        # Also set the initial value for the dropdown in the Preset Tab
-        preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
-        if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
-             # Ensure the active preset exists in the options before setting
-             if any(opt.key == initial_active_preset for opt in preset_select_dd_ctrl.options):
-                 preset_select_dd_ctrl.value = initial_active_preset
-                 logger.debug(f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'.")
-             else:
-                  logger.warning(f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected.")
-                  preset_select_dd_ctrl.value = None # Explicitly set to None
-        else:
-             logger.warning("Could not find preset dropdown control in Preset Tab elements to set initial value.")
-
-    except Exception as llm_init_err:
-        logger.error(f"Error during initial LLM config UI population: {llm_init_err}", exc_info=True)
-        gui_utils.show_error_banner(page, "初始化 LLM 配置 UI 时出错")
+    # --- Initial Population of LLM Active Preset Label (REMOVED) ---
+    # This is now handled directly within create_preset_tab_content using the config instance.
+    # logger.debug("Initial population of LLM active preset label.")
+    # try:
+    #     # Get active preset name from initial config data
+    #     initial_active_preset = initial_config_data.get("llm", {}).get("active_preset_name", "Default")
+    #     logger.info(f"Initial active preset from config: '{initial_active_preset}'")
+    #
+    #     # Call the update UI partial function to set the label
+    #     # The partial now only takes the label control (already bound) and the name
+    #     update_llm_ui_partial(
+    #         # active_preset_name_label_ctrl is already bound in the partial
+    #         initial_active_preset, # Pass the name to set the label correctly
+    #     )
+    #     logger.info(f"LLM Active Preset label initialized with preset '{initial_active_preset}'.")
+    #
+    #     # Also set the initial value for the dropdown in the Preset Tab
+    #     preset_select_dd_ctrl = preset_tab_elements.get("preset_select_dd")
+    #     if preset_select_dd_ctrl and isinstance(preset_select_dd_ctrl, ft.Dropdown):
+    #          # Ensure the active preset exists in the options before setting
+    #          if any(opt.key == initial_active_preset for opt in preset_select_dd_ctrl.options):
+    #              preset_select_dd_ctrl.value = initial_active_preset
+    #              logger.debug(f"Set initial value of Preset Tab dropdown to '{initial_active_preset}'.")
+    #          else:
+    #               logger.warning(f"Initial active preset '{initial_active_preset}' not found in Preset Tab dropdown options. Leaving dropdown unselected.")
+    #               preset_select_dd_ctrl.value = None # Explicitly set to None
+    #     else:
+    #          logger.warning("Could not find preset dropdown control in Preset Tab elements to set initial value.")
+    #
+    # except Exception as llm_init_err:
+    #     logger.error(f"Error during initial LLM config UI population: {llm_init_err}", exc_info=True)
+    #     gui_utils.show_error_banner(page, "初始化 LLM 配置 UI 时出错")
 
 
     # --- Initial Dashboard Info Population ---
